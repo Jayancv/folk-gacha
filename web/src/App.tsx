@@ -1,128 +1,47 @@
-import { useEffect, useState } from 'react';
-import { PhaserGame } from './PhaserGame';
-import { ApiStatus } from './app/ApiStatus';
-import { EventBus } from './bridge/EventBus';
-import { GameEvents, MergeBoardEvents, PackOpenEvents, type GameScene, type PackShowPayload } from './bridge/events';
-import { useBridgeEvent } from './bridge/useBridgeEvent';
-import { seasonSource, templateSource, type CardSource } from './dev/fakePack';
-import { FakeGameServer } from './dev/fakeServer';
-import { loadSeasonCatalog } from './dev/seasonCatalog';
-import { BOARD_SIZE } from './game/merge/boardModel';
+import { lazy, Suspense } from 'react';
+import { useMe } from './auth/useAuth';
+import { SignIn } from './screens/SignIn';
 
-// Phase 1: the collection, packs and merges are faked in the browser from the Season 1
-// catalog. In Phase 2 these become API calls (POST /packs/daily/claim, POST /merges, GET /cards).
-// Add ?showcase to the URL to get one card of every rarity in each pack.
-function makeServer (source: CardSource): FakeGameServer
+// The game (and Phaser with it) loads only after sign-in, so the first screen is fast on phones.
+const Game = lazy(() => import('./Game'));
+
+function Splash ({ children }: { children: React.ReactNode })
 {
-    const showcase = new URLSearchParams(location.search).has('showcase');
-    return new FakeGameServer({ source, packSource: () => (showcase ? source.showcase() : source.pack()) });
-}
-
-const TABS: { scene: GameScene; label: string; icon: string }[] = [
-    { scene: 'PackOpen', label: 'Pack', icon: 'M4 7h16v12H4zM7 4h10v3H7z' },
-    { scene: 'MergeBoard', label: 'Board', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' }
-];
-
-function App()
-{
-    const [server, setServer] = useState<FakeGameServer | null>(null);
-
-    useEffect(() =>
-    {
-        let cancelled = false;
-        loadSeasonCatalog()
-            .then(catalog => seasonSource(catalog))
-            .catch((err: unknown) =>
-            {
-                console.warn('Season catalog unavailable, using plain template cards', err);
-                return templateSource;
-            })
-            .then(source =>
-            {
-                if (!cancelled)
-                {
-                    setServer(makeServer(source));
-                }
-            });
-        return () =>
-        {
-            cancelled = true;
-        };
-    }, []);
-
-    if (!server)
-    {
-        return <div id="app" className="grid place-items-center text-sm text-[#bba595]">Loading cards…</div>;
-    }
-    return <Table server={server} />;
-}
-
-// The game table: Phaser plus the React UI around it. Phaser drives the table;
-// React only re-renders for its own UI.
-function Table ({ server }: { server: FakeGameServer })
-{
-    const [scene, setScene] = useState<GameScene>('PackOpen');
-    const [packDone, setPackDone] = useState(false);
-
-    const showPack = (cards: PackShowPayload['cards']) =>
-    {
-        setPackDone(false);
-        EventBus.emit(PackOpenEvents.Show, { cards });
-    };
-
-    const dealNewPack = () => showPack(server.claimPack());
-
-    // Coming back to the Pack tab re-shows the current pack instead of granting a new one.
-    useBridgeEvent(PackOpenEvents.Ready, () => showPack(server.packToShow().cards));
-    useBridgeEvent(PackOpenEvents.Complete, () => setPackDone(true));
-
-    useBridgeEvent(MergeBoardEvents.Ready, () => EventBus.emit(MergeBoardEvents.Show, server.board(BOARD_SIZE)));
-    useBridgeEvent(MergeBoardEvents.MergeRequested, ({ requestId, cardIds }) =>
-    {
-        server.merge(requestId, cardIds, result => EventBus.emit(MergeBoardEvents.MergeResult, result));
-    });
-
-    const switchTo = (next: GameScene) =>
-    {
-        setScene(next);
-        EventBus.emit(GameEvents.SwitchScene, { scene: next });
-    };
-
     return (
-        <div id="app">
-            <PhaserGame />
-            <ApiStatus />
-
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-                {scene === 'PackOpen' && packDone && (
-                    <button
-                        className="pointer-events-auto rounded-full bg-[#e7b54a] px-6 py-3 text-base font-bold text-[#170e10] shadow-lg active:scale-95"
-                        onClick={dealNewPack}
-                    >
-                        Open another pack (dev)
-                    </button>
-                )}
-
-                <nav className="pointer-events-auto flex gap-1 rounded-2xl border border-[#3b2529] bg-[#22151a]/90 p-1 shadow-lg backdrop-blur">
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.scene}
-                            onClick={() => switchTo(tab.scene)}
-                            aria-current={scene === tab.scene ? 'page' : undefined}
-                            className={`flex min-w-24 flex-col items-center gap-0.5 rounded-xl px-5 py-2 text-xs font-bold tracking-wide ${
-                                scene === tab.scene ? 'bg-[#e7b54a] text-[#170e10]' : 'text-[#bba595] active:bg-white/5'
-                            }`}
-                        >
-                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-                                <path d={tab.icon} />
-                            </svg>
-                            {tab.label}
-                        </button>
-                    ))}
-                </nav>
-            </div>
+        <div id="app" className="grid place-items-center bg-[#170e10] px-6 text-center text-sm text-[#bba595]">
+            {children}
         </div>
     );
 }
 
-export default App
+function App ()
+{
+    const me = useMe();
+
+    if (me.isPending)
+    {
+        return <Splash>Loading…</Splash>;
+    }
+    if (me.isError)
+    {
+        return (
+            <Splash>
+                <p>
+                    Can't reach the game server.{' '}
+                    <button className="text-[#e7b54a] underline" onClick={() => me.refetch()}>Retry</button>
+                </p>
+            </Splash>
+        );
+    }
+    if (!me.data)
+    {
+        return <SignIn />;
+    }
+    return (
+        <Suspense fallback={<Splash>Loading cards…</Splash>}>
+            <Game me={me.data} />
+        </Suspense>
+    );
+}
+
+export default App;

@@ -1,0 +1,19 @@
+# sqlc: compiles db/queries/*.sql into type-safe Go in internal/store.
+# Regenerate (sqlc needs cgo, so it runs in Docker; see CLAUDE.md Commands):
+#   docker run --rm -v "${PWD}:/src" -w /src sqlc/sqlc:1.29.0 generate
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries
+    gen:
+      go:
+        package: store
+        out: internal/store
+        sql_package: pgx/v5
+        emit_json_tags: false
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: timestamptz
+            go_type: time.Time

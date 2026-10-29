@@ -21,7 +21,8 @@ export default defineConfig({
         // Forward /api/* to the Go server so the browser sees one origin.
         proxy: {
             '/api': {
-                target: 'http://localhost:8081',
+                // API_PROXY_TARGET overrides the Go server address (default :8081).
+                target: process.env.API_PROXY_TARGET ?? 'http://localhost:8081',
                 rewrite: (path) => path.replace(/^\/api/, '')
             }
         }

@@ -9,6 +9,8 @@ info:
 servers:
   - url: http://localhost:8081
     description: Local development
+security:
+  - session: []
 paths:
   /health:
     get:
@@ -28,7 +30,132 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /auth/config:
+    get:
+      operationId: getAuthConfig
+      summary: Which sign-in options this server offers
+      security: []
+      responses:
+        "200":
+          description: Sign-in options
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthConfig"
+  /auth/google:
+    post:
+      operationId: signInWithGoogle
+      summary: Sign in with a Google ID token (creates the account on first sign-in)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential:
+                  type: string
+                  description: The ID token (JWT) from Google Identity Services
+      responses:
+        "200":
+          description: Signed in; the session cookie is set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: The Google token is invalid, expired, or for another app
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Google sign-in is not configured on this server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/dev:
+    post:
+      operationId: signInDev
+      summary: Development-only sign-in by name (disabled unless DEV_LOGIN=1)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 20
+      responses:
+        "200":
+          description: Signed in; the session cookie is set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "400":
+          description: Name has no usable characters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Dev sign-in is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: End the current session
+      responses:
+        "204":
+          description: Signed out; the session cookie is cleared
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+  /me:
+    get:
+      operationId: getMe
+      summary: The signed-in player's profile
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: fg_session
+      description: HttpOnly session cookie set by the sign-in endpoints
   schemas:
     Health:
       type: object
@@ -44,3 +171,38 @@ components:
           type: string
           format: date-time
           description: Current server time in UTC
+    AuthConfig:
+      type: object
+      required: [devLogin]
+      properties:
+        googleClientId:
+          type: string
+          description: OAuth client ID for the Google sign-in button; absent if Google sign-in is off
+        devLogin:
+          type: boolean
+          description: Whether POST /auth/dev is enabled (local development only)
+    Me:
+      type: object
+      required: [id, username, createdAt, tradeUnlockedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        tradeUnlockedAt:
+          type: string
+          format: date-time
+          description: When this account may start trading (created + 7 days, UTC)
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Machine-readable code, e.g. invalid_token, not_signed_in
+        message:
+          type: string

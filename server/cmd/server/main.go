@@ -13,7 +13,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"cardgame/server/internal/auth"
+	"cardgame/server/internal/config"
 	httpapi "cardgame/server/internal/http"
+	"cardgame/server/internal/store"
 )
 
 const defaultDatabaseURL = "postgres://cardgame:cardgame@localhost:55432/cardgame?sslmode=disable"
@@ -26,12 +29,29 @@ func main() {
 }
 
 func run() error {
+	// Local settings from the repo's .env (real environment variables win).
+	envFile, err := config.LoadDotEnv()
+	if err != nil {
+		return err
+	}
+	if envFile != "" {
+		slog.Info("loaded settings", "file", envFile)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	port := env("PORT", "8081")
 	dbURL := env("DATABASE_URL", defaultDatabaseURL)
 	origins := strings.Split(env("ALLOWED_ORIGINS", "http://localhost:8080"), ",")
+
+	// APP_ENV=prod in the Docker image; local `go run` defaults to dev.
+	appEnv := env("APP_ENV", "dev")
+	devLogin := os.Getenv("DEV_LOGIN") == "1"
+	if devLogin && appEnv != "dev" {
+		return errors.New("DEV_LOGIN=1 is only allowed with APP_ENV=dev (anyone could sign in as anyone)")
+	}
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
 
 	cfg, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
@@ -48,9 +68,19 @@ func run() error {
 	}
 	defer pool.Close()
 
+	authOpts := httpapi.AuthOptions{
+		GoogleClientID: googleClientID,
+		DevLogin:       devLogin,
+		SecureCookies:  appEnv != "dev",
+	}
+	if googleClientID != "" {
+		authOpts.Verifier = auth.NewGoogleVerifier(ctx, googleClientID)
+	}
+	slog.Info("sign-in", "env", appEnv, "google", googleClientID != "", "devLogin", devLogin)
+
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           httpapi.NewServer(pool).Handler(origins),
+		Handler:           httpapi.NewServer(pool, auth.NewService(store.New(pool)), authOpts).Handler(origins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

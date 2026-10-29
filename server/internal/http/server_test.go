@@ -28,7 +28,7 @@ func TestGetHealth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer(tt.db)
+			s := NewServer(tt.db, nil, AuthOptions{})
 			s.now = func() time.Time { return time.Date(2026, 1, 1, 23, 59, 0, 0, time.FixedZone("x", 5*3600)) }
 
 			rec := httptest.NewRecorder()
@@ -52,7 +52,7 @@ func TestGetHealth(t *testing.T) {
 }
 
 func TestCORS(t *testing.T) {
-	h := NewServer(fakeDB{}).Handler([]string{"https://game.example"})
+	h := NewServer(fakeDB{}, nil, AuthOptions{}).Handler([]string{"https://game.example"})
 
 	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
 	req.Header.Set("Origin", "https://game.example")
