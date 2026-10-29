@@ -6,8 +6,8 @@ import { cameraFx, createBursts, vibrate, type Bursts } from '../cards/effects';
 import { PALETTE, RARITY_STYLE } from '../cards/model';
 import { REVEAL_FX } from '../cards/revealFx';
 import { ensureFxTextures, ensureTableBackground, FX, releaseFaceTextures, textureScaleFor } from '../cards/textures';
-import { EventBus } from '../EventBus';
-import { PackOpenEvents, type CardRevealedPayload, type PackShowPayload } from '../events';
+import { EventBus } from '../../bridge/EventBus';
+import { PackOpenEvents, type CardRevealedPayload, type PackShowPayload } from '../../bridge/events';
 import { DESIGN_WIDTH, type Viewport } from '../layout';
 import { revealHint, summaryText } from '../pack/packModel';
 import { coverVisible, ResponsiveScene } from '../ResponsiveScene';
@@ -94,7 +94,7 @@ export class PackOpen extends ResponsiveScene
         this.input.on('pointermove', this.onPointerMove, this);
         this.input.on('pointerup', this.onPointerUp, this);
 
-        this.listen(EventBus, PackOpenEvents.Show, this.onShow);
+        this.onBridge(PackOpenEvents.Show, this.onShow);
         this.events.once('shutdown', () => this.clearPack());
 
         EventBus.emit(PackOpenEvents.Ready);

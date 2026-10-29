@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MergeResultPayload } from '../game/events';
+import type { MergeResultPayload } from '../bridge/events';
 import { makeCard, TEMPLATES } from './fakePack';
 import { FakeGameServer } from './fakeServer';
 

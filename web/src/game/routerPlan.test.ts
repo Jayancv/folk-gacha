@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GameScene } from './events';
+import type { GameScene } from '../bridge/events';
 import { planSceneSwitch } from './routerPlan';
 
 const running = (...scenes: GameScene[]) => (s: GameScene) => scenes.includes(s);

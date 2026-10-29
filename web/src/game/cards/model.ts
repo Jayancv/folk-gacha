@@ -18,6 +18,47 @@ export interface CardData
     level: number;
     score: number;
     lore: string;
+    /** Card-season fields. Absent on plain template cards (tests, old fakes). */
+    season?: SeasonCardInfo;
+}
+
+/** Where a card sits in its card season and how it looks (see server/seasons/README.md). */
+export interface SeasonCardInfo
+{
+    /** Catalog id, e.g. "s1-0042". */
+    seasonCardId: string;
+    setNo: number;
+    setSize: number;
+    /** Spirit name without traits, e.g. "Gaja Calf". */
+    title: string;
+    /** Name minus the title, e.g. "Brightly Moonlit · of Kandy"; empty when plain. */
+    subtitle: string;
+    art: CardArt;
+}
+
+export type TraitIntensity = 1 | 2 | 3;
+export type Foil = 'none' | 'gold' | 'holo';
+
+/** Trait visuals, resolved to concrete values (palette colours, stamp label). */
+export interface CardArt
+{
+    /** Background pattern id (liyawala, pala-pethi, sandakada, …). */
+    pattern: string;
+    /** [base, accent] background colours. */
+    palette: [string, string];
+    /** Prefix colour wash, e.g. Moonlit = pale blue. */
+    tint?: string;
+    /** Prefix effect id (moonglow, rain, embers, …). */
+    effect?: string;
+    accessory?: string;
+    texture?: string;
+    /** 1–3: how strong the prefix effect is (Brightly, Radiantly …). */
+    intensity: TraitIntensity;
+    /** Seal on the art; absent for no stamp. */
+    stamp?: { id: string; label: string };
+    foil: Foil;
+    /** Seeds small random details so a card looks the same on every device. */
+    seed: number;
 }
 
 export const MAX_LEVEL = 5;

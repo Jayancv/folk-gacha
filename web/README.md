@@ -46,10 +46,10 @@ We have provided a default project structure to get you started. This is as foll
 | `index.html`                  | A basic HTML page to contain the game.                                     |
 | `src`                         | Contains the React client source code.                                     |
 | `src/main.tsx`                | The main **React** entry point. This bootstraps the React application.      |
-| `src/PhaserGame.tsx`          | The React component that initializes the Phaser Game and acts as a bridge between React and Phaser. |
+| `src/PhaserGame.tsx`          | The React component that mounts the Phaser game.                           |
 | `src/vite-env.d.ts`           | Global TypeScript declarations, providing type information.                |
 | `src/App.tsx`                 | The main React component.                                                  |
-| `src/game/EventBus.ts`        | A simple event bus to communicate between React and Phaser.                |
+| `src/bridge/`                 | Typed event bus and event contract between React and Phaser.               |
 | `src/game`                    | Contains the game source code.                                             |
 | `src/game/main.tsx`           | The main **game** entry point. This contains the game configuration and starts the game. |
 | `src/game/scenes/`            | The folder where Phaser Scenes are located.                                |
@@ -58,90 +58,26 @@ We have provided a default project structure to get you started. This is as foll
 
 ## React Bridge
 
-The `PhaserGame.tsx` component is the bridge between React and Phaser. It initializes the Phaser game and passes events between the two.
+React and Phaser talk only through the typed event bus in `src/bridge/`:
 
-To communicate between React and Phaser, you can use the **EventBus.js** file. This is a simple event bus that allows you to emit and listen for events from both React and Phaser.
-
-```js
-// In React
-import { EventBus } from './EventBus';
-
-// Emit an event
-EventBus.emit('event-name', data);
-
-// In Phaser
-// Listen for an event
-EventBus.on('event-name', (data) => {
-    // Do something with the data
-});
-```
-
-In addition to this, the `PhaserGame` component exposes the Phaser game instance along with the most recently active Phaser Scene using React forwardRef.
-
-Once exposed, you can access them like any regular react reference.
-
-## Phaser Scene Handling
-
-In Phaser, the Scene is the lifeblood of your game. It is where you sprites, game logic and all of the Phaser systems live. You can also have multiple scenes running at the same time. This template provides a way to obtain the current active scene from React.
-
-You can get the current Phaser Scene from the component event `"current-active-scene"`. In order to do this, you need to emit the event `"current-scene-ready"` from the Phaser Scene class. This event should be emitted when the scene is ready to be used. You can see this done in all of the Scenes in our template.
-
-**Important**: When you add a new Scene to your game, make sure you expose to React by emitting the `"current-scene-ready"` event via the `EventBus`, like this:
-
+| File | Purpose |
+| --- | --- |
+| `bridge/events.ts` | Every event name, its direction and payload type (`BridgeEvents`) |
+| `bridge/EventBus.ts` | The bus. Unknown events or wrong payloads are compile errors. No Phaser import. |
+| `bridge/useBridgeEvent.ts` | React hook: subscribe while a component is mounted |
 
 ```ts
-class MyScene extends Phaser.Scene
-{
-    constructor ()
-    {
-        super('MyScene');
-    }
+// React
+useBridgeEvent(MergeBoardEvents.MergeRequested, ({ requestId, cardIds }) => { /* call the API */ });
+EventBus.emit(PackOpenEvents.Show, { cards });
 
-    create ()
-    {
-        // Your Game Objects and logic here
-
-        // At the end of create method:
-        EventBus.emit('current-scene-ready', this);
-    }
-}
+// Phaser scene (extends ResponsiveScene): unsubscribes on shutdown and game destroy
+this.onBridge(PackOpenEvents.Show, this.onShow);
+EventBus.emit(PackOpenEvents.Ready);
 ```
 
-You don't have to emit this event if you don't need to access the specific scene from React. Also, you don't have to emit it at the end of `create`, you can emit it at any point. For example, should your Scene be waiting for a network request or API call to complete, it could emit the event once that data is ready.
-
-### React Component Example
-
-Here's an example of how to access Phaser data for use in a React Component:
-
-```ts
-import { useRef } from 'react';
-import { IRefPhaserGame } from "./game/PhaserGame";
-
-// In a parent component
-const ReactComponent = () => {
-
-    const phaserRef = useRef<IRefPhaserGame>(); // you can access to this ref from phaserRef.current
-
-    const onCurrentActiveScene = (scene: Phaser.Scene) => {
-    
-        // This is invoked
-
-    }
-
-    return (
-        ...
-        <PhaserGame ref={phaserRef} currentActiveScene={onCurrentActiveScene} />
-        ...
-    );
-
-}
-```
-
-In the code above, you can get a reference to the current Phaser Game instance and the current Scene by creating a reference with `useRef()` and assign to PhaserGame component.
-
-From this state reference, the game instance is available via `phaserRef.current.game` and the most recently active Scene via `phaserRef.current.scene`.
-
-The `onCurrentActiveScene` callback will also be invoked whenever the the Phaser Scene changes, as long as you emit the event via the EventBus, as outlined above.
+To add an event: add its name to the `*Events` object in `bridge/events.ts`, declare its payload
+in `BridgeEvents`, then emit and subscribe as above.
 
 ## Handling Assets
 

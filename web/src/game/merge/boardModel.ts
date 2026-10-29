@@ -2,7 +2,7 @@
 
 import { CARD_H, CARD_W } from '../cards/drawCard';
 import { MAX_LEVEL, type CardData } from '../cards/model';
-import type { MergeFailure, MergeResultPayload } from '../events';
+import type { MergeFailure, MergeResultPayload } from '../../bridge/events';
 import { DESIGN_WIDTH } from '../layout';
 
 // 4 x 4 board of cards at 72% size.

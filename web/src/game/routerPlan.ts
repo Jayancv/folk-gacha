@@ -1,4 +1,4 @@
-import type { GameScene } from './events';
+import type { GameScene } from '../bridge/events';
 
 export const TABLE_SCENES: GameScene[] = ['PackOpen', 'MergeBoard'];
 

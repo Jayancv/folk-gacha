@@ -1,26 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PhaserGame } from './PhaserGame';
 import { ApiStatus } from './app/ApiStatus';
-import { fakeClaimPack, fakeShowcasePack } from './dev/fakePack';
+import { EventBus } from './bridge/EventBus';
+import { GameEvents, MergeBoardEvents, PackOpenEvents, type GameScene, type PackShowPayload } from './bridge/events';
+import { useBridgeEvent } from './bridge/useBridgeEvent';
+import { seasonSource, templateSource, type CardSource } from './dev/fakePack';
 import { FakeGameServer } from './dev/fakeServer';
-import { EventBus } from './game/EventBus';
-import {
-    GameEvents,
-    MergeBoardEvents,
-    PackOpenEvents,
-    type BoardShowPayload,
-    type GameScene,
-    type MergeRequestedPayload,
-    type PackShowPayload
-} from './game/events';
+import { loadSeasonCatalog } from './dev/seasonCatalog';
 import { BOARD_SIZE } from './game/merge/boardModel';
 
-// Phase 1: the collection, packs and merges are faked in the browser.
-// In Phase 2 these become API calls (POST /packs/daily/claim, POST /merges, GET /cards).
+// Phase 1: the collection, packs and merges are faked in the browser from the Season 1
+// catalog. In Phase 2 these become API calls (POST /packs/daily/claim, POST /merges, GET /cards).
 // Add ?showcase to the URL to get one card of every rarity in each pack.
-function nextPack ()
+function makeServer (source: CardSource): FakeGameServer
 {
-    return new URLSearchParams(location.search).has('showcase') ? fakeShowcasePack() : fakeClaimPack();
+    const showcase = new URLSearchParams(location.search).has('showcase');
+    return new FakeGameServer({ source, packSource: () => (showcase ? source.showcase() : source.pack()) });
 }
 
 const TABS: { scene: GameScene; label: string; icon: string }[] = [
@@ -30,50 +25,62 @@ const TABS: { scene: GameScene; label: string; icon: string }[] = [
 
 function App()
 {
+    const [server, setServer] = useState<FakeGameServer | null>(null);
+
+    useEffect(() =>
+    {
+        let cancelled = false;
+        loadSeasonCatalog()
+            .then(catalog => seasonSource(catalog))
+            .catch((err: unknown) =>
+            {
+                console.warn('Season catalog unavailable, using plain template cards', err);
+                return templateSource;
+            })
+            .then(source =>
+            {
+                if (!cancelled)
+                {
+                    setServer(makeServer(source));
+                }
+            });
+        return () =>
+        {
+            cancelled = true;
+        };
+    }, []);
+
+    if (!server)
+    {
+        return <div id="app" className="grid place-items-center text-sm text-[#bba595]">Loading cards…</div>;
+    }
+    return <Table server={server} />;
+}
+
+// The game table: Phaser plus the React UI around it. Phaser drives the table;
+// React only re-renders for its own UI.
+function Table ({ server }: { server: FakeGameServer })
+{
     const [scene, setScene] = useState<GameScene>('PackOpen');
     const [packDone, setPackDone] = useState(false);
-
-    // Kept in a ref: Phaser drives the table, React only re-renders for its own UI.
-    const server = useRef(new FakeGameServer({ packSource: nextPack }));
 
     const showPack = (cards: PackShowPayload['cards']) =>
     {
         setPackDone(false);
-        const payload: PackShowPayload = { cards };
-        EventBus.emit(PackOpenEvents.Show, payload);
+        EventBus.emit(PackOpenEvents.Show, { cards });
     };
 
-    const dealNewPack = () => showPack(server.current.claimPack());
+    const dealNewPack = () => showPack(server.claimPack());
 
-    useEffect(() =>
+    // Coming back to the Pack tab re-shows the current pack instead of granting a new one.
+    useBridgeEvent(PackOpenEvents.Ready, () => showPack(server.packToShow().cards));
+    useBridgeEvent(PackOpenEvents.Complete, () => setPackDone(true));
+
+    useBridgeEvent(MergeBoardEvents.Ready, () => EventBus.emit(MergeBoardEvents.Show, server.board(BOARD_SIZE)));
+    useBridgeEvent(MergeBoardEvents.MergeRequested, ({ requestId, cardIds }) =>
     {
-        // Coming back to the Pack tab re-shows the current pack instead of granting a new one.
-        const onPackReady = () => showPack(server.current.packToShow().cards);
-        const onPackComplete = () => setPackDone(true);
-
-        const onBoardReady = () =>
-        {
-            const payload: BoardShowPayload = server.current.board(BOARD_SIZE);
-            EventBus.emit(MergeBoardEvents.Show, payload);
-        };
-
-        const onMergeRequested = ({ requestId, cardIds }: MergeRequestedPayload) =>
-        {
-            server.current.merge(requestId, cardIds, result => EventBus.emit(MergeBoardEvents.MergeResult, result));
-        };
-
-        EventBus.on(PackOpenEvents.Ready, onPackReady);
-        EventBus.on(PackOpenEvents.Complete, onPackComplete);
-        EventBus.on(MergeBoardEvents.Ready, onBoardReady);
-        EventBus.on(MergeBoardEvents.MergeRequested, onMergeRequested);
-        return () =>
-        {
-            EventBus.off(PackOpenEvents.Ready, onPackReady);
-            EventBus.off(PackOpenEvents.Complete, onPackComplete);
-            EventBus.off(MergeBoardEvents.Ready, onBoardReady);
-            EventBus.off(MergeBoardEvents.MergeRequested, onMergeRequested);
-        };
-    }, []);
+        server.merge(requestId, cardIds, result => EventBus.emit(MergeBoardEvents.MergeResult, result));
+    });
 
     const switchTo = (next: GameScene) =>
     {

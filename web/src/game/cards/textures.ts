@@ -1,5 +1,5 @@
 import type { Scene } from 'phaser';
-import { CARD_H, CARD_W, drawCardBack, drawCardFace } from './drawCard';
+import { CARD_H, CARD_W, drawCardBack, drawCardFace, drawCardGlint } from './drawCard';
 import type { CardData } from './model';
 
 // Texture pixels per design unit, quantized so small zoom changes reuse textures.
@@ -35,13 +35,33 @@ export function ensureBackTexture (scene: Scene, scale: number): string
     return key;
 }
 
-// Drop every face texture for a card (all scales), e.g. when a pack is cleared.
+/**
+ * The card's shine mask (pattern + rim in white), or null if the card has no season art.
+ * Drawn at most at 2 px per unit: it only masks a soft light band, so it needn't be sharper.
+ */
+export function ensureGlintTexture (scene: Scene, card: CardData, scale: number): string | null
+{
+    const s = Math.min(2, scale);
+    const key = `card-glint:${card.id}@${s}`;
+    if (!scene.textures.exists(key))
+    {
+        const canvas = drawCardGlint(card, s);
+        if (!canvas)
+        {
+            return null;
+        }
+        scene.textures.addCanvas(key, canvas);
+    }
+    return key;
+}
+
+// Drop every face and glint texture for a card (all scales), e.g. when a pack is cleared.
 export function releaseFaceTextures (scene: Scene, card: CardData): void
 {
-    const prefix = `card-face:${card.id}@`;
+    const prefixes = [`card-face:${card.id}@`, `card-glint:${card.id}@`];
     for (const key of scene.textures.getTextureKeys())
     {
-        if (key.startsWith(prefix))
+        if (prefixes.some(p => key.startsWith(p)))
         {
             scene.textures.remove(key);
         }
@@ -53,7 +73,9 @@ export const FX = {
     dot: 'fx-dot',
     star: 'fx-star',
     rays: 'fx-rays',
-    ring: 'fx-ring'
+    ring: 'fx-ring',
+    shine: 'fx-shine',
+    shineHolo: 'fx-shine-holo'
 } as const;
 
 // Size of the glow texture in design units (card plus halo).
@@ -128,6 +150,35 @@ export function ensureFxTextures (scene: Scene): void
         g.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, 256, 256);
+    });
+
+    // Shine band: a soft vertical stripe, brightest in the middle. Rotated and swept across cards.
+    const band = (ctx: CanvasRenderingContext2D, colors: string[]) =>
+    {
+        const across = ctx.createLinearGradient(0, 0, 128, 0);
+        across.addColorStop(0, 'rgba(255,255,255,0)');
+        across.addColorStop(0.3, 'rgba(255,255,255,0.25)');
+        across.addColorStop(0.5, 'rgba(255,255,255,1)');
+        across.addColorStop(0.7, 'rgba(255,255,255,0.25)');
+        across.addColorStop(1, 'rgba(255,255,255,0)');
+        const along = ctx.createLinearGradient(0, 0, 0, 16);
+        colors.forEach((c, i) => along.addColorStop(i / Math.max(1, colors.length - 1), c));
+        ctx.fillStyle = along;
+        ctx.fillRect(0, 0, 128, 16);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.fillStyle = across;
+        ctx.fillRect(0, 0, 128, 16);
+    };
+    add(FX.shine, 128, 16, ctx => band(ctx, ['#ffffff']));
+    add(FX.shineHolo, 128, 16, ctx =>
+    {
+        // Rainbow across the band for holo foil.
+        const g = ctx.createLinearGradient(0, 0, 128, 0);
+        ['#ff7ab6', '#ffd36e', '#8cf5a2', '#6ed3ff', '#b58cff'].forEach((c, i) => g.addColorStop(0.3 + i * 0.1, c));
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 128, 16);
+        ctx.globalCompositeOperation = 'destination-in';
+        band(ctx, ['#ffffff']);
     });
 
     // Light rays fading out from the centre

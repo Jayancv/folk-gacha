@@ -17,14 +17,14 @@ import {
 } from '../merge/boardModel';
 import { prefersReducedMotion } from '../cards/revealFx';
 import { ensureFxTextures, ensureTableBackground, FX, releaseFaceTextures, textureScaleFor } from '../cards/textures';
-import { EventBus } from '../EventBus';
+import { EventBus } from '../../bridge/EventBus';
 import {
     MergeBoardEvents,
     type BoardShowPayload,
     type MergeFailure,
     type MergeRequestedPayload,
     type MergeResultPayload
-} from '../events';
+} from '../../bridge/events';
 import { DESIGN_WIDTH, type Viewport } from '../layout';
 
 export { BOARD_SIZE };
@@ -113,8 +113,8 @@ export class MergeBoard extends ResponsiveScene
         this.input.on('pointerup', this.onPointerUp, this);
         this.input.on('pointerupoutside', this.onPointerUp, this);
 
-        this.listen(EventBus, MergeBoardEvents.Show, this.onShow);
-        this.listen(EventBus, MergeBoardEvents.MergeResult, this.onMergeResult);
+        this.onBridge(MergeBoardEvents.Show, this.onShow);
+        this.onBridge(MergeBoardEvents.MergeResult, this.onMergeResult);
         this.events.once('shutdown', () => this.clearBoard());
 
         EventBus.emit(MergeBoardEvents.Ready);

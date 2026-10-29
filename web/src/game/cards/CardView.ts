@@ -1,4 +1,5 @@
 import { BlendModes, GameObjects, Scene, Types } from 'phaser';
+import { CardShine } from './CardShine';
 import { CARD_H, CARD_W } from './drawCard';
 import { RARITY_STYLE, type CardData } from './model';
 import { prefersReducedMotion, REVEAL_FX } from './revealFx';
@@ -16,6 +17,7 @@ export class CardView extends GameObjects.Container
     private image: GameObjects.Image;
     private glow: GameObjects.Image;
     private rays: GameObjects.Image;
+    private shine: CardShine | null = null;
     private textureScale: number;
     private glowPulse?: Phaser.Tweens.Tween;
     private trembleTween?: Phaser.Tweens.Tween;
@@ -37,9 +39,18 @@ export class CardView extends GameObjects.Container
         this.image = scene.add.image(0, 0, faceUp ? ensureFaceTexture(scene, card, textureScale) : ensureBackTexture(scene, textureScale));
 
         this.add([this.rays, this.glow, this.image]);
+        if (CardShine.wanted(card))
+        {
+            this.shine = new CardShine(scene, card);
+            this.add(this.shine);
+        }
         this.fitImage();
         this.setSize(CARD_W, CARD_H);
         scene.add.existing(this);
+        if (faceUp)
+        {
+            this.shine?.start(textureScale);
+        }
 
         this.once(GameObjects.Events.DESTROY, () =>
         {
@@ -59,6 +70,10 @@ export class CardView extends GameObjects.Container
         this.textureScale = scale;
         this.image.setTexture(this.state === 'up' ? ensureFaceTexture(this.scene, this.card, scale) : ensureBackTexture(this.scene, scale));
         this.fitImage();
+        if (this.state === 'up')
+        {
+            this.shine?.setTextureScale(scale);
+        }
         return this;
     }
 
@@ -131,6 +146,9 @@ export class CardView extends GameObjects.Container
         // Unsquash past full size, then settle
         await this.tween({ scaleX: fx.pop, scaleY: fx.pop, duration: 200, ease: 'Back.easeOut' });
         await this.tween({ y: baseY, scaleX: 1, scaleY: 1, duration: 260, ease: 'Sine.easeInOut' });
+
+        // First glint right after the reveal, then the card shines every few seconds.
+        this.shine?.start(this.textureScale, 120);
     }
 
     private async anticipate (ms: number, tremble: number)

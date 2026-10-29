@@ -1,4 +1,6 @@
 import { GameObjects, Scene, Scenes } from 'phaser';
+import { EventBus } from '../bridge/EventBus';
+import type { BridgeEvent, BridgeEvents } from '../bridge/events';
 import { DESIGN_HEIGHT, DESIGN_WIDTH, type Viewport } from './layout';
 import { onFirst, subscribeUntil } from './lifecycle';
 import { getViewport, LAYOUT_CHANGE } from './scale';
@@ -38,7 +40,17 @@ export abstract class ResponsiveScene extends Scene
     }
 
     /**
-     * Subscribe to an emitter outside this scene (EventBus, game.events) until the
+     * Subscribe to a React → Phaser bridge event until the scene stops (shutdown or
+     * game destroy). `fn` is called with the scene as `this`.
+     */
+    protected onBridge<K extends BridgeEvent> (event: K, fn: (payload: BridgeEvents[K]) => void): void
+    {
+        EventBus.on(event, fn, this);
+        this.onStop(() => EventBus.off(event, fn, this));
+    }
+
+    /**
+     * Subscribe to a Phaser emitter outside this scene (e.g. game.events) until the
      * scene stops. Covers both SHUTDOWN (scene switch) and DESTROY (game destroyed,
      * e.g. React unmounting PhaserGame), so a dead scene never receives events.
      */

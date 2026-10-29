@@ -3,8 +3,8 @@
 // (check ownership, remove both cards, create the result) and this file goes away.
 
 import { MAX_LEVEL, type CardData } from '../game/cards/model';
-import type { MergeResultPayload } from '../game/events';
-import { makeCard, TEMPLATES, type Template } from './fakePack';
+import type { MergeResultPayload } from '../bridge/events';
+import { templateSource, type CardSource } from './fakePack';
 
 // Sample recipes from CLAUDE.md, inputs in sorted order like the merge_recipes table.
 const RECIPES: { inputs: [string, string]; output: string }[] = [
@@ -23,7 +23,8 @@ export function fakeMerge (
     collection: CardData[],
     requestId: string,
     [aId, bId]: [string, string],
-    discovered: Set<string>
+    discovered: Set<string>,
+    source: CardSource = templateSource
 ): MergeOutcome
 {
     const fail = (error: 'no_recipe' | 'max_level' | 'not_owned'): MergeOutcome =>
@@ -51,7 +52,8 @@ export function fakeMerge (
         {
             return fail('max_level');
         }
-        card = makeCard(template(a.templateId), a.level + 1);
+        // The result keeps the look of the card it was dropped onto.
+        card = source.levelUp(b);
         kind = 'level_up';
     }
     else
@@ -62,7 +64,7 @@ export function fakeMerge (
         {
             return fail('no_recipe');
         }
-        card = makeCard(template(recipe.output), 1);
+        card = source.create(recipe.output);
         kind = 'recipe';
         const key = inputs.join('+');
         isNew = !discovered.has(key);
@@ -75,19 +77,9 @@ export function fakeMerge (
     };
 }
 
-function template (id: string): Template
-{
-    const t = TEMPLATES.find(t => t.templateId === id);
-    if (!t)
-    {
-        throw new Error(`unknown template ${id}`);
-    }
-    return t;
-}
-
 // A starting collection with pairs to level up and the ingredients for both recipes.
-export function fakeStarterCollection (): CardData[]
+export function fakeStarterCollection (source: CardSource = templateSource): CardData[]
 {
     const ids = ['gaja-calf', 'gaja-calf', 'gaja-calf', 'malu', 'malu', 'monara', 'monara', 'simha', 'simha', 'ura', 'ura'];
-    return ids.map(id => makeCard(template(id)));
+    return ids.map(id => source.create(id));
 }

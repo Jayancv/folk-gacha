@@ -1,9 +1,26 @@
 // Draws card faces and backs onto a 2D canvas. Layout follows the .card styles in
 // docs/design/lanka-mythics-preview.html, where 1u = 1% of the card width.
-// Placeholder art for Phase 1: element gradient + big element icon.
+// Placeholder art for Phase 1: card-season cards get a spirit silhouette over their
+// trait art (pattern, palette, prefix tint/effect, stamp, foil); plain template cards
+// fall back to an element gradient + element icon.
 
-import { ELEMENT_STYLE, PALETTE, RARITY_STYLE, type CardData } from './model';
+import { darken, lighten, luminance, mix } from './color';
+import { ELEMENT_STYLE, PALETTE, RARITY_STYLE, type CardData, type SeasonCardInfo } from './model';
+import { seededRandom } from './seededRandom';
+import { drawSpirit } from './spiritArt';
 import { ellipsize, wrap } from './textLayout';
+import {
+    archPath,
+    drawAccessory,
+    drawEffect,
+    drawHoloSheen,
+    drawPattern,
+    drawStamp,
+    drawTexture,
+    drawTint,
+    foilFrame,
+    type Box
+} from './traitArt';
 
 // Card size in design units (5:7).
 export const CARD_W = 216;
@@ -14,43 +31,60 @@ const BODY_FONT = 'system-ui, "Segoe UI", Roboto, "Noto Sans Sinhala", "Nirmala 
 
 type Ctx = CanvasRenderingContext2D;
 
-// Returns a canvas of (CARD_W * scale) x (CARD_H * scale) device pixels.
-export function drawCardFace (card: CardData, scale: number): HTMLCanvasElement
+const U = CARD_W / 100;
+
+/** Where everything sits on a card face, in design units. Shared by the face and its glint. */
+export interface FaceLayout
 {
-    const { canvas, ctx } = makeCanvas(scale);
-    const u = CARD_W / 100;
-    const rarity = RARITY_STYLE[card.rarity];
+    pad: number;
+    left: number;
+    right: number;
+    innerW: number;
+    gap: number;
+    badge: number;
+    /** Top of the name row. */
+    nameTop: number;
+    /** Top of the traits line, when the card has one. */
+    subtitleTop: number | null;
+    subtitleSize: number;
+    art: Box;
+    artRadius: number;
+    metaTop: number;
+    metaH: number;
+    statsTop: number;
+    statsH: number;
+    loreTop: number;
+    loreSize: number;
+    loreLine: number;
+}
 
-    // Frame: rarity gradient showing as a border around the panel.
-    roundRect(ctx, 0, 0, CARD_W, CARD_H, 6 * u);
-    ctx.fillStyle = linear(ctx, 0, 0, CARD_W, CARD_H, rarity.frame);
-    ctx.fill();
-
-    // Panel
+export function faceLayout (card: CardData): FaceLayout
+{
+    const u = U;
     const pad = 2.8 * u;
-    const px = pad, py = pad, pw = CARD_W - pad * 2, ph = CARD_H - pad * 2;
-    roundRect(ctx, px, py, pw, ph, 4.2 * u);
-    ctx.fillStyle = PALETTE.panel;
-    ctx.fill();
-
-    const left = px + 3.6 * u;
-    const right = px + pw - 3.6 * u;
-    const innerW = right - left;
+    const ph = CARD_H - pad * 2;
+    const left = pad + 3.6 * u;
+    const right = CARD_W - pad - 3.6 * u;
     const gap = 1.8 * u;
-    let y = py + 3.2 * u;
-
-    // Top row: name + element badge
     const badge = 9.5 * u;
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = PALETTE.ink;
-    ctx.font = `800 ${7.6 * u}px ${DISPLAY_FONT}`;
-    ctx.fillText(ellipsize(ctx, card.name, innerW - badge - 2 * u), left, y + badge / 2);
-    drawElementBadge(ctx, card, right - badge / 2, y + badge / 2, badge);
-    y += badge + gap;
+    const nameTop = pad + 3.2 * u;
+    const subtitleSize = 3.7 * u;
+
+    let y = nameTop + badge + gap * 0.6;
+    let subtitleTop: number | null = null;
+    if (card.season?.subtitle)
+    {
+        subtitleTop = y;
+        y += subtitleSize * 1.1 + gap * 0.6;
+    }
+    else
+    {
+        y += gap * 0.4;
+    }
 
     // Fixed-height rows below the art, measured from the bottom up.
     const loreSize = 3.6 * u, loreLine = loreSize * 1.3;
-    const bottom = py + ph - 3.6 * u;
+    const bottom = pad + ph - 3.6 * u;
     const loreTop = bottom - loreLine * 2;
     const statsH = 5.4 * u;
     const statsTop = loreTop - gap - statsH;
@@ -58,7 +92,66 @@ export function drawCardFace (card: CardData, scale: number): HTMLCanvasElement
     const metaTop = statsTop - gap - metaH;
     const artBottom = metaTop - gap;
 
-    drawArt(ctx, card, left, y, innerW, artBottom - y, 3.2 * u);
+    return {
+        pad, left, right, innerW: right - left, gap, badge, nameTop, subtitleTop, subtitleSize,
+        art: { x: left, y, w: right - left, h: artBottom - y }, artRadius: 3.2 * u,
+        metaTop, metaH, statsTop, statsH, loreTop, loreSize, loreLine
+    };
+}
+
+// Returns a canvas of (CARD_W * scale) x (CARD_H * scale) device pixels.
+export function drawCardFace (card: CardData, scale: number): HTMLCanvasElement
+{
+    const { canvas, ctx } = makeCanvas(scale);
+    const u = U;
+    const L = faceLayout(card);
+    const rarity = RARITY_STYLE[card.rarity];
+    const season = card.season;
+    const foil = season ? foilFrame(season.art.foil) : null;
+
+    // Frame: rarity gradient (or foil) showing as a border around the panel.
+    roundRect(ctx, 0, 0, CARD_W, CARD_H, 6 * u);
+    ctx.fillStyle = linear(ctx, 0, 0, CARD_W, CARD_H, foil ?? rarity.frame);
+    ctx.fill();
+    if (foil)
+    {
+        // Foil cards keep a rarity-coloured inner edge so the rarity still reads.
+        ctx.strokeStyle = rarity.color;
+        ctx.lineWidth = 0.9 * u;
+        roundRect(ctx, 1.9 * u, 1.9 * u, CARD_W - 3.8 * u, CARD_H - 3.8 * u, 4.8 * u);
+        ctx.stroke();
+    }
+
+    // Panel
+    const { pad, left, right, innerW, badge, metaTop, metaH, statsTop, statsH, loreTop, loreSize, loreLine } = L;
+    roundRect(ctx, pad, pad, CARD_W - pad * 2, CARD_H - pad * 2, 4.2 * u);
+    ctx.fillStyle = PALETTE.panel;
+    ctx.fill();
+
+    // Top row: name + element badge
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = PALETTE.ink;
+    ctx.font = `800 ${7.6 * u}px ${DISPLAY_FONT}`;
+    ctx.fillText(ellipsize(ctx, season?.title ?? card.name, innerW - badge - 2 * u), left, L.nameTop + badge / 2);
+    drawElementBadge(ctx, card, right - badge / 2, L.nameTop + badge / 2, badge);
+
+    // Traits line: "Brightly Moonlit · of Kandy"
+    if (season && L.subtitleTop !== null)
+    {
+        ctx.font = `italic 600 ${L.subtitleSize}px ${DISPLAY_FONT}`;
+        ctx.fillStyle = PALETTE.gold;
+        ctx.fillText(ellipsize(ctx, season.subtitle, innerW), left, L.subtitleTop + L.subtitleSize * 0.55);
+    }
+
+    const a = L.art;
+    if (season)
+    {
+        drawSeasonArt(ctx, card, season, a, L.artRadius);
+    }
+    else
+    {
+        drawArt(ctx, card, a.x, a.y, a.w, a.h, L.artRadius);
+    }
 
     // Meta: Sinhala name + rarity label
     ctx.textBaseline = 'middle';
@@ -89,6 +182,66 @@ export function drawCardFace (card: CardData, scale: number): HTMLCanvasElement
     {
         ctx.fillText(line, left, loreTop + loreLine * (i + 0.5));
     });
+
+    return canvas;
+}
+
+/** The square the creature is drawn in, inside the art window. */
+function creatureBox (b: Box): Box
+{
+    const size = Math.min(b.w * 0.86, b.h * 0.92);
+    return { x: b.x + b.w / 2 - size / 2, y: b.y + b.h * 0.5 - size * 0.47, w: size, h: size };
+}
+
+/** Strength of the moving shine per rarity: how bright, and seconds between sweeps. */
+export const SHINE: Record<CardData['rarity'], { alpha: number; every: [number, number] }> = {
+    common: { alpha: 0.35, every: [6, 10] },
+    uncommon: { alpha: 0.45, every: [5, 8] },
+    rare: { alpha: 0.55, every: [4, 6.5] },
+    epic: { alpha: 0.7, every: [3, 5] },
+    legendary: { alpha: 0.85, every: [2.2, 3.6] }
+};
+
+/**
+ * The shine mask for a card: its pattern lines and frame rim in white on transparent,
+ * lined up exactly with the face. A moving light band is masked by this, so only the
+ * pattern and rim catch the light. Foil cards also get a soft wash over the whole art.
+ * Returns null for cards without season art (nothing to shine).
+ */
+export function drawCardGlint (card: CardData, scale: number): HTMLCanvasElement | null
+{
+    const season = card.season;
+    if (!season)
+    {
+        return null;
+    }
+    const { canvas, ctx } = makeCanvas(scale);
+    const L = faceLayout(card);
+    const u = U;
+    const { art } = season;
+
+    // Frame rim
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6 * u;
+    roundRect(ctx, 1.2 * u, 1.2 * u, CARD_W - 2.4 * u, CARD_H - 2.4 * u, 5.2 * u);
+    ctx.stroke();
+
+    ctx.save();
+    roundRect(ctx, L.art.x, L.art.y, L.art.w, L.art.h, L.artRadius);
+    ctx.clip();
+    if (art.foil !== 'none')
+    {
+        ctx.fillStyle = art.foil === 'holo' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.3)';
+        ctx.fillRect(L.art.x, L.art.y, L.art.w, L.art.h);
+    }
+    // Same pattern, same seed as the face, so the lines match exactly.
+    drawPattern(ctx, art.pattern, L.art, '#ffffff', 1, seededRandom(art.seed));
+
+    // Cut the creature out, so the light passes behind it instead of over it.
+    const c = creatureBox(L.art);
+    ctx.globalCompositeOperation = 'destination-out';
+    drawSpirit(ctx, card.templateId, c.x, c.y, c.w, '#000', '#000');
+    ctx.restore();
 
     return canvas;
 }
@@ -206,13 +359,96 @@ function drawArt (ctx: Ctx, card: CardData, x: number, y: number, w: number, h: 
     ctx.restore();
 }
 
-function archPath (ctx: Ctx, cx: number, baseY: number, halfW: number, rise: number)
+// Card-season art, back to front: palette background, pattern, element halo,
+// light effects, creature, prefix tint/texture, front effects, accessory, holo, stamp, set no.
+function drawSeasonArt (ctx: Ctx, card: CardData, season: SeasonCardInfo, b: Box, r: number)
 {
+    const { art } = season;
+    const [base, accent] = art.palette;
+    const rand = seededRandom(art.seed);
+    const light = luminance(base) > 0.45;
+
+    ctx.save();
+    roundRect(ctx, b.x, b.y, b.w, b.h, r);
+    ctx.clip();
+
+    const cx = b.x + b.w / 2;
+    const g = ctx.createRadialGradient(cx, b.y + b.h * 0.42, 0, cx, b.y + b.h * 0.42, Math.max(b.w, b.h) * 0.75);
+    g.addColorStop(0, lighten(base, light ? 0.2 : 0.28));
+    g.addColorStop(1, darken(base, light ? 0.25 : 0.45));
+    ctx.fillStyle = g;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+
+    drawPattern(ctx, art.pattern, b, accent, light ? 0.3 : 0.22, rand);
+
+    // Element halo keeps the element readable whatever the palette.
+    const [halo] = ELEMENT_STYLE[card.element].art;
+    const hg = ctx.createRadialGradient(cx, b.y + b.h * 0.52, 0, cx, b.y + b.h * 0.52, b.w * 0.42);
+    hg.addColorStop(0, mix(halo, '#ffffff', 0.3));
+    hg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = hg;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.globalAlpha = 1;
+
+    drawEffect(ctx, art.effect, 'behind', art.intensity, b, rand);
+
+    // Ground shadow
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.moveTo(cx - halfW, baseY);
-    ctx.lineTo(cx - halfW, baseY - rise);
-    ctx.arc(cx, baseY - rise, halfW, Math.PI, 0);
-    ctx.lineTo(cx + halfW, baseY);
+    ctx.ellipse(cx, b.y + b.h * 0.9, b.w * 0.3, b.h * 0.045, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Creature, with a soft dark outline so it reads on light palettes too.
+    const creature = creatureBox(b);
+    const size = creature.w;
+    // Light creature on dark palettes; on pale ones (ivory, temple gold) an element-coloured one.
+    const badge = ELEMENT_STYLE[card.element].badge;
+    const ink = light ? darken(badge, 0.2) : '#fff8ec';
+    const detail = light ? '#fff8ec' : darken(mix(base, badge, 0.5), 0.45);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur = size * 0.035;
+    ctx.shadowOffsetY = size * 0.012;
+    if (!drawSpirit(ctx, card.templateId, creature.x, creature.y, size, ink, detail))
+    {
+        drawIcon(ctx, card, cx - size * 0.3, creature.y + size * 0.2, size * 0.6, ink);
+    }
+    ctx.restore();
+
+    drawTint(ctx, art.tint, art.intensity, b);
+    drawTexture(ctx, art.texture, art.intensity, b, rand);
+    drawEffect(ctx, art.effect, 'front', art.intensity, b, rand);
+    drawAccessory(ctx, art.accessory, b, creature);
+    if (art.foil === 'holo')
+    {
+        drawHoloSheen(ctx, b, rand);
+    }
+    drawStamp(ctx, art.stamp, b, BODY_FONT);
+
+    // Set number, e.g. #0042 / 1500
+    const size2 = b.w * 0.055;
+    ctx.font = `700 ${size2}px ${BODY_FONT}`;
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    const label = `#${String(season.setNo).padStart(4, '0')} / ${season.setSize}`;
+    const tw = ctx.measureText(label).width;
+    ctx.beginPath();
+    ctx.roundRect(b.x + b.w * 0.03, b.y + b.h - size2 * 1.9, tw + size2 * 0.9, size2 * 1.5, size2 * 0.4);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,248,236,0.92)';
+    ctx.fillText(label, b.x + b.w * 0.03 + size2 * 0.45, b.y + b.h - size2 * 0.75);
+
+    // Inner edge highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1, r);
+    ctx.stroke();
+
+    ctx.restore();
 }
 
 function drawElementBadge (ctx: Ctx, card: CardData, cx: number, cy: number, size: number)

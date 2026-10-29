@@ -3,12 +3,14 @@
 //   claimPack -> POST /packs/daily/claim, board -> GET /cards, merge -> POST /merges.
 
 import type { CardData } from '../game/cards/model';
-import type { BoardShowPayload, MergeResultPayload } from '../game/events';
-import { fakeClaimPack } from './fakePack';
+import type { BoardShowPayload, MergeResultPayload } from '../bridge/events';
+import { templateSource, type CardSource } from './fakePack';
 import { fakeMerge, fakeStarterCollection } from './fakeMerge';
 
 export interface FakeServerOptions
 {
+    /** Where cards come from (Season 1 catalog in the app); defaults to plain templates. */
+    source?: CardSource;
     starter?: CardData[];
     packSource?: () => CardData[];
     /** Simulated network delay in ms for merges. */
@@ -22,14 +24,16 @@ export class FakeGameServer
     private collection: CardData[];
     private pack: CardData[] | null = null;
     private readonly discovered = new Set<string>();
+    private readonly source: CardSource;
     private readonly packSource: () => CardData[];
     private readonly latency: () => number;
     private readonly schedule: (fn: () => void, ms: number) => void;
 
     constructor (options: FakeServerOptions = {})
     {
-        this.collection = options.starter ?? fakeStarterCollection();
-        this.packSource = options.packSource ?? (() => fakeClaimPack());
+        this.source = options.source ?? templateSource;
+        this.collection = options.starter ?? fakeStarterCollection(this.source);
+        this.packSource = options.packSource ?? (() => this.source.pack());
         this.latency = options.latency ?? (() => 250 + Math.random() * 650);
         this.schedule = options.schedule ?? ((fn, ms) => { setTimeout(fn, ms); });
     }
@@ -74,7 +78,7 @@ export class FakeGameServer
     {
         this.schedule(() =>
         {
-            const outcome = fakeMerge(this.collection, requestId, cardIds, this.discovered);
+            const outcome = fakeMerge(this.collection, requestId, cardIds, this.discovered, this.source);
             this.collection = outcome.collection;
             respond(outcome.result);
         }, this.latency());

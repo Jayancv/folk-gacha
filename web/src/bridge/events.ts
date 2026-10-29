@@ -1,7 +1,8 @@
-import type { CardData } from './cards/model';
+import type { CardData } from '../game/cards/model';
 
-// Event names and payloads exchanged with React over EventBus.
+// The React <-> Phaser contract: every event name, its direction and its payload.
 // React owns data (API calls); Phaser only animates and reports gestures.
+// Add new events here and to BridgeEvents below; EventBus rejects anything else.
 export const PackOpenEvents = {
     /** Phaser → React: the scene is ready for a pack. */
     Ready: 'pack-open:ready',
@@ -68,7 +69,30 @@ export type MergeResultPayload =
 
 export type GameScene = 'PackOpen' | 'MergeBoard';
 
+export interface SwitchScenePayload
+{
+    scene: GameScene;
+}
+
 export const GameEvents = {
-    /** React → Phaser: show a table scene. Payload: { scene: GameScene } */
+    /** React → Phaser: show a table scene. Payload: SwitchScenePayload */
     SwitchScene: 'game:switch-scene'
 } as const;
+
+/** Payload type for every bridge event (`void` = no payload). */
+export interface BridgeEvents
+{
+    [PackOpenEvents.Ready]: void;
+    [PackOpenEvents.Show]: PackShowPayload;
+    [PackOpenEvents.CardRevealed]: CardRevealedPayload;
+    [PackOpenEvents.Complete]: PackShowPayload;
+
+    [MergeBoardEvents.Ready]: void;
+    [MergeBoardEvents.Show]: BoardShowPayload;
+    [MergeBoardEvents.MergeRequested]: MergeRequestedPayload;
+    [MergeBoardEvents.MergeResult]: MergeResultPayload;
+
+    [GameEvents.SwitchScene]: SwitchScenePayload;
+}
+
+export type BridgeEvent = keyof BridgeEvents;

@@ -1,12 +1,12 @@
 import { Core, type Game } from 'phaser';
-import { EventBus } from './EventBus';
-import { GameEvents, type GameScene } from './events';
+import { EventBus } from '../bridge/EventBus';
+import { GameEvents, type SwitchScenePayload } from '../bridge/events';
 import { planSceneSwitch } from './routerPlan';
 
 // React picks which table scene is showing (it owns navigation); this swaps them.
 export function attachSceneRouter (game: Game): void
 {
-    const onSwitch = ({ scene }: { scene: GameScene }) =>
+    const onSwitch = ({ scene }: SwitchScenePayload) =>
     {
         const manager = game.scene;
         const plan = planSceneSwitch(scene, key => manager.isActive(key) || manager.isPaused(key));

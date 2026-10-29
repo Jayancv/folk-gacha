@@ -1,0 +1,106 @@
+{
+  "id": "s1",
+  "name": "Lanka Mythics: Season 1",
+  "seed": 20270101,
+  "size": 1500,
+  "startsAt": null,
+  "endsAt": null,
+
+  "rarities": [
+    { "id": "common",    "label": "Common",    "count": 900, "baseScore": 10,  "maxCopies": null },
+    { "id": "uncommon",  "label": "Uncommon",  "count": 375, "baseScore": 25,  "maxCopies": null },
+    { "id": "rare",      "label": "Rare",      "count": 150, "baseScore": 60,  "maxCopies": null },
+    { "id": "epic",      "label": "Epic",      "count": 60,  "baseScore": 150, "maxCopies": 100 },
+    { "id": "legendary", "label": "Legendary", "count": 15,  "baseScore": 400, "maxCopies": 25 }
+  ],
+
+  "spirits": [
+    { "id": "gaja-calf",     "name": "Gaja Calf",     "nameSi": "ඇත් පැටියා",  "element": "earth",  "rarity": "common",    "lore": "Follows the Perahera drums and naps through the fire dancers." },
+    { "id": "malu",          "name": "Malu Sprite",   "nameSi": "මාළු",        "element": "water",  "rarity": "common",    "lore": "Lives in temple ponds and nibbles on lotus petals." },
+    { "id": "monara",        "name": "Monara Chick",  "nameSi": "මොනරා",      "element": "wind",   "rarity": "common",    "lore": "Practices its tail fan every morning, waiting for rain." },
+    { "id": "ura",           "name": "Ura Boarlet",   "nameSi": "වල් ඌරා",     "element": "forest", "rarity": "uncommon",  "lore": "Roots through the forest floor looking for moonstones." },
+    { "id": "simha",         "name": "Simha Cub",     "nameSi": "සිංහ පැටියා", "element": "fire",   "rarity": "uncommon",  "lore": "Its roar is still a squeak, but its mane is already ablaze." },
+    { "id": "gajasinghe",    "name": "Gajasinghe",    "nameSi": "ගජසිංහ",      "element": "earth",  "rarity": "rare",      "lore": "Elephant strength, lion heart. Guards the old gateways." },
+    { "id": "serapendiya",   "name": "Serapendiya",   "nameSi": "සේරපෙන්දිය",  "element": "wind",   "rarity": "rare",      "lore": "Curled-beak bird of Sinhala art, carved on kasthane hilts." },
+    { "id": "naga-raksha",   "name": "Naga Raksha",   "nameSi": "නාග රාක්ෂ",   "element": "water",  "rarity": "epic",      "lore": "Crowned with cobras, risen from the masks of Ambalangoda." },
+    { "id": "gurulu-raksha", "name": "Gurulu Raksha", "nameSi": "ගුරුළු රාක්ෂ", "element": "wind",   "rarity": "epic",      "lore": "Strikes from the sky with a cobra in its beak." },
+    { "id": "makara",        "name": "Makara",        "nameSi": "මකර",         "element": "water",  "rarity": "legendary", "lore": "Elephant front, lion feet, boar ear, fish body. Guardian of the thorana." }
+  ],
+
+  "prefixes": [
+    { "id": "moonlit",      "name": "Moonlit",      "adverbs": ["", "Brightly", "Radiantly"],     "weight": 10, "scoreMult": 1.10, "visual": { "tint": "#cfd8ff", "effect": "moonglow" } },
+    { "id": "sunlit",       "name": "Sunlit",       "adverbs": ["", "Warmly", "Blazingly"],       "weight": 10, "scoreMult": 1.10, "visual": { "tint": "#ffe3a3", "effect": "sunrays" } },
+    { "id": "rain-kissed",  "name": "Rain-kissed",  "adverbs": ["", "Softly", "Deeply"],         "weight": 10, "scoreMult": 1.10, "visual": { "tint": "#a9d8ff", "effect": "rain" }, "elements": ["water", "forest", "wind", "earth"] },
+    { "id": "misty",        "name": "Misty",        "adverbs": ["", "Softly", "Mysteriously"],   "weight": 9,  "scoreMult": 1.10, "visual": { "tint": "#e3eef0", "effect": "mist" } },
+    { "id": "festive",      "name": "Festive",      "adverbs": ["", "Joyfully", "Gloriously"],   "weight": 8,  "scoreMult": 1.15, "visual": { "accessory": "perahera-cloth", "effect": "lamps" } },
+    { "id": "blazing",      "name": "Blazing",      "adverbs": ["", "Fiercely", "Infernally"],   "weight": 8,  "scoreMult": 1.15, "visual": { "tint": "#ffb07a", "effect": "embers" }, "elements": ["fire", "earth", "wind"] },
+    { "id": "thunderous",   "name": "Thunderous",   "adverbs": ["", "Wildly", "Furiously"],      "weight": 7,  "scoreMult": 1.15, "visual": { "tint": "#d9c6ff", "effect": "lightning" } },
+    { "id": "lotus-crowned","name": "Lotus-crowned","adverbs": ["", "Gently", "Splendidly"],     "weight": 7,  "scoreMult": 1.20, "visual": { "accessory": "lotus-crown", "effect": "petals" } },
+    { "id": "coral",        "name": "Coral",        "adverbs": ["", "Brightly", "Royally"],      "weight": 6,  "scoreMult": 1.20, "visual": { "tint": "#ffb3a7", "effect": "bubbles" }, "elements": ["water"] },
+    { "id": "shadowed",     "name": "Shadowed",     "adverbs": ["", "Darkly", "Utterly"],        "weight": 5,  "scoreMult": 1.25, "visual": { "tint": "#5a4a7a", "effect": "shadow" } },
+    { "id": "ancient",      "name": "Ancient",      "adverbs": ["", "Truly", "Timelessly"],      "weight": 4,  "scoreMult": 1.30, "visual": { "texture": "carved-stone", "effect": "dust" } },
+    { "id": "golden",       "name": "Golden",       "adverbs": ["", "Richly", "Dazzlingly"],     "weight": 3,  "scoreMult": 1.40, "visual": { "tint": "#ffd76a", "effect": "gold-shimmer" } }
+  ],
+
+  "intensities": [
+    { "level": 1, "weight": 70, "scoreMult": 1.00 },
+    { "level": 2, "weight": 25, "scoreMult": 1.25 },
+    { "level": 3, "weight": 5,  "scoreMult": 1.60, "minRarity": "uncommon" }
+  ],
+
+  "suffixes": [
+    { "id": "none",           "name": "",                  "weight": 30, "scoreMult": 1.00 },
+    { "id": "of-sigiriya",    "name": "of Sigiriya",       "weight": 5,  "scoreMult": 1.05 },
+    { "id": "of-kandy",       "name": "of Kandy",          "weight": 5,  "scoreMult": 1.05 },
+    { "id": "of-galle",       "name": "of Galle",          "weight": 5,  "scoreMult": 1.05 },
+    { "id": "of-ella",        "name": "of Ella",           "weight": 5,  "scoreMult": 1.05 },
+    { "id": "of-anuradhapura","name": "of Anuradhapura",   "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-polonnaruwa", "name": "of Polonnaruwa",    "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-jaffna",      "name": "of Jaffna",         "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-trincomalee", "name": "of Trincomalee",    "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-yala",        "name": "of Yala",           "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-mirissa",     "name": "of Mirissa",        "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-nuwara-eliya","name": "of Nuwara Eliya",   "weight": 4,  "scoreMult": 1.05 },
+    { "id": "of-the-monsoon", "name": "of the Monsoon",    "weight": 3,  "scoreMult": 1.08 },
+    { "id": "the-wanderer",   "name": "the Wanderer",      "weight": 3,  "scoreMult": 1.08 },
+    { "id": "the-guardian",   "name": "the Guardian",      "weight": 3,  "scoreMult": 1.08 },
+    { "id": "the-dreamer",    "name": "the Dreamer",       "weight": 3,  "scoreMult": 1.08 }
+  ],
+
+  "patterns": [
+    { "id": "liyawala",   "name": "Liyawala creeper",       "weight": 10 },
+    { "id": "pala-pethi", "name": "Pala pethi lotus petals","weight": 10 },
+    { "id": "sandakada",  "name": "Sandakada moonstone rings","weight": 8 },
+    { "id": "dumbara",    "name": "Dumbara weave",          "weight": 8 },
+    { "id": "laksha",     "name": "Laksha lacquer bands",   "weight": 7 },
+    { "id": "mural",      "name": "Kandyan mural",          "weight": 6 },
+    { "id": "thorana",    "name": "Makara thorana arch",    "weight": 5 },
+    { "id": "lotus-grid", "name": "Lotus grid",             "weight": 6 }
+  ],
+
+  "palettes": [
+    { "id": "lacquer-red", "name": "Lacquer red", "colors": ["#7d1a1a", "#e7b54a"], "weight": 10 },
+    { "id": "temple-gold", "name": "Temple gold", "colors": ["#b9761f", "#fff1d6"], "weight": 8 },
+    { "id": "jade",        "name": "Jade",        "colors": ["#1f6f55", "#bfe8d6"], "weight": 8 },
+    { "id": "sapphire",    "name": "Sapphire",    "colors": ["#1d3f8a", "#bcd2ff"], "weight": 8 },
+    { "id": "ivory",       "name": "Ivory",       "colors": ["#efe3cc", "#7d5a2e"], "weight": 7 },
+    { "id": "midnight",    "name": "Midnight",    "colors": ["#141a33", "#9fb2ff"], "weight": 6 },
+    { "id": "sunset",      "name": "Sunset",      "colors": ["#c2482b", "#ffd08e"], "weight": 6 },
+    { "id": "tea-green",   "name": "Tea green",   "colors": ["#3c6b2a", "#e3f2c2"], "weight": 6 }
+  ],
+
+  "stamps": [
+    { "id": "none",          "name": "",               "weight": 60, "scoreMult": 1.00 },
+    { "id": "season-1",      "name": "Season 1",       "weight": 15, "scoreMult": 1.05 },
+    { "id": "lotus-seal",    "name": "Lotus seal",     "weight": 10, "scoreMult": 1.08 },
+    { "id": "postage",       "name": "Island post",    "weight": 8,  "scoreMult": 1.08 },
+    { "id": "temple-seal",   "name": "Temple seal",    "weight": 5,  "scoreMult": 1.12, "minRarity": "uncommon" },
+    { "id": "first-edition", "name": "First Edition",  "weight": 2,  "scoreMult": 1.25, "minRarity": "rare" }
+  ],
+
+  "foils": [
+    { "id": "none", "name": "",          "weight": 85, "scoreMult": 1.00 },
+    { "id": "gold", "name": "Gold foil", "weight": 12, "scoreMult": 1.20 },
+    { "id": "holo", "name": "Holo",      "weight": 3,  "scoreMult": 1.50, "minRarity": "rare" }
+  ]
+}
