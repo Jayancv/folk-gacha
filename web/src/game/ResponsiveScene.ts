@@ -1,6 +1,9 @@
 import { GameObjects, Scene, Scenes } from 'phaser';
 import { DESIGN_HEIGHT, DESIGN_WIDTH, type Viewport } from './layout';
+import { onFirst, subscribeUntil } from './lifecycle';
 import { getViewport, LAYOUT_CHANGE } from './scale';
+
+const STOP_EVENTS = [Scenes.Events.SHUTDOWN, Scenes.Events.DESTROY];
 
 // Base class for every game scene that draws something.
 //
@@ -28,14 +31,26 @@ export abstract class ResponsiveScene extends Scene
         this.viewport = getViewport(this.game);
 
         this.events.on(Scenes.Events.ADDED_TO_SCENE, this.onAdded, this);
-        this.game.events.on(LAYOUT_CHANGE, this.applyViewport, this);
-        this.events.once(Scenes.Events.SHUTDOWN, () =>
-        {
-            this.events.off(Scenes.Events.ADDED_TO_SCENE, this.onAdded, this);
-            this.game.events.off(LAYOUT_CHANGE, this.applyViewport, this);
-        });
+        this.listen(this.game.events, LAYOUT_CHANGE, this.applyViewport);
+        this.onStop(() => this.events.off(Scenes.Events.ADDED_TO_SCENE, this.onAdded, this));
 
         this.applyCamera(this.viewport);
+    }
+
+    /**
+     * Subscribe to an emitter outside this scene (EventBus, game.events) until the
+     * scene stops. Covers both SHUTDOWN (scene switch) and DESTROY (game destroyed,
+     * e.g. React unmounting PhaserGame), so a dead scene never receives events.
+     */
+    protected listen<T extends unknown[]> (emitter: Phaser.Events.EventEmitter, event: string, fn: (...args: T) => void): void
+    {
+        subscribeUntil(emitter, event, fn, this, this.events, STOP_EVENTS);
+    }
+
+    /** Runs once when the scene shuts down or is destroyed, whichever comes first. */
+    protected onStop (fn: () => void): void
+    {
+        onFirst(this.events, STOP_EVENTS, fn);
     }
 
     create ()

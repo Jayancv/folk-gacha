@@ -42,6 +42,7 @@ export class Preloader extends ResponsiveScene
 
     create ()
     {
-        this.scene.start('PackOpen');
+        //  React may have asked for a different table scene while we were loading (see router.ts).
+        this.scene.start(this.registry.get('startScene') ?? 'PackOpen');
     }
 }

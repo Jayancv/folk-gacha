@@ -52,7 +52,8 @@ export const FX = {
     glow: 'fx-glow',
     dot: 'fx-dot',
     star: 'fx-star',
-    rays: 'fx-rays'
+    rays: 'fx-rays',
+    ring: 'fx-ring'
 } as const;
 
 // Size of the glow texture in design units (card plus halo).
@@ -118,6 +119,17 @@ export function ensureFxTextures (scene: Scene): void
         ctx.fill();
     });
 
+    // Soft ring for shockwaves
+    add(FX.ring, 256, 256, (ctx) =>
+    {
+        const g = ctx.createRadialGradient(128, 128, 80, 128, 128, 126);
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(0.7, 'rgba(255,255,255,1)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 256, 256);
+    });
+
     // Light rays fading out from the centre
     add(FX.rays, 512, 512, (ctx) =>
     {
@@ -138,4 +150,25 @@ export function ensureFxTextures (scene: Scene): void
             ctx.fill();
         }
     });
+}
+
+// Warm radial background shared by the table scenes.
+export const TABLE_BG = 'table-bg';
+
+export function ensureTableBackground (scene: Scene): string
+{
+    if (!scene.textures.exists(TABLE_BG))
+    {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 512;
+        const ctx = canvas.getContext('2d')!;
+        const g = ctx.createRadialGradient(256, 230, 0, 256, 256, 362);
+        g.addColorStop(0, '#3d1d24');
+        g.addColorStop(0.55, '#22131a');
+        g.addColorStop(1, '#170e10');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, 512, 512);
+        scene.textures.addCanvas(TABLE_BG, canvas);
+    }
+    return TABLE_BG;
 }

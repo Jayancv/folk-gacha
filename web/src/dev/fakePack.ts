@@ -5,7 +5,7 @@
 import type { CardData, Element, Rarity } from '../game/cards/model';
 import { RARITIES } from '../game/cards/model';
 
-interface Template
+export interface Template
 {
     templateId: string;
     name: string;
@@ -16,7 +16,7 @@ interface Template
 }
 
 // Sample cards from docs/design/lanka-mythics-preview.html. Sinhala names still need a native-speaker check.
-const TEMPLATES: Template[] = [
+export const TEMPLATES: Template[] = [
     { templateId: 'gaja-calf', name: 'Gaja Calf', nameSi: 'ඇත් පැටියා', rarity: 'common', element: 'earth', lore: 'Follows the Perahera drums and naps through the fire dancers.' },
     { templateId: 'malu', name: 'Malu Sprite', nameSi: 'මාළු', rarity: 'common', element: 'water', lore: 'Lives in temple ponds and nibbles on lotus petals.' },
     { templateId: 'monara', name: 'Monara Chick', nameSi: 'මොනරා', rarity: 'common', element: 'wind', lore: 'Practices its tail fan every morning, waiting for rain.' },
@@ -41,9 +41,9 @@ export function cardScore (rarity: Rarity, level: number): number
 
 let nextId = 1;
 
-function makeCard (t: Template): CardData
+export function makeCard (t: Template, level = 1): CardData
 {
-    return { ...t, id: `fake-${nextId++}`, level: 1, score: cardScore(t.rarity, 1) };
+    return { ...t, id: `fake-${nextId++}`, level, score: cardScore(t.rarity, level) };
 }
 
 function rollRarity (rand: () => number): Rarity

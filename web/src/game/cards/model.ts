@@ -20,6 +20,8 @@ export interface CardData
     lore: string;
 }
 
+export const MAX_LEVEL = 5;
+
 export const RARITIES: readonly Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 
 export function rarityRank (r: Rarity): number

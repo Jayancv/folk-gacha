@@ -20,11 +20,12 @@ export class CardView extends GameObjects.Container
     private glowPulse?: Phaser.Tweens.Tween;
     private trembleTween?: Phaser.Tweens.Tween;
 
-    constructor (scene: Scene, card: CardData, x: number, y: number, textureScale: number)
+    constructor (scene: Scene, card: CardData, x: number, y: number, textureScale: number, faceUp = false)
     {
         super(scene, x, y);
         this.card = card;
         this.textureScale = textureScale;
+        this.state = faceUp ? 'up' : 'down';
 
         const tint = RARITY_STYLE[card.rarity].glow ?? 0xffffff;
 
@@ -33,7 +34,7 @@ export class CardView extends GameObjects.Container
         this.glow = scene.add.image(0, 0, FX.glow)
             .setDisplaySize(CARD_W + 88, CARD_H + 88)
             .setTint(tint).setBlendMode(BlendModes.ADD).setAlpha(0);
-        this.image = scene.add.image(0, 0, ensureBackTexture(scene, textureScale));
+        this.image = scene.add.image(0, 0, faceUp ? ensureFaceTexture(scene, card, textureScale) : ensureBackTexture(scene, textureScale));
 
         this.add([this.rays, this.glow, this.image]);
         this.fitImage();
@@ -58,6 +59,35 @@ export class CardView extends GameObjects.Container
         this.textureScale = scale;
         this.image.setTexture(this.state === 'up' ? ensureFaceTexture(this.scene, this.card, scale) : ensureBackTexture(this.scene, scale));
         this.fitImage();
+        return this;
+    }
+
+    // Glow around the card, e.g. to highlight a merge target. `tint` null = rarity colour.
+    setGlow (alpha: number, tint: number | null = null, pulse = false): this
+    {
+        this.glowPulse?.remove();
+        this.glowPulse = undefined;
+        this.scene.tweens.killTweensOf(this.glow);
+        this.glow.setTint(tint ?? RARITY_STYLE[this.card.rarity].glow ?? 0xffffff).setAlpha(alpha);
+        if (pulse && alpha > 0)
+        {
+            this.glowPulse = this.scene.tweens.add({
+                targets: this.glow,
+                alpha: { from: alpha, to: alpha * 0.4 },
+                duration: 700,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        }
+        return this;
+    }
+
+    // Fade the glow to `alpha` over `ms` (used while a merge charges up).
+    fadeGlow (alpha: number, ms: number, tint: number | null = null): this
+    {
+        this.setGlow(this.glow.alpha, tint);
+        this.scene.tweens.add({ targets: this.glow, alpha, duration: ms, ease: 'Quad.easeIn' });
         return this;
     }
 

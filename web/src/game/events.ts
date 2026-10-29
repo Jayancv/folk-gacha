@@ -23,3 +23,52 @@ export interface CardRevealedPayload
     index: number;
     card: CardData;
 }
+
+export const MergeBoardEvents = {
+    /** Phaser → React: the board is ready for cards. */
+    Ready: 'merge-board:ready',
+    /** React → Phaser: lay out the player's cards. Payload: BoardShowPayload */
+    Show: 'merge-board:show',
+    /** Phaser → React: the player dropped card A onto card B. Payload: MergeRequestedPayload */
+    MergeRequested: 'merge-board:merge-requested',
+    /** React → Phaser: the server's answer. Payload: MergeResultPayload */
+    MergeResult: 'merge-board:merge-result'
+} as const;
+
+export interface BoardShowPayload
+{
+    cards: CardData[];
+    /** Total cards owned, when more than fit on the board. */
+    total: number;
+}
+
+export interface MergeRequestedPayload
+{
+    requestId: string;
+    /** [dragged card, target card]. Only ids: the server decides the result. */
+    cardIds: [string, string];
+}
+
+export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'network';
+
+export type MergeResultPayload =
+    | {
+        requestId: string;
+        ok: true;
+        card: CardData;
+        kind: 'level_up' | 'recipe';
+        /** True the first time this player makes this recipe. */
+        discovered: boolean;
+    }
+    | {
+        requestId: string;
+        ok: false;
+        error: MergeFailure;
+    };
+
+export type GameScene = 'PackOpen' | 'MergeBoard';
+
+export const GameEvents = {
+    /** React → Phaser: show a table scene. Payload: { scene: GameScene } */
+    SwitchScene: 'game:switch-scene'
+} as const;

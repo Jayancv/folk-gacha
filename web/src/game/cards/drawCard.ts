@@ -3,6 +3,7 @@
 // Placeholder art for Phase 1: element gradient + big element icon.
 
 import { ELEMENT_STYLE, PALETTE, RARITY_STYLE, type CardData } from './model';
+import { ellipsize, wrap } from './textLayout';
 
 // Card size in design units (5:7).
 export const CARD_W = 216;
@@ -310,46 +311,4 @@ function fillSpaced (ctx: Ctx, text: string, x: number, y: number, spacing: numb
         cx += widths[i] + spacing;
     });
     ctx.textAlign = align;
-}
-
-function ellipsize (ctx: Ctx, text: string, maxW: number): string
-{
-    if (ctx.measureText(text).width <= maxW)
-    {
-        return text;
-    }
-    let t = text;
-    while (t.length > 1 && ctx.measureText(t + '…').width > maxW)
-    {
-        t = t.slice(0, -1);
-    }
-    return t.trimEnd() + '…';
-}
-
-function wrap (ctx: Ctx, text: string, maxW: number, maxLines: number): string[]
-{
-    const words = text.split(/\s+/);
-    const lines: string[] = [];
-    let line = '';
-    for (let i = 0; i < words.length; i++)
-    {
-        const test = line ? `${line} ${words[i]}` : words[i];
-        if (ctx.measureText(test).width <= maxW || !line)
-        {
-            line = test;
-            continue;
-        }
-        if (lines.length === maxLines - 1)
-        {
-            lines.push(ellipsize(ctx, `${line} ${words.slice(i).join(' ')}`, maxW));
-            return lines;
-        }
-        lines.push(line);
-        line = words[i];
-    }
-    if (line)
-    {
-        lines.push(line);
-    }
-    return lines;
 }

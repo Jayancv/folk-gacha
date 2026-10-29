@@ -1,9 +1,11 @@
 import { Boot } from './scenes/Boot';
 import { DebugOverlay } from './scenes/DebugOverlay';
+import { MergeBoard } from './scenes/MergeBoard';
 import { PackOpen } from './scenes/PackOpen';
 import { AUTO, Game, Scale } from 'phaser';
 import { Preloader } from './scenes/Preloader';
 import { attachHiDpiScaling, measureParent } from './scale';
+import { attachSceneRouter } from './router';
 
 const StartGame = (parentId: string) => {
 
@@ -32,11 +34,13 @@ const StartGame = (parentId: string) => {
             Boot,
             Preloader,
             PackOpen,
+            MergeBoard,
             DebugOverlay
         ]
     });
 
     attachHiDpiScaling(game, parent, viewport);
+    attachSceneRouter(game);
 
     // Handy in the browser console and for automated checks; stripped from production builds.
     if (import.meta.env.DEV)
