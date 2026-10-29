@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+build/
+server/bin/
+*.exe
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

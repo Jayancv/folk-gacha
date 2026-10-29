@@ -1,0 +1,39 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    /* No pull-to-refresh or rubber-banding while dragging cards. */
+    overscroll-behavior: none;
+}
+
+body {
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #170e10;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+#app {
+    position: fixed;
+    inset: 0;
+    /* dvh tracks mobile browser toolbars showing/hiding; vh is the fallback. */
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+/* The canvas fills this box; see src/game/scale.ts. */
+#game-container {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    /* Let Phaser own touch gestures (no browser pan/zoom on the table). */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+#game-container canvas {
+    display: block;
+}

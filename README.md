@@ -1,4 +1,4 @@
-# Daily Card Game
+# Folk Gacha
 
 A mobile-first web card game: claim a daily pack, flip cards, merge them into stronger cards,
 trade with other players and climb the weekly leaderboard.
