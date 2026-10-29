@@ -148,7 +148,7 @@ export function drawCardBack (scale: number): HTMLCanvasElement
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `800 ${8 * s}px ${DISPLAY_FONT}`;
-    ctx.fillText('ලංකා', CARD_W / 2, 12 * s);
+    ctx.fillText('Folk Gacha', CARD_W / 2, 12 * s);
     ctx.font = `800 ${6.4 * s}px ${DISPLAY_FONT}`;
     fillSpaced(ctx, 'LANKA MYTHICS', CARD_W / 2, CARD_H - 12 * s, 0.16 * 6.4 * s);
 
