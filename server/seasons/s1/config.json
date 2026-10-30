@@ -20,8 +20,10 @@
     { "id": "monara",        "name": "Monara Chick",  "nameSi": "මොනරා",      "element": "wind",   "rarity": "common",    "lore": "Practices its tail fan every morning, waiting for rain." },
     { "id": "ura",           "name": "Ura Boarlet",   "nameSi": "වල් ඌරා",     "element": "forest", "rarity": "uncommon",  "lore": "Roots through the forest floor looking for moonstones." },
     { "id": "simha",         "name": "Simha Cub",     "nameSi": "සිංහ පැටියා", "element": "fire",   "rarity": "uncommon",  "lore": "Its roar is still a squeak, but its mane is already ablaze." },
+    { "id": "hansa",         "name": "Hansa",         "nameSi": "හංස",         "element": "water",  "rarity": "uncommon",  "lore": "Glides across the lotus lake, leaving ripples of gold." },
     { "id": "gajasinghe",    "name": "Gajasinghe",    "nameSi": "ගජසිංහ",      "element": "earth",  "rarity": "rare",      "lore": "Elephant strength, lion heart. Guards the old gateways." },
     { "id": "serapendiya",   "name": "Serapendiya",   "nameSi": "සේරපෙන්දිය",  "element": "wind",   "rarity": "rare",      "lore": "Curled-beak bird of Sinhala art, carved on kasthane hilts." },
+    { "id": "kinduru",       "name": "Kinduru",       "nameSi": "කිඳුරු",       "element": "forest", "rarity": "rare",      "lore": "Half bird, half maiden. Her harp song wakes the forest at dawn." },
     { "id": "naga-raksha",   "name": "Naga Raksha",   "nameSi": "නාග රාක්ෂ",   "element": "water",  "rarity": "epic",      "lore": "Crowned with cobras, risen from the masks of Ambalangoda." },
     { "id": "gurulu-raksha", "name": "Gurulu Raksha", "nameSi": "ගුරුළු රාක්ෂ", "element": "wind",   "rarity": "epic",      "lore": "Strikes from the sky with a cobra in its beak." },
     { "id": "makara",        "name": "Makara",        "nameSi": "මකර",         "element": "water",  "rarity": "legendary", "lore": "Elephant front, lion feet, boar ear, fish body. Guardian of the thorana." }

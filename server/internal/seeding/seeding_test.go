@@ -46,8 +46,8 @@ func TestSeedLoadsCatalogAndRecipes(t *testing.T) {
 	if res.Seasons["s1"] != 1500 || res.Recipes != 2 {
 		t.Fatalf("result = %+v, want s1: 1500 cards and 2 recipes", res)
 	}
-	if n := count(t, pool, "card_templates"); n != 10 {
-		t.Fatalf("templates = %d, want 10", n)
+	if n := count(t, pool, "card_templates"); n != 12 {
+		t.Fatalf("templates = %d, want 12", n)
 	}
 
 	recipes, err := store.New(pool).ListRecipes(ctx)

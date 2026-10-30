@@ -318,6 +318,69 @@ const serapendiya: Glyph = (ctx, ink, detail) =>
     eye(ctx, 33, 38, 2.6, detail, ink);
 };
 
+const hansa: Glyph = (ctx, ink, detail) =>
+{
+    ctx.fillStyle = ink;
+    ctx.strokeStyle = ink;
+    // Scrolled wing feathers rising behind the body
+    curve(ctx, 5, [60, 62, 66, 48, 78, 40, 86, 42]);
+    curl(ctx, 92, 42, 5, 4, -1);
+    curve(ctx, 4.5, [64, 66, 72, 56, 84, 54, 90, 58]);
+    curl(ctx, 96, 58, 4, 3.5, -1);
+    // Gliding body on the water
+    oval(ctx, 58, 72, 26, 12, -0.05);
+    // Long S-curved neck and head
+    curve(ctx, 7, [40, 68, 30, 60, 30, 46, 38, 40, 44, 35, 42, 26, 36, 24]);
+    circle(ctx, 35, 24, 6);
+    poly(ctx, [30, 22, 20, 27, 30, 28]);
+    // Ripples
+    ctx.globalAlpha *= 0.6;
+    curve(ctx, 2.2, [26, 88, 40, 84, 60, 92, 82, 86]);
+    ctx.globalAlpha /= 0.6;
+    ctx.strokeStyle = detail;
+    ctx.globalAlpha *= 0.5;
+    curve(ctx, 2, [48, 70, 56, 64, 68, 64, 76, 70]);
+    ctx.globalAlpha /= 0.5;
+    eye(ctx, 34, 23, 1.8, detail, ink);
+};
+
+const kinduru: Glyph = (ctx, ink, detail) =>
+{
+    ctx.fillStyle = ink;
+    ctx.strokeStyle = ink;
+    // Raised wings, one on each side
+    for (const dir of [-1, 1])
+    {
+        for (let i = 0; i < 4; i++)
+        {
+            const a = -Math.PI / 2 + dir * (0.5 + i * 0.28);
+            oval(ctx, 50 + Math.cos(a) * 22, 44 + Math.sin(a) * 18, 5, 15, a + Math.PI / 2);
+        }
+    }
+    // Maiden: head with a crown, torso
+    circle(ctx, 50, 26, 8);
+    poly(ctx, [43, 20, 46, 12, 50, 18, 54, 12, 57, 20]);
+    oval(ctx, 50, 44, 8, 11);
+    // Bird body and tail feathers below
+    oval(ctx, 50, 62, 13, 10);
+    poly(ctx, [40, 66, 34, 86, 46, 72, 50, 90, 54, 72, 66, 86, 60, 66]);
+    // Harp
+    ctx.lineWidth = 2.4;
+    curve(ctx, 2.4, [36, 52, 30, 44, 32, 34, 38, 32]);
+    ctx.strokeStyle = detail;
+    ctx.globalAlpha *= 0.5;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++)
+    {
+        ctx.moveTo(33 + i * 2, 36 + i); ctx.lineTo(36 + i * 2, 50 - i);
+    }
+    ctx.stroke();
+    ctx.globalAlpha /= 0.5;
+    eye(ctx, 47, 26, 1.6, detail, ink);
+    eye(ctx, 53, 26, 1.6, detail, ink);
+};
+
 const nagaRaksha: Glyph = (ctx, ink, detail) =>
 {
     ctx.fillStyle = ink;
@@ -450,8 +513,10 @@ export const SPIRIT_GLYPHS: Record<string, Glyph> = {
     'monara': monara,
     'ura': ura,
     'simha': simha,
+    'hansa': hansa,
     'gajasinghe': gajasinghe,
     'serapendiya': serapendiya,
+    'kinduru': kinduru,
     'naga-raksha': nagaRaksha,
     'gurulu-raksha': guruluRaksha,
     'makara': makara

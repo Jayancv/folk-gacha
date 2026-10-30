@@ -241,7 +241,7 @@ export function drawCardGlint (card: CardData, scale: number): HTMLCanvasElement
     // Cut the creature out, so the light passes behind it instead of over it.
     const c = creatureBox(L.art);
     ctx.globalCompositeOperation = 'destination-out';
-    const painted = spiritImage(card.templateId);
+    const painted = spiritImage(card.templateId, card.level);
     if (painted)
     {
         ctx.drawImage(painted, c.x, c.y, c.w, c.h);
@@ -414,7 +414,7 @@ function drawSeasonArt (ctx: Ctx, card: CardData, season: SeasonCardInfo, b: Box
     // Painted art (spiritImages.ts) when the spirit has it, else the placeholder silhouette.
     const creature = creatureBox(b);
     const size = creature.w;
-    const painted = spiritImage(card.templateId);
+    const painted = spiritImage(card.templateId, card.level);
     // Light creature on dark palettes; on pale ones (ivory, temple gold) an element-coloured one.
     const badge = ELEMENT_STYLE[card.element].badge;
     const ink = light ? darken(badge, 0.2) : '#fff8ec';
