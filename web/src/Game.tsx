@@ -2,6 +2,8 @@ import type { Me } from './auth/useAuth';
 import { ApiStatus } from './app/ApiStatus';
 import { InstallBanner } from './app/install/InstallBanner';
 import { useInstallPrompt } from './app/install/useInstallPrompt';
+import { PackReadyToggle } from './app/push/PackReadyToggle';
+import { usePushNotifications } from './app/push/usePushNotifications';
 import { TabBar } from './app/TabBar';
 import { useTabs } from './app/useTabs';
 import { ShowcaseAgainButton, ShowcasePanel } from './dev/ShowcasePanel';
@@ -23,6 +25,7 @@ export default function Game ({ me }: { me: Me })
     const pack = usePackTable();
     const board = useBoardTable();
     const install = useInstallPrompt();
+    const notifications = usePushNotifications();
     // Offer installing while the player waits for tomorrow's pack: a natural moment, and no cards on the table to cover.
     const waitingForPack = tab === 'PackOpen' && !pack.opened && !pack.showcase && me.dailyPack?.ready === false;
 
@@ -33,7 +36,14 @@ export default function Game ({ me }: { me: Me })
             {tab === 'PackOpen' && !pack.opened && (pack.showcase ? (
                 <ShowcasePanel ready={pack.showcase.ready} onDeal={pack.showcase.deal} />
             ) : (
-                <DailyPackPanel status={me.dailyPack} claiming={pack.claiming} error={pack.claimError} onClaim={pack.claim} onReset={pack.refreshMe} />
+                <DailyPackPanel
+                    status={me.dailyPack}
+                    claiming={pack.claiming}
+                    error={pack.claimError}
+                    onClaim={pack.claim}
+                    onReset={pack.refreshMe}
+                    waitingFooter={<PackReadyToggle state={notifications.state} busy={notifications.busy} onTurnOn={notifications.turnOn} onTurnOff={notifications.turnOff} />}
+                />
             ))}
 
             {tab === 'MergeBoard' && board.loadError && <BoardLoadError onRetry={board.retry} />}

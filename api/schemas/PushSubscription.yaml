@@ -1,0 +1,19 @@
+type: object
+description: A browser push subscription, as PushSubscription.toJSON() returns it
+required:
+  - endpoint
+  - keys
+properties:
+  endpoint:
+    type: string
+    description: The push service URL for this browser
+  keys:
+    type: object
+    required:
+      - p256dh
+      - auth
+    properties:
+      p256dh:
+        type: string
+      auth:
+        type: string

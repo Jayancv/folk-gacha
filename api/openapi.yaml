@@ -38,6 +38,10 @@ paths:
     $ref: ./paths/leaderboard/current.yaml
   /leaderboard/{seasonId}:
     $ref: ./paths/leaderboard/{seasonId}.yaml
+  /push/key:
+    $ref: ./paths/push/key.yaml
+  /push/subscriptions:
+    $ref: ./paths/push/subscriptions.yaml
 components:
   securitySchemes:
     session:
@@ -80,3 +84,7 @@ components:
       $ref: ./schemas/LeaderboardSeason.yaml
     LeaderboardEntry:
       $ref: ./schemas/LeaderboardEntry.yaml
+    PushKey:
+      $ref: ./schemas/PushKey.yaml
+    PushSubscription:
+      $ref: ./schemas/PushSubscription.yaml

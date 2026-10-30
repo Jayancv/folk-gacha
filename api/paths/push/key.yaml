@@ -1,0 +1,19 @@
+# /push/key
+get:
+  operationId: getPushKey
+  summary: The server's public VAPID key for web push subscriptions
+  description: Absent (404) when this server doesn't send push notifications; the app then hides the option.
+  security: []
+  responses:
+    "200":
+      description: The key to pass to PushManager.subscribe (applicationServerKey)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/PushKey.yaml
+    "404":
+      description: Push notifications are off on this server (error push_disabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
