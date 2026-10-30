@@ -22,5 +22,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
+  // The service worker has its own types (WebWorker, not DOM): tsconfig.sw.json.
+  "exclude": ["src/sw"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

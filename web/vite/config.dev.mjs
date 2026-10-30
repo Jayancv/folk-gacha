@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { pwa } from './pwa.mjs'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -8,6 +9,8 @@ export default defineConfig({
     plugins: [
         react(),
         tailwindcss(),
+        // Service worker off in dev (see pwa.mjs); loaded so its register module resolves.
+        pwa(),
     ],
     server: {
         port: 8080,
