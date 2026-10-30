@@ -19,6 +19,7 @@ import (
 	httpapi "cardgame/server/internal/http"
 	"cardgame/server/internal/merges"
 	"cardgame/server/internal/packs"
+	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
 )
 
@@ -92,6 +93,10 @@ func run() error {
 		Handler:           api.Handler(origins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+
+	// Weekly leaderboard seasons: create the current week, freeze ended weeks.
+	// Stops with ctx on shutdown; safe if several servers run it.
+	go seasons.NewService(pool).Run(ctx, time.Minute)
 
 	errCh := make(chan error, 1)
 	go func() {

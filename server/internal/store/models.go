@@ -60,6 +60,13 @@ type MergeRecipe struct {
 	OutputTemplateID string
 }
 
+type Season struct {
+	ID          string
+	StartsAt    time.Time
+	EndsAt      time.Time
+	FinalizedAt pgtype.Timestamptz
+}
+
 type SeasonCard struct {
 	ID           string
 	CardSeasonID string
@@ -75,6 +82,20 @@ type SeasonCard struct {
 	MaxCopies    pgtype.Int4
 	Minted       int32
 	ArtSeed      int64
+}
+
+type SeasonPoint struct {
+	SeasonID  string
+	UserID    uuid.UUID
+	Points    int32
+	UpdatedAt time.Time
+}
+
+type SeasonResult struct {
+	SeasonID string
+	UserID   uuid.UUID
+	Rank     int32
+	Points   int32
 }
 
 type Session struct {
