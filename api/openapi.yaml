@@ -34,6 +34,10 @@ paths:
     $ref: ./paths/merges.yaml
   /recipes:
     $ref: ./paths/recipes.yaml
+  /leaderboard/current:
+    $ref: ./paths/leaderboard/current.yaml
+  /leaderboard/{seasonId}:
+    $ref: ./paths/leaderboard/{seasonId}.yaml
 components:
   securitySchemes:
     session:
@@ -70,3 +74,9 @@ components:
       $ref: ./schemas/CardTraits.yaml
     Error:
       $ref: ./schemas/Error.yaml
+    Leaderboard:
+      $ref: ./schemas/Leaderboard.yaml
+    LeaderboardSeason:
+      $ref: ./schemas/LeaderboardSeason.yaml
+    LeaderboardEntry:
+      $ref: ./schemas/LeaderboardEntry.yaml

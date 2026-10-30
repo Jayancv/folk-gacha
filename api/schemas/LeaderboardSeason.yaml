@@ -1,0 +1,17 @@
+type: object
+required:
+  - id
+  - startsAt
+  - endsAt
+properties:
+  id:
+    type: string
+    description: ISO week, e.g. 2026-W44
+  startsAt:
+    type: string
+    format: date-time
+    description: Monday 00:00 UTC
+  endsAt:
+    type: string
+    format: date-time
+    description: The next Monday 00:00 UTC (exclusive)

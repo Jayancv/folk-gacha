@@ -320,6 +320,42 @@ type HealthDatabase string
 // HealthStatus defines model for Health.Status.
 type HealthStatus string
 
+// Leaderboard defines model for Leaderboard.
+type Leaderboard struct {
+	// Final True once the week is over and its standings are frozen; otherwise ranks are live
+	Final bool `json:"final"`
+
+	// Players How many players are ranked (have points) in total
+	Players int `json:"players"`
+
+	// PreviousId Id of the week before (its board may be empty or not exist)
+	PreviousId string            `json:"previousId"`
+	Season     LeaderboardSeason `json:"season"`
+
+	// Top Up to 100 players, best first
+	Top []LeaderboardEntry `json:"top"`
+	You *LeaderboardEntry  `json:"you,omitempty"`
+}
+
+// LeaderboardEntry defines model for LeaderboardEntry.
+type LeaderboardEntry struct {
+	Points   int    `json:"points"`
+	Rank     int    `json:"rank"`
+	Username string `json:"username"`
+}
+
+// LeaderboardSeason defines model for LeaderboardSeason.
+type LeaderboardSeason struct {
+	// EndsAt The next Monday 00:00 UTC (exclusive)
+	EndsAt time.Time `json:"endsAt"`
+
+	// Id ISO week, e.g. 2026-W44
+	Id string `json:"id"`
+
+	// StartsAt Monday 00:00 UTC
+	StartsAt time.Time `json:"startsAt"`
+}
+
 // Me defines model for Me.
 type Me struct {
 	CreatedAt time.Time          `json:"createdAt"`
@@ -418,6 +454,12 @@ type ServerInterface interface {
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// GetCurrentLeaderboard This week's leaderboard (live)
+	// (GET /leaderboard/current)
+	GetCurrentLeaderboard(w http.ResponseWriter, r *http.Request)
+	// GetLeaderboard A weekly season's leaderboard
+	// (GET /leaderboard/{seasonId})
+	GetLeaderboard(w http.ResponseWriter, r *http.Request, seasonId string)
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -635,6 +677,46 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetCurrentLeaderboard operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrentLeaderboard(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCurrentLeaderboard(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLeaderboard operation middleware
+func (siw *ServerInterfaceWrapper) GetLeaderboard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "seasonId" -------------
+	var seasonId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "seasonId", r.PathValue("seasonId"), &seasonId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "seasonId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLeaderboard(w, r, seasonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMe operation middleware
 func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
 
@@ -821,6 +903,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/merges", wrapper.MergeCards)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/recipes", wrapper.ListRecipes)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/current", wrapper.GetCurrentLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/{seasonId}", wrapper.GetLeaderboard)
 
 	return m
 }
@@ -1074,6 +1158,63 @@ func (response GetHealth503JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type GetCurrentLeaderboardRequestObject struct {
+}
+
+type GetCurrentLeaderboardResponseObject interface {
+	VisitGetCurrentLeaderboardResponse(w http.ResponseWriter) error
+}
+
+type GetCurrentLeaderboard200JSONResponse Leaderboard
+
+func (response GetCurrentLeaderboard200JSONResponse) VisitGetCurrentLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLeaderboardRequestObject struct {
+	SeasonId string `json:"seasonId"`
+}
+
+type GetLeaderboardResponseObject interface {
+	VisitGetLeaderboardResponse(w http.ResponseWriter) error
+}
+
+type GetLeaderboard200JSONResponse Leaderboard
+
+func (response GetLeaderboard200JSONResponse) VisitGetLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLeaderboard404JSONResponse Error
+
+func (response GetLeaderboard404JSONResponse) VisitGetLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -1307,6 +1448,12 @@ type StrictServerInterface interface {
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+	// GetCurrentLeaderboard This week's leaderboard (live)
+	// (GET /leaderboard/current)
+	GetCurrentLeaderboard(ctx context.Context, request GetCurrentLeaderboardRequestObject) (GetCurrentLeaderboardResponseObject, error)
+	// GetLeaderboard A weekly season's leaderboard
+	// (GET /leaderboard/{seasonId})
+	GetLeaderboard(ctx context.Context, request GetLeaderboardRequestObject) (GetLeaderboardResponseObject, error)
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -1513,6 +1660,56 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
 		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCurrentLeaderboard operation middleware
+func (sh *strictHandler) GetCurrentLeaderboard(w http.ResponseWriter, r *http.Request) {
+	var request GetCurrentLeaderboardRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCurrentLeaderboard(ctx, request.(GetCurrentLeaderboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCurrentLeaderboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCurrentLeaderboardResponseObject); ok {
+		if err := validResponse.VisitGetCurrentLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLeaderboard operation middleware
+func (sh *strictHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request, seasonId string) {
+	var request GetLeaderboardRequestObject
+
+	request.SeasonId = seasonId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLeaderboard(ctx, request.(GetLeaderboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLeaderboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLeaderboardResponseObject); ok {
+		if err := validResponse.VisitGetLeaderboardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

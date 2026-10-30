@@ -1,0 +1,17 @@
+{
+    "id": "/",
+    "name": "Folk Gacha",
+    "short_name": "Folk Gacha",
+    "description": "Open a free pack of Lanka Mythics spirit cards every day, merge them into stronger ones, and climb the weekly leaderboard.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#170e10",
+    "theme_color": "#170e10",
+    "categories": ["games", "entertainment"],
+    "icons": [
+        { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}

@@ -2,9 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
+import { startInstallCapture } from './app/install/installCapture';
 import './index.css';
 
 // Server data (profile, and later the collection and leaderboard) lives in TanStack Query.
+// Before anything else: the browser's install dialog arrives once, early (see installCapture).
+startInstallCapture();
+
 const queryClient = new QueryClient({
     defaultOptions: { queries: { refetchOnWindowFocus: false } }
 });

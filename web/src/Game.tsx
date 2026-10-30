@@ -1,5 +1,7 @@
 import type { Me } from './auth/useAuth';
 import { ApiStatus } from './app/ApiStatus';
+import { InstallBanner } from './app/install/InstallBanner';
+import { useInstallPrompt } from './app/install/useInstallPrompt';
 import { TabBar } from './app/TabBar';
 import { useTabs } from './app/useTabs';
 import { ShowcaseAgainButton, ShowcasePanel } from './dev/ShowcasePanel';
@@ -7,6 +9,7 @@ import { PhaserGame } from './PhaserGame';
 import { BoardLoadError } from './screens/board/BoardLoadError';
 import { useBoardTable } from './screens/board/useBoardTable';
 import { Collection } from './screens/collection/Collection';
+import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { usePackTable } from './screens/pack/usePackTable';
 import { UserChip } from './screens/UserChip';
@@ -19,6 +22,9 @@ export default function Game ({ me }: { me: Me })
     const { tab, collectionOpened, switchTo } = useTabs();
     const pack = usePackTable();
     const board = useBoardTable();
+    const install = useInstallPrompt();
+    // Offer installing while the player waits for tomorrow's pack: a natural moment, and no cards on the table to cover.
+    const waitingForPack = tab === 'PackOpen' && !pack.opened && !pack.showcase && me.dailyPack?.ready === false;
 
     return (
         <div id="app">
@@ -37,11 +43,13 @@ export default function Game ({ me }: { me: Me })
                     <Collection />
                 </div>
             )}
+            {tab === 'Leaderboard' && <Leaderboard me={me} />}
             <ApiStatus />
             <UserChip me={me} />
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
+                {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
                 <TabBar tab={tab} onSwitch={switchTo} />
             </div>
         </div>

@@ -2,10 +2,13 @@ import { useState } from 'react';
 import { EventBus } from '../bridge/EventBus';
 import { GameEvents, type GameScene } from '../bridge/events';
 
-// Pack and Board are Phaser scenes; Cards is a React screen over the (sleeping) table.
-export type Tab = GameScene | 'Collection';
+// Pack and Board are Phaser scenes; Cards and Ranks are React screens over the (sleeping) table.
+export type ReactScreen = 'Collection' | 'Leaderboard';
+export type Tab = GameScene | ReactScreen;
 
-/** The open tab. Switching starts the Phaser scene, or sleeps the game loop under the collection. */
+const isReactScreen = (tab: Tab): tab is ReactScreen => tab === 'Collection' || tab === 'Leaderboard';
+
+/** The open tab. Switching starts the Phaser scene, or sleeps the game loop under a React screen. */
 export function useTabs ()
 {
     const [tab, setTab] = useState<Tab>('PackOpen');
@@ -15,15 +18,21 @@ export function useTabs ()
 
     const switchTo = (next: Tab) =>
     {
-        const wasCollection = tab === 'Collection';
+        const wasCovered = isReactScreen(tab);
         setTab(next);
         if (next === 'Collection')
         {
             setCollectionOpened(true);
-            EventBus.emit(GameEvents.SetPaused, { paused: true });
+        }
+        if (isReactScreen(next))
+        {
+            if (!wasCovered)
+            {
+                EventBus.emit(GameEvents.SetPaused, { paused: true });
+            }
             return;
         }
-        if (wasCollection)
+        if (wasCovered)
         {
             EventBus.emit(GameEvents.SetPaused, { paused: false });
         }

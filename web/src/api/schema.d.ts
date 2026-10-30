@@ -184,6 +184,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leaderboard/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * This week's leaderboard (live)
+         * @description The top 100 of the current weekly season (Monday 00:00 UTC to the next Monday), ranked live
+         *     by season points, then by who reached their score first. Public; when signed in, `you` is the
+         *     viewer's own standing even outside the top 100.
+         */
+        get: operations["getCurrentLeaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/leaderboard/{seasonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A weekly season's leaderboard
+         * @description Frozen final standings once the week is over and finalized (`final: true`), live standings
+         *     before that. Public; when signed in, `you` is the viewer's own standing.
+         */
+        get: operations["getLeaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -335,6 +378,37 @@ export interface components {
             /** @description Machine-readable code, e.g. invalid_token, not_signed_in */
             error: string;
             message?: string;
+        };
+        Leaderboard: {
+            season: components["schemas"]["LeaderboardSeason"];
+            /** @description True once the week is over and its standings are frozen; otherwise ranks are live */
+            final: boolean;
+            /** @description Id of the week before (its board may be empty or not exist) */
+            previousId: string;
+            /** @description Up to 100 players, best first */
+            top: components["schemas"]["LeaderboardEntry"][];
+            /** @description How many players are ranked (have points) in total */
+            players: number;
+            you?: components["schemas"]["LeaderboardEntry"];
+        };
+        LeaderboardSeason: {
+            /** @description ISO week, e.g. 2026-W44 */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Monday 00:00 UTC
+             */
+            startsAt: string;
+            /**
+             * Format: date-time
+             * @description The next Monday 00:00 UTC (exclusive)
+             */
+            endsAt: string;
+        };
+        LeaderboardEntry: {
+            rank: number;
+            username: string;
+            points: number;
         };
     };
     responses: never;
@@ -722,6 +796,58 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getCurrentLeaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current week's standings (empty if nobody has scored yet) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Leaderboard"];
+                };
+            };
+        };
+    };
+    getLeaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ISO week, e.g. 2026-W44 (see `previousId` of a board) */
+                seasonId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The season's standings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Leaderboard"];
+                };
+            };
+            /** @description No such season (error not_found) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

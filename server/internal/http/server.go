@@ -9,6 +9,7 @@ import (
 
 	"cardgame/server/internal/auth"
 	"cardgame/server/internal/collection"
+	"cardgame/server/internal/leaderboard"
 	"cardgame/server/internal/merges"
 	"cardgame/server/internal/packs"
 )
@@ -20,13 +21,14 @@ type Pinger interface {
 
 // Server implements StrictServerInterface.
 type Server struct {
-	db         Pinger
-	auth       *auth.Service
-	authOpts   AuthOptions
-	packs      *packs.Service
-	merges     *merges.Service
-	collection *collection.Service
-	now        func() time.Time
+	db          Pinger
+	auth        *auth.Service
+	authOpts    AuthOptions
+	packs       *packs.Service
+	merges      *merges.Service
+	collection  *collection.Service
+	leaderboard *leaderboard.Service
+	now         func() time.Time
 }
 
 var _ StrictServerInterface = (*Server)(nil)
@@ -34,15 +36,16 @@ var _ StrictServerInterface = (*Server)(nil)
 // Services are the game services behind the handlers. Any may be nil (tests
 // without a database); its endpoints are then unavailable.
 type Services struct {
-	Auth       *auth.Service
-	Packs      *packs.Service
-	Merges     *merges.Service
-	Collection *collection.Service
+	Auth        *auth.Service
+	Packs       *packs.Service
+	Merges      *merges.Service
+	Collection  *collection.Service
+	Leaderboard *leaderboard.Service
 }
 
 // NewServer wires the handlers.
 func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
-	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, authOpts: opts, now: time.Now}
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.

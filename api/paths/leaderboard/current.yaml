@@ -1,0 +1,16 @@
+# /leaderboard/current
+get:
+  operationId: getCurrentLeaderboard
+  summary: This week's leaderboard (live)
+  description: |
+    The top 100 of the current weekly season (Monday 00:00 UTC to the next Monday), ranked live
+    by season points, then by who reached their score first. Public; when signed in, `you` is the
+    viewer's own standing even outside the top 100.
+  security: []
+  responses:
+    "200":
+      description: The current week's standings (empty if nobody has scored yet)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Leaderboard.yaml
