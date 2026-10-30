@@ -7,7 +7,7 @@ export type Me = components['schemas']['Me'];
 export type AuthConfig = components['schemas']['AuthConfig'];
 type ApiError = components['schemas']['Error'];
 
-const ME_KEY = ['me'] as const;
+export const ME_KEY = ['me'] as const;
 
 /** Thrown for API errors so TanStack Query treats them as failures. */
 export class ApiRequestError extends Error

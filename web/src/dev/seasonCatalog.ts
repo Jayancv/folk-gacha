@@ -1,5 +1,5 @@
-// PHASE 1 ONLY: reads the generated Season 1 catalog (server/seasons/s1) so fake packs
-// show real season cards. In Phase 2 the server sends finished cards and this goes away.
+// DEV ONLY (?showcase): reads the generated Season 1 catalog (server/seasons/s1) so showcase
+// packs show real season cards. The real game gets its cards from the API.
 // cards.json is ~1 MB, so it is fetched at runtime instead of bundled into the app.
 
 import type { Element, Rarity, SeasonCardInfo } from '../game/cards/model';

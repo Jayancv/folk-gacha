@@ -1,6 +1,6 @@
-// PHASE 1 ONLY: fake card data so the game table can be built before the server exists.
-// In Phase 2 the server rolls packs (POST /packs/daily/claim) and this file goes away.
-// Never ship client-side rolls: the server decides every outcome.
+// DEV AND TESTS ONLY: fake card data. Tests use it as a card factory, and ?showcase deals
+// local packs from it (loaded on demand by Game.tsx) to tune the reveal effects.
+// The real game never rolls here: packs come from POST /packs/daily/claim.
 
 import type { CardData, Element, Rarity } from '../game/cards/model';
 import { RARITIES } from '../game/cards/model';

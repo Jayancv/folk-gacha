@@ -12,6 +12,7 @@ import {
     FAILURE_TEXT,
     isLevelUpMatch,
     mergeLabel,
+    RESULT_TIMEOUT_MS,
     SLOTS,
     slotAt
 } from '../merge/boardModel';
@@ -35,7 +36,6 @@ const LIFT_SCALE = BOARD_SCALE * 1.12;
 const HOVER_SCALE = BOARD_SCALE * 1.06;
 // The charge-up always lasts at least this long so fast answers still feel deliberate.
 const MIN_CHARGE_MS = 650;
-const RESULT_TIMEOUT_MS = 8000;
 const MATCH_TINT = 0xffd66e;
 const DEPTH = { slots: 5, cards: 10, dragging: 900, merge: 950, fx: 1000, inspect: 2000 };
 
@@ -537,6 +537,8 @@ export class MergeBoard extends ResponsiveScene
         await this.delay(discovered ? 700 : 380);
         await this.settle(view, bSlot, 320);
         this.time.delayedCall(900, () => view.active && view.setGlow(0));
+        // Two cards in, one out: the player owns one card fewer.
+        this.total = Math.max(this.slots.filter(Boolean).length, this.total - 1);
         this.updateHint();
     }
 

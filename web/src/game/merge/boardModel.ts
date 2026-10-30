@@ -9,6 +9,9 @@ import { DESIGN_WIDTH } from '../layout';
 export const COLS = 4;
 export const ROWS = 4;
 export const BOARD_SIZE = COLS * ROWS;
+
+/** How long the board waits for a merge answer before showing a network failure. */
+export const RESULT_TIMEOUT_MS = 8000;
 export const BOARD_SCALE = 0.72;
 export const CELL_W = CARD_W * BOARD_SCALE;
 export const CELL_H = CARD_H * BOARD_SCALE;
@@ -52,6 +55,7 @@ export const FAILURE_TEXT: Record<MergeFailure, string> = {
     no_recipe: 'Nothing happened…',
     max_level: 'Already max level',
     not_owned: 'Card unavailable',
+    sold_out: 'None left this season',
     network: 'No answer, try again'
 };
 

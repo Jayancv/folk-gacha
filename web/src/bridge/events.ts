@@ -50,7 +50,7 @@ export interface MergeRequestedPayload
     cardIds: [string, string];
 }
 
-export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'network';
+export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'sold_out' | 'network';
 
 export type MergeResultPayload =
     | {
