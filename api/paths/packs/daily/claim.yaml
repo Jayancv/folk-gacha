@@ -1,0 +1,32 @@
+# /packs/daily/claim
+post:
+  operationId: claimDailyPack
+  summary: Open today's free pack (one per UTC day)
+  description: |
+    The server rolls the 5 cards (rarity odds, pity rule, copy limits) and saves them to the
+    player's collection in one transaction. The pack resets at 00:00 UTC.
+  responses:
+    "200":
+      description: The new cards, in reveal order
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/DailyPack.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "409":
+      description: Today's pack was already claimed (error already_claimed)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "503":
+      description: No card season is open to draw from (error no_season)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml

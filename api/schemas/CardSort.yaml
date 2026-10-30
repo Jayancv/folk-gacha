@@ -1,0 +1,8 @@
+type: string
+description: |
+  newest (default): most recently acquired first. score: highest score first.
+  number: by card season and set number, highest level first.
+enum:
+  - newest
+  - score
+  - number

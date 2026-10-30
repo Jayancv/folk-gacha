@@ -1,0 +1,16 @@
+type: object
+required:
+  - kind
+  - card
+  - discovered
+properties:
+  kind:
+    type: string
+    enum:
+      - level_up
+      - recipe
+  card:
+    $ref: ./Card.yaml
+  discovered:
+    type: boolean
+    description: True the first time this player makes this recipe

@@ -1,0 +1,9 @@
+type: object
+required:
+  - error
+properties:
+  error:
+    type: string
+    description: Machine-readable code, e.g. invalid_token, not_signed_in
+  message:
+    type: string

@@ -1,0 +1,21 @@
+type: object
+required:
+  - id
+  - username
+  - createdAt
+  - tradeUnlockedAt
+properties:
+  id:
+    type: string
+    format: uuid
+  username:
+    type: string
+  createdAt:
+    type: string
+    format: date-time
+  tradeUnlockedAt:
+    type: string
+    format: date-time
+    description: When this account may start trading (created + 7 days, UTC)
+  dailyPack:
+    $ref: ./DailyPackStatus.yaml

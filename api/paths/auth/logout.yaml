@@ -1,0 +1,11 @@
+# /auth/logout
+post:
+  operationId: logout
+  summary: End the current session
+  responses:
+    "204":
+      description: Signed out; the session cookie is cleared
+      headers:
+        Set-Cookie:
+          schema:
+            type: string

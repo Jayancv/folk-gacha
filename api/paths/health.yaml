@@ -1,0 +1,18 @@
+# /health
+get:
+  operationId: getHealth
+  summary: Liveness and database check
+  security: []
+  responses:
+    "200":
+      description: Server and database are reachable
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Health.yaml
+    "503":
+      description: Server is up but the database is unreachable
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Health.yaml

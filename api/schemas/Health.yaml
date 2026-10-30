@@ -1,0 +1,20 @@
+type: object
+required:
+  - status
+  - database
+  - time
+properties:
+  status:
+    type: string
+    enum:
+      - ok
+      - degraded
+  database:
+    type: string
+    enum:
+      - ok
+      - down
+  time:
+    type: string
+    format: date-time
+    description: Current server time in UTC

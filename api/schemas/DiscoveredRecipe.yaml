@@ -1,0 +1,19 @@
+type: object
+required:
+  - inputs
+  - output
+  - discoveredAt
+properties:
+  inputs:
+    type: array
+    description: The two spirit (template) ids, sorted
+    minItems: 2
+    maxItems: 2
+    items:
+      type: string
+  output:
+    type: string
+    description: Spirit id the recipe makes
+  discoveredAt:
+    type: string
+    format: date-time

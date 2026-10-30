@@ -3,9 +3,11 @@ info:
   title: Folk Gacha API
   version: 0.1.0
   description: |
-    Single source of truth for the API. Change this file first, then regenerate:
-    - Go:         cd server && go generate ./...
-    - TypeScript: cd web && npm run gen:api
+    Single source of truth for the API, split into one file per path (paths/, mirroring the URL)
+    and one per schema (schemas/). Edit those files (and register new ones below), then regenerate:
+    - Bundle + TypeScript: cd web && npm run gen:api   (writes api/openapi.bundled.yaml, then the TS types)
+    - Go:                  cd server && go generate ./...   (reads api/openapi.bundled.yaml)
+    Never edit openapi.bundled.yaml by hand.
 servers:
   - url: http://localhost:8081
     description: Local development
@@ -13,327 +15,25 @@ security:
   - session: []
 paths:
   /health:
-    get:
-      operationId: getHealth
-      summary: Liveness and database check
-      security: []
-      responses:
-        "200":
-          description: Server and database are reachable
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Health"
-        "503":
-          description: Server is up but the database is unreachable
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Health"
+    $ref: ./paths/health.yaml
   /auth/config:
-    get:
-      operationId: getAuthConfig
-      summary: Which sign-in options this server offers
-      security: []
-      responses:
-        "200":
-          description: Sign-in options
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AuthConfig"
+    $ref: ./paths/auth/config.yaml
   /auth/google:
-    post:
-      operationId: signInWithGoogle
-      summary: Sign in with a Google ID token (creates the account on first sign-in)
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [credential]
-              properties:
-                credential:
-                  type: string
-                  description: The ID token (JWT) from Google Identity Services
-      responses:
-        "200":
-          description: Signed in; the session cookie is set
-          headers:
-            Set-Cookie:
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        "401":
-          description: The Google token is invalid, expired, or for another app
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "404":
-          description: Google sign-in is not configured on this server
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/auth/google.yaml
   /auth/dev:
-    post:
-      operationId: signInDev
-      summary: Development-only sign-in by name (disabled unless DEV_LOGIN=1)
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name]
-              properties:
-                name:
-                  type: string
-                  minLength: 1
-                  maxLength: 20
-      responses:
-        "200":
-          description: Signed in; the session cookie is set
-          headers:
-            Set-Cookie:
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        "400":
-          description: Name has no usable characters
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "404":
-          description: Dev sign-in is disabled
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/auth/dev.yaml
   /auth/logout:
-    post:
-      operationId: logout
-      summary: End the current session
-      responses:
-        "204":
-          description: Signed out; the session cookie is cleared
-          headers:
-            Set-Cookie:
-              schema:
-                type: string
+    $ref: ./paths/auth/logout.yaml
   /me:
-    get:
-      operationId: getMe
-      summary: The signed-in player's profile
-      responses:
-        "200":
-          description: Profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Me"
-        "401":
-          description: Not signed in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/me.yaml
   /packs/daily/claim:
-    post:
-      operationId: claimDailyPack
-      summary: Open today's free pack (one per UTC day)
-      description: |
-        The server rolls the 5 cards (rarity odds, pity rule, copy limits) and saves them to the
-        player's collection in one transaction. The pack resets at 00:00 UTC.
-      responses:
-        "200":
-          description: The new cards, in reveal order
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DailyPack"
-        "401":
-          description: Not signed in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "409":
-          description: Today's pack was already claimed (error already_claimed)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "503":
-          description: No card season is open to draw from (error no_season)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/packs/daily/claim.yaml
   /cards:
-    get:
-      operationId: listCards
-      summary: The signed-in player's collection (paged, filterable)
-      parameters:
-        - name: rarity
-          in: query
-          description: Only these rarities (repeat the parameter for several)
-          schema:
-            type: array
-            items:
-              $ref: "#/components/schemas/Rarity"
-        - name: element
-          in: query
-          description: Only these elements (repeat the parameter for several)
-          schema:
-            type: array
-            items:
-              $ref: "#/components/schemas/Element"
-        - name: level
-          in: query
-          description: Only cards at this level
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 5
-        - name: spirit
-          in: query
-          description: Only this spirit (template id), e.g. gaja-calf
-          schema:
-            type: string
-        - name: set
-          in: query
-          description: Only this card season, e.g. s1
-          schema:
-            type: string
-        - name: sort
-          in: query
-          schema:
-            $ref: "#/components/schemas/CardSort"
-        - name: limit
-          in: query
-          description: Page size (default 60, at most 200)
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 200
-        - name: offset
-          in: query
-          description: Cards to skip (use nextOffset from the previous page)
-          schema:
-            type: integer
-            minimum: 0
-      responses:
-        "200":
-          description: One page of cards
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CardPage"
-        "400":
-          description: A filter value is invalid
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "401":
-          description: Not signed in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/cards.yaml
   /merges:
-    post:
-      operationId: mergeCards
-      summary: Merge two of your cards
-      description: |
-        Drop `cardIds[0]` onto `cardIds[1]`. Both cards are used up and one new card is created, in one
-        transaction. Two cards of the same spirit and level make that card one level higher (it keeps the
-        target card's look and copy number). Two different spirits that form a recipe make a new level-1
-        card of the recipe's output spirit; the first time also records the recipe as discovered.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [cardIds]
-              properties:
-                cardIds:
-                  type: array
-                  description: "[dragged card, target card]"
-                  minItems: 2
-                  maxItems: 2
-                  items:
-                    type: string
-                    format: uuid
-      responses:
-        "200":
-          description: The new card
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MergeResult"
-        "400":
-          description: Bad request, e.g. the same card twice (error same_card)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "401":
-          description: Not signed in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "404":
-          description: A card doesn't exist or isn't yours (error not_owned)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "409":
-          description: |
-            The cards don't merge: no_recipe (different spirits without a recipe, or different levels),
-            max_level, or sold_out (the recipe's output has no copies left)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/merges.yaml
   /recipes:
-    get:
-      operationId: listRecipes
-      summary: Recipes the signed-in player has discovered
-      responses:
-        "200":
-          description: Discovered recipes, oldest first
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [recipes]
-                properties:
-                  recipes:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/DiscoveredRecipe"
-        "401":
-          description: Not signed in
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+    $ref: ./paths/recipes.yaml
 components:
   securitySchemes:
     session:
@@ -343,234 +43,30 @@ components:
       description: HttpOnly session cookie set by the sign-in endpoints
   schemas:
     Health:
-      type: object
-      required: [status, database, time]
-      properties:
-        status:
-          type: string
-          enum: [ok, degraded]
-        database:
-          type: string
-          enum: [ok, down]
-        time:
-          type: string
-          format: date-time
-          description: Current server time in UTC
+      $ref: ./schemas/Health.yaml
     AuthConfig:
-      type: object
-      required: [devLogin]
-      properties:
-        googleClientId:
-          type: string
-          description: OAuth client ID for the Google sign-in button; absent if Google sign-in is off
-        devLogin:
-          type: boolean
-          description: Whether POST /auth/dev is enabled (local development only)
+      $ref: ./schemas/AuthConfig.yaml
     Me:
-      type: object
-      required: [id, username, createdAt, tradeUnlockedAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        username:
-          type: string
-        createdAt:
-          type: string
-          format: date-time
-        tradeUnlockedAt:
-          type: string
-          format: date-time
-          description: When this account may start trading (created + 7 days, UTC)
-        dailyPack:
-          $ref: "#/components/schemas/DailyPackStatus"
+      $ref: ./schemas/Me.yaml
     DailyPackStatus:
-      type: object
-      required: [ready, nextResetAt]
-      properties:
-        ready:
-          type: boolean
-          description: Whether today's pack can be claimed
-        nextResetAt:
-          type: string
-          format: date-time
-          description: Next daily reset (00:00 UTC)
+      $ref: ./schemas/DailyPackStatus.yaml
     DailyPack:
-      type: object
-      required: [day, cards, nextResetAt]
-      properties:
-        day:
-          type: string
-          format: date
-          description: The UTC day this pack was claimed for
-        cards:
-          type: array
-          items:
-            $ref: "#/components/schemas/Card"
-        nextResetAt:
-          type: string
-          format: date-time
-          description: When the next pack can be claimed (00:00 UTC)
+      $ref: ./schemas/DailyPack.yaml
     CardSort:
-      type: string
-      description: |
-        newest (default): most recently acquired first. score: highest score first.
-        number: by card season and set number, highest level first.
-      enum: [newest, score, number]
+      $ref: ./schemas/CardSort.yaml
     CardPage:
-      type: object
-      required: [cards, total]
-      properties:
-        cards:
-          type: array
-          items:
-            $ref: "#/components/schemas/Card"
-        total:
-          type: integer
-          description: Cards matching the filters, across all pages
-        nextOffset:
-          type: integer
-          description: Offset of the next page; absent on the last page
+      $ref: ./schemas/CardPage.yaml
     MergeResult:
-      type: object
-      required: [kind, card, discovered]
-      properties:
-        kind:
-          type: string
-          enum: [level_up, recipe]
-        card:
-          $ref: "#/components/schemas/Card"
-        discovered:
-          type: boolean
-          description: True the first time this player makes this recipe
+      $ref: ./schemas/MergeResult.yaml
     DiscoveredRecipe:
-      type: object
-      required: [inputs, output, discoveredAt]
-      properties:
-        inputs:
-          type: array
-          description: The two spirit (template) ids, sorted
-          minItems: 2
-          maxItems: 2
-          items:
-            type: string
-        output:
-          type: string
-          description: Spirit id the recipe makes
-        discoveredAt:
-          type: string
-          format: date-time
+      $ref: ./schemas/DiscoveredRecipe.yaml
     Rarity:
-      type: string
-      enum: [common, uncommon, rare, epic, legendary]
+      $ref: ./schemas/Rarity.yaml
     Element:
-      type: string
-      enum: [earth, fire, water, wind, forest]
+      $ref: ./schemas/Element.yaml
     Card:
-      type: object
-      description: One owned copy of a season card, with what the client needs to draw it
-      required: [id, seasonCardId, cardSeasonId, setNo, setSize, copyNo, templateId, name, title, epithet,
-        nameSi, element, rarity, level, score, lore, traits, artSeed, acquiredVia, acquiredAt]
-      properties:
-        id:
-          type: string
-          format: uuid
-        seasonCardId:
-          type: string
-          description: Catalog id, e.g. s1-0042
-        cardSeasonId:
-          type: string
-        setNo:
-          type: integer
-        setSize:
-          type: integer
-          description: Cards in the card season (e.g. 1500), for "#42 / 1500"
-        copyNo:
-          type: integer
-          description: Serial of this copy among all copies of the season card (1 = first pulled)
-        maxCopies:
-          type: integer
-          description: Copy limit of the season card; absent when unlimited
-        templateId:
-          type: string
-          description: Spirit id, e.g. gaja-calf (picks the art)
-        name:
-          type: string
-          description: Full name, e.g. Brightly Moonlit Gaja Calf of Kandy
-        title:
-          type: string
-          description: Spirit name without traits, e.g. Gaja Calf
-        epithet:
-          type: string
-          description: Trait words, e.g. "Brightly Moonlit · of Kandy"; empty when plain
-        nameSi:
-          type: string
-          description: Sinhala spirit name
-        element:
-          $ref: "#/components/schemas/Element"
-        rarity:
-          $ref: "#/components/schemas/Rarity"
-        level:
-          type: integer
-          minimum: 1
-          maximum: 5
-        score:
-          type: integer
-          description: Score at this level
-        lore:
-          type: string
-        traits:
-          $ref: "#/components/schemas/CardTraits"
-        artSeed:
-          type: integer
-          format: int64
-          description: Seed for small random art details, so the card looks the same everywhere
-        acquiredVia:
-          type: string
-          enum: [pack, merge, trade]
-        acquiredAt:
-          type: string
-          format: date-time
+      $ref: ./schemas/Card.yaml
     CardTraits:
-      type: object
-      description: Trait ids from the season config (server/seasons/<id>/config.json)
-      required: [prefix, intensity, adverb, suffix, pattern, palette, stamp, foil, visual]
-      properties:
-        prefix:
-          type: string
-        intensity:
-          type: integer
-        adverb:
-          type: string
-        suffix:
-          type: string
-        pattern:
-          type: string
-        palette:
-          type: string
-        stamp:
-          type: string
-        foil:
-          type: string
-        visual:
-          type: object
-          required: [effect]
-          properties:
-            effect:
-              type: string
-            tint:
-              type: string
-              description: CSS colour, e.g. "#cfd8ff"
-            accessory:
-              type: string
-            texture:
-              type: string
+      $ref: ./schemas/CardTraits.yaml
     Error:
-      type: object
-      required: [error]
-      properties:
-        error:
-          type: string
-          description: Machine-readable code, e.g. invalid_token, not_signed_in
-        message:
-          type: string
+      $ref: ./schemas/Error.yaml

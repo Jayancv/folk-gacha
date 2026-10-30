@@ -1,0 +1,12 @@
+# /auth/config
+get:
+  operationId: getAuthConfig
+  summary: Which sign-in options this server offers
+  security: []
+  responses:
+    "200":
+      description: Sign-in options
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/AuthConfig.yaml

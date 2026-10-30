@@ -1,0 +1,15 @@
+type: object
+required:
+  - cards
+  - total
+properties:
+  cards:
+    type: array
+    items:
+      $ref: ./Card.yaml
+  total:
+    type: integer
+    description: Cards matching the filters, across all pages
+  nextOffset:
+    type: integer
+    description: Offset of the next page; absent on the last page

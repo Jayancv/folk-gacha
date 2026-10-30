@@ -1,0 +1,7 @@
+type: string
+enum:
+  - earth
+  - fire
+  - water
+  - wind
+  - forest

@@ -1,0 +1,17 @@
+# /me
+get:
+  operationId: getMe
+  summary: The signed-in player's profile
+  responses:
+    "200":
+      description: Profile
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Me.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml

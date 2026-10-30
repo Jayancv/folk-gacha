@@ -1,0 +1,12 @@
+type: object
+required:
+  - ready
+  - nextResetAt
+properties:
+  ready:
+    type: boolean
+    description: Whether today's pack can be claimed
+  nextResetAt:
+    type: string
+    format: date-time
+    description: Next daily reset (00:00 UTC)

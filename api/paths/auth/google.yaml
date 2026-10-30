@@ -1,0 +1,40 @@
+# /auth/google
+post:
+  operationId: signInWithGoogle
+  summary: Sign in with a Google ID token (creates the account on first sign-in)
+  security: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - credential
+          properties:
+            credential:
+              type: string
+              description: The ID token (JWT) from Google Identity Services
+  responses:
+    "200":
+      description: Signed in; the session cookie is set
+      headers:
+        Set-Cookie:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Me.yaml
+    "401":
+      description: The Google token is invalid, expired, or for another app
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "404":
+      description: Google sign-in is not configured on this server
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

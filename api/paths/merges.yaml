@@ -1,0 +1,59 @@
+# /merges
+post:
+  operationId: mergeCards
+  summary: Merge two of your cards
+  description: |
+    Drop `cardIds[0]` onto `cardIds[1]`. Both cards are used up and one new card is created, in one
+    transaction. Two cards of the same spirit and level make that card one level higher (it keeps the
+    target card's look and copy number). Two different spirits that form a recipe make a new level-1
+    card of the recipe's output spirit; the first time also records the recipe as discovered.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - cardIds
+          properties:
+            cardIds:
+              type: array
+              description: "[dragged card, target card]"
+              minItems: 2
+              maxItems: 2
+              items:
+                type: string
+                format: uuid
+  responses:
+    "200":
+      description: The new card
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/MergeResult.yaml
+    "400":
+      description: Bad request, e.g. the same card twice (error same_card)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "404":
+      description: A card doesn't exist or isn't yours (error not_owned)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "409":
+      description: |
+        The cards don't merge: no_recipe (different spirits without a recipe, or different levels),
+        max_level, or sold_out (the recipe's output has no copies left)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml

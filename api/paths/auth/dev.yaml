@@ -1,0 +1,41 @@
+# /auth/dev
+post:
+  operationId: signInDev
+  summary: Development-only sign-in by name (disabled unless DEV_LOGIN=1)
+  security: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 20
+  responses:
+    "200":
+      description: Signed in; the session cookie is set
+      headers:
+        Set-Cookie:
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Me.yaml
+    "400":
+      description: Name has no usable characters
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "404":
+      description: Dev sign-in is disabled
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

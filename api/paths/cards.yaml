@@ -1,0 +1,72 @@
+# /cards
+get:
+  operationId: listCards
+  summary: The signed-in player's collection (paged, filterable)
+  parameters:
+    - name: rarity
+      in: query
+      description: Only these rarities (repeat the parameter for several)
+      schema:
+        type: array
+        items:
+          $ref: ../schemas/Rarity.yaml
+    - name: element
+      in: query
+      description: Only these elements (repeat the parameter for several)
+      schema:
+        type: array
+        items:
+          $ref: ../schemas/Element.yaml
+    - name: level
+      in: query
+      description: Only cards at this level
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+    - name: spirit
+      in: query
+      description: Only this spirit (template id), e.g. gaja-calf
+      schema:
+        type: string
+    - name: set
+      in: query
+      description: Only this card season, e.g. s1
+      schema:
+        type: string
+    - name: sort
+      in: query
+      schema:
+        $ref: ../schemas/CardSort.yaml
+    - name: limit
+      in: query
+      description: Page size (default 60, at most 200)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+    - name: offset
+      in: query
+      description: Cards to skip (use nextOffset from the previous page)
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    "200":
+      description: One page of cards
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/CardPage.yaml
+    "400":
+      description: A filter value is invalid
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml

@@ -1,0 +1,86 @@
+type: object
+description: One owned copy of a season card, with what the client needs to draw it
+required:
+  - id
+  - seasonCardId
+  - cardSeasonId
+  - setNo
+  - setSize
+  - copyNo
+  - templateId
+  - name
+  - title
+  - epithet
+  - nameSi
+  - element
+  - rarity
+  - level
+  - score
+  - lore
+  - traits
+  - artSeed
+  - acquiredVia
+  - acquiredAt
+properties:
+  id:
+    type: string
+    format: uuid
+  seasonCardId:
+    type: string
+    description: Catalog id, e.g. s1-0042
+  cardSeasonId:
+    type: string
+  setNo:
+    type: integer
+  setSize:
+    type: integer
+    description: Cards in the card season (e.g. 1500), for "#42 / 1500"
+  copyNo:
+    type: integer
+    description: Serial of this copy among all copies of the season card (1 = first pulled)
+  maxCopies:
+    type: integer
+    description: Copy limit of the season card; absent when unlimited
+  templateId:
+    type: string
+    description: Spirit id, e.g. gaja-calf (picks the art)
+  name:
+    type: string
+    description: Full name, e.g. Brightly Moonlit Gaja Calf of Kandy
+  title:
+    type: string
+    description: Spirit name without traits, e.g. Gaja Calf
+  epithet:
+    type: string
+    description: Trait words, e.g. "Brightly Moonlit · of Kandy"; empty when plain
+  nameSi:
+    type: string
+    description: Sinhala spirit name
+  element:
+    $ref: ./Element.yaml
+  rarity:
+    $ref: ./Rarity.yaml
+  level:
+    type: integer
+    minimum: 1
+    maximum: 5
+  score:
+    type: integer
+    description: Score at this level
+  lore:
+    type: string
+  traits:
+    $ref: ./CardTraits.yaml
+  artSeed:
+    type: integer
+    format: int64
+    description: Seed for small random art details, so the card looks the same everywhere
+  acquiredVia:
+    type: string
+    enum:
+      - pack
+      - merge
+      - trade
+  acquiredAt:
+    type: string
+    format: date-time

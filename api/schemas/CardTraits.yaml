@@ -1,0 +1,43 @@
+type: object
+description: Trait ids from the season config (server/seasons/<id>/config.json)
+required:
+  - prefix
+  - intensity
+  - adverb
+  - suffix
+  - pattern
+  - palette
+  - stamp
+  - foil
+  - visual
+properties:
+  prefix:
+    type: string
+  intensity:
+    type: integer
+  adverb:
+    type: string
+  suffix:
+    type: string
+  pattern:
+    type: string
+  palette:
+    type: string
+  stamp:
+    type: string
+  foil:
+    type: string
+  visual:
+    type: object
+    required:
+      - effect
+    properties:
+      effect:
+        type: string
+      tint:
+        type: string
+        description: CSS colour, e.g. "#cfd8ff"
+      accessory:
+        type: string
+      texture:
+        type: string

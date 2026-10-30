@@ -1,0 +1,24 @@
+# /recipes
+get:
+  operationId: listRecipes
+  summary: Recipes the signed-in player has discovered
+  responses:
+    "200":
+      description: Discovered recipes, oldest first
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - recipes
+            properties:
+              recipes:
+                type: array
+                items:
+                  $ref: ../schemas/DiscoveredRecipe.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
