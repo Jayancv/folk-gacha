@@ -1,5 +1,7 @@
 import type { Me } from './auth/useAuth';
 import { ApiStatus } from './app/ApiStatus';
+import { InstallBanner } from './app/install/InstallBanner';
+import { useInstallPrompt } from './app/install/useInstallPrompt';
 import { TabBar } from './app/TabBar';
 import { useTabs } from './app/useTabs';
 import { ShowcaseAgainButton, ShowcasePanel } from './dev/ShowcasePanel';
@@ -20,6 +22,9 @@ export default function Game ({ me }: { me: Me })
     const { tab, collectionOpened, switchTo } = useTabs();
     const pack = usePackTable();
     const board = useBoardTable();
+    const install = useInstallPrompt();
+    // Offer installing while the player waits for tomorrow's pack: a natural moment, and no cards on the table to cover.
+    const waitingForPack = tab === 'PackOpen' && !pack.opened && !pack.showcase && me.dailyPack?.ready === false;
 
     return (
         <div id="app">
@@ -44,6 +49,7 @@ export default function Game ({ me }: { me: Me })
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
+                {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
                 <TabBar tab={tab} onSwitch={switchTo} />
             </div>
         </div>
