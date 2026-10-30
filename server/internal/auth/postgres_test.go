@@ -2,50 +2,21 @@ package auth_test
 
 import (
 	"context"
-	"database/sql"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
 
-	"cardgame/server/db"
 	"cardgame/server/internal/auth"
+	"cardgame/server/internal/dbtest"
 	"cardgame/server/internal/store"
 )
 
-// Integration tests against real Postgres. They run only when TEST_DATABASE_URL is set,
-// e.g. postgres://cardgame:cardgame@localhost:55432/cardgame_test?sslmode=disable
-// (a separate database: the tests wipe the users and sessions tables).
+// Integration tests against real Postgres (skipped unless TEST_DATABASE_URL is set; see dbtest).
 func testPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL not set")
-	}
-
-	conn, err := sql.Open("pgx", url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	goose.SetBaseFS(db.Migrations)
-	if err := goose.SetDialect("postgres"); err != nil {
-		t.Fatal(err)
-	}
-	goose.SetLogger(goose.NopLogger())
-	if err := goose.Up(conn, "migrations"); err != nil {
-		t.Fatalf("migrations: %v", err)
-	}
-
-	pool, err := pgxpool.New(context.Background(), url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(pool.Close)
+	pool := dbtest.Pool(t)
 	if _, err := pool.Exec(context.Background(), "TRUNCATE users CASCADE"); err != nil {
 		t.Fatal(err)
 	}

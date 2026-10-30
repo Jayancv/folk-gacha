@@ -29,6 +29,19 @@ type CardTemplate struct {
 	Lore    string
 }
 
+type DiscoveredRecipe struct {
+	UserID       uuid.UUID
+	RecipeID     int32
+	DiscoveredAt time.Time
+}
+
+type MergeRecipe struct {
+	ID               int32
+	InputA           string
+	InputB           string
+	OutputTemplateID string
+}
+
 type SeasonCard struct {
 	ID           string
 	CardSeasonID string

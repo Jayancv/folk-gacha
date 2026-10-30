@@ -1,0 +1,7 @@
+{
+  "_comment": "Merge recipes: two different spirits (template ids from seasons/*/config.json) make the output spirit. Order of inputs doesn't matter. Load with: go run ./cmd/seed",
+  "recipes": [
+    { "inputs": ["gaja-calf", "simha"], "output": "gajasinghe" },
+    { "inputs": ["monara", "simha"], "output": "serapendiya" }
+  ]
+}
