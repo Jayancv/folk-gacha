@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -32,6 +33,27 @@ func (e CardAcquiredVia) Valid() bool {
 	case Pack:
 		return true
 	case Trade:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CardSort.
+const (
+	Newest CardSort = "newest"
+	Number CardSort = "number"
+	Score  CardSort = "score"
+)
+
+// Valid indicates whether the value is a known member of the CardSort enum.
+func (e CardSort) Valid() bool {
+	switch e {
+	case Newest:
+		return true
+	case Number:
+		return true
+	case Score:
 		return true
 	default:
 		return false
@@ -207,6 +229,21 @@ type Card struct {
 // CardAcquiredVia defines model for Card.AcquiredVia.
 type CardAcquiredVia string
 
+// CardPage defines model for CardPage.
+type CardPage struct {
+	Cards []Card `json:"cards"`
+
+	// NextOffset Offset of the next page; absent on the last page
+	NextOffset *int `json:"nextOffset,omitempty"`
+
+	// Total Cards matching the filters, across all pages
+	Total int `json:"total"`
+}
+
+// CardSort newest (default): most recently acquired first. score: highest score first.
+// number: by card season and set number, highest level first.
+type CardSort string
+
 // CardTraits Trait ids from the season config (server/seasons/<id>/config.json)
 type CardTraits struct {
 	Adverb    string `json:"adverb"`
@@ -321,6 +358,31 @@ type SignInWithGoogleJSONBody struct {
 	Credential string `json:"credential"`
 }
 
+// ListCardsParams defines parameters for ListCards.
+type ListCardsParams struct {
+	// Rarity Only these rarities (repeat the parameter for several)
+	Rarity *[]Rarity `form:"rarity,omitempty" json:"rarity,omitempty"`
+
+	// Element Only these elements (repeat the parameter for several)
+	Element *[]Element `form:"element,omitempty" json:"element,omitempty"`
+
+	// Level Only cards at this level
+	Level *int `form:"level,omitempty" json:"level,omitempty"`
+
+	// Spirit Only this spirit (template id), e.g. gaja-calf
+	Spirit *string `form:"spirit,omitempty" json:"spirit,omitempty"`
+
+	// Set Only this card season, e.g. s1
+	Set  *string   `form:"set,omitempty" json:"set,omitempty"`
+	Sort *CardSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Limit Page size (default 60, at most 200)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Cards to skip (use nextOffset from the previous page)
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // MergeCardsJSONBody defines parameters for MergeCards.
 type MergeCardsJSONBody struct {
 	// CardIds [dragged card, target card]
@@ -350,6 +412,9 @@ type ServerInterface interface {
 	// Logout End the current session
 	// (POST /auth/logout)
 	Logout(w http.ResponseWriter, r *http.Request)
+	// ListCards The signed-in player's collection (paged, filterable)
+	// (GET /cards)
+	ListCards(w http.ResponseWriter, r *http.Request, params ListCardsParams)
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -423,6 +488,130 @@ func (siw *ServerInterfaceWrapper) Logout(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Logout(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCards operation middleware
+func (siw *ServerInterfaceWrapper) ListCards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCardsParams
+
+	// ------------- Optional query parameter "rarity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "rarity", r.URL.Query(), &params.Rarity, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "rarity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rarity", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "element" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "element", r.URL.Query(), &params.Element, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "element"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "element", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "level" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "level", r.URL.Query(), &params.Level, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "level"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "level", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "spirit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "spirit", r.URL.Query(), &params.Spirit, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "spirit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spirit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "set" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "set", r.URL.Query(), &params.Set, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "set"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "set", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "offset"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCards(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -629,6 +818,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/packs/daily/claim", wrapper.ClaimDailyPack)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/merges", wrapper.MergeCards)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/recipes", wrapper.ListRecipes)
 
@@ -797,6 +987,56 @@ func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) err
 	}
 	w.WriteHeader(204)
 	return nil
+}
+
+type ListCardsRequestObject struct {
+	Params ListCardsParams
+}
+
+type ListCardsResponseObject interface {
+	VisitListCardsResponse(w http.ResponseWriter) error
+}
+
+type ListCards200JSONResponse CardPage
+
+func (response ListCards200JSONResponse) VisitListCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCards400JSONResponse Error
+
+func (response ListCards400JSONResponse) VisitListCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCards401JSONResponse Error
+
+func (response ListCards401JSONResponse) VisitListCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetHealthRequestObject struct {
@@ -1061,6 +1301,9 @@ type StrictServerInterface interface {
 	// Logout End the current session
 	// (POST /auth/logout)
 	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
+	// ListCards The signed-in player's collection (paged, filterable)
+	// (GET /cards)
+	ListCards(ctx context.Context, request ListCardsRequestObject) (ListCardsResponseObject, error)
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -1220,6 +1463,32 @@ func (sh *strictHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(LogoutResponseObject); ok {
 		if err := validResponse.VisitLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListCards operation middleware
+func (sh *strictHandler) ListCards(w http.ResponseWriter, r *http.Request, params ListCardsParams) {
+	var request ListCardsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCards(ctx, request.(ListCardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCardsResponseObject); ok {
+		if err := validResponse.VisitListCardsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

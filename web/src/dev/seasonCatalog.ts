@@ -2,7 +2,8 @@
 // show real season cards. In Phase 2 the server sends finished cards and this goes away.
 // cards.json is ~1 MB, so it is fetched at runtime instead of bundled into the app.
 
-import type { CardArt, Element, Foil, Rarity, SeasonCardInfo, TraitIntensity } from '../game/cards/model';
+import type { Element, Rarity, SeasonCardInfo } from '../game/cards/model';
+import { resolveArt } from '../game/cards/seasonArt';
 import config from '../../../server/seasons/s1/config.json';
 import cardsUrl from '../../../server/seasons/s1/cards.json?url';
 
@@ -73,29 +74,14 @@ type ConfigLike = Pick<SeasonConfig, 'spirits' | 'palettes' | 'stamps'>;
 export function buildCatalog (file: CatalogFile, cfg: ConfigLike = config): Catalog
 {
     const lore = new Map(cfg.spirits.map(s => [s.id, s.lore]));
-    const palettes = new Map(cfg.palettes.map(p => [p.id, p.colors as [string, string]]));
-    const stamps = new Map(cfg.stamps.map(s => [s.id, s.name]));
 
     const entries = file.cards.map((row): CatalogEntry =>
     {
-        const t = row.traits;
-        const palette = palettes.get(t.palette);
-        if (!palette)
+        const art = resolveArt(row.traits, row.artSeed, cfg);
+        if (!art)
         {
-            throw new Error(`${row.id}: unknown palette ${t.palette}`);
+            throw new Error(`${row.id}: unknown palette ${row.traits.palette}`);
         }
-        const art: CardArt = {
-            pattern: t.pattern,
-            palette,
-            tint: t.visual?.tint,
-            effect: t.visual?.effect,
-            accessory: t.visual?.accessory,
-            texture: t.visual?.texture,
-            intensity: Math.min(3, Math.max(1, t.intensity)) as TraitIntensity,
-            stamp: t.stamp && t.stamp !== 'none' ? { id: t.stamp, label: stamps.get(t.stamp) ?? t.stamp } : undefined,
-            foil: (t.foil === 'gold' || t.foil === 'holo' ? t.foil : 'none') as Foil,
-            seed: row.artSeed
-        };
         return {
             templateId: row.template,
             name: row.name,

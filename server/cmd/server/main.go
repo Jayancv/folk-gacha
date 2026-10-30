@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cardgame/server/internal/auth"
+	"cardgame/server/internal/collection"
 	"cardgame/server/internal/config"
 	httpapi "cardgame/server/internal/http"
 	"cardgame/server/internal/merges"
@@ -81,9 +82,10 @@ func run() error {
 	slog.Info("sign-in", "env", appEnv, "google", googleClientID != "", "devLogin", devLogin)
 
 	api := httpapi.NewServer(pool, httpapi.Services{
-		Auth:   auth.NewService(store.New(pool)),
-		Packs:  packs.NewService(pool),
-		Merges: merges.NewService(pool),
+		Auth:       auth.NewService(store.New(pool)),
+		Packs:      packs.NewService(pool),
+		Merges:     merges.NewService(pool),
+		Collection: collection.NewService(pool),
 	}, authOpts)
 	srv := &http.Server{
 		Addr:              ":" + port,

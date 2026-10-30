@@ -1,6 +1,6 @@
 import { Core, type Game } from 'phaser';
 import { EventBus } from '../bridge/EventBus';
-import { GameEvents, type SwitchScenePayload } from '../bridge/events';
+import { GameEvents, type SetPausedPayload, type SwitchScenePayload } from '../bridge/events';
 import { planSceneSwitch } from './routerPlan';
 
 // React picks which table scene is showing (it owns navigation); this swaps them.
@@ -23,6 +23,26 @@ export function attachSceneRouter (game: Game): void
         }
     };
 
+    // sleep() stops requestAnimationFrame entirely; tab hide/show (pause/resume) doesn't restart it.
+    const onSetPaused = ({ paused }: SetPausedPayload) =>
+    {
+        if (paused)
+        {
+            game.loop.sleep();
+        }
+        else
+        {
+            // Without this the first frame's delta spans the whole sleep and tweens jump.
+            game.loop.resetDelta();
+            game.loop.wake();
+        }
+    };
+
     EventBus.on(GameEvents.SwitchScene, onSwitch);
-    game.events.once(Core.Events.DESTROY, () => EventBus.off(GameEvents.SwitchScene, onSwitch));
+    EventBus.on(GameEvents.SetPaused, onSetPaused);
+    game.events.once(Core.Events.DESTROY, () =>
+    {
+        EventBus.off(GameEvents.SwitchScene, onSwitch);
+        EventBus.off(GameEvents.SetPaused, onSetPaused);
+    });
 }

@@ -127,6 +127,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in player's collection (paged, filterable) */
+        get: operations["listCards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/merges": {
         parameters: {
             query?: never;
@@ -222,6 +239,19 @@ export interface components {
              * @description When the next pack can be claimed (00:00 UTC)
              */
             nextResetAt: string;
+        };
+        /**
+         * @description newest (default): most recently acquired first. score: highest score first.
+         *     number: by card season and set number, highest level first.
+         * @enum {string}
+         */
+        CardSort: "newest" | "score" | "number";
+        CardPage: {
+            cards: components["schemas"]["Card"][];
+            /** @description Cards matching the filters, across all pages */
+            total: number;
+            /** @description Offset of the next page; absent on the last page */
+            nextOffset?: number;
         };
         MergeResult: {
             /** @enum {string} */
@@ -541,6 +571,60 @@ export interface operations {
             };
             /** @description No card season is open to draw from (error no_season) */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listCards: {
+        parameters: {
+            query?: {
+                /** @description Only these rarities (repeat the parameter for several) */
+                rarity?: components["schemas"]["Rarity"][];
+                /** @description Only these elements (repeat the parameter for several) */
+                element?: components["schemas"]["Element"][];
+                /** @description Only cards at this level */
+                level?: number;
+                /** @description Only this spirit (template id), e.g. gaja-calf */
+                spirit?: string;
+                /** @description Only this card season, e.g. s1 */
+                set?: string;
+                sort?: components["schemas"]["CardSort"];
+                /** @description Page size (default 60, at most 200) */
+                limit?: number;
+                /** @description Cards to skip (use nextOffset from the previous page) */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of cards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardPage"];
+                };
+            };
+            /** @description A filter value is invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -74,9 +74,20 @@ export interface SwitchScenePayload
     scene: GameScene;
 }
 
+export interface SetPausedPayload
+{
+    paused: boolean;
+}
+
 export const GameEvents = {
     /** React → Phaser: show a table scene. Payload: SwitchScenePayload */
-    SwitchScene: 'game:switch-scene'
+    SwitchScene: 'game:switch-scene',
+    /**
+     * React → Phaser: stop or restart the game loop while a full-screen React screen
+     * (the collection) covers the table, so phones don't render frames nobody sees.
+     * Payload: SetPausedPayload
+     */
+    SetPaused: 'game:set-paused'
 } as const;
 
 /** Payload type for every bridge event (`void` = no payload). */
@@ -93,6 +104,7 @@ export interface BridgeEvents
     [MergeBoardEvents.MergeResult]: MergeResultPayload;
 
     [GameEvents.SwitchScene]: SwitchScenePayload;
+    [GameEvents.SetPaused]: SetPausedPayload;
 }
 
 export type BridgeEvent = keyof BridgeEvents;
