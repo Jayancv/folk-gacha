@@ -19,7 +19,7 @@ type testServer struct {
 
 func newTestServer(opts AuthOptions) testServer {
 	db := authtest.NewMemStore()
-	return testServer{h: NewServer(fakeDB{}, auth.NewService(db), opts).Handler(nil), db: db}
+	return testServer{h: NewServer(fakeDB{}, Services{Auth: auth.NewService(db)}, opts).Handler(nil), db: db}
 }
 
 func googleOpts() AuthOptions {

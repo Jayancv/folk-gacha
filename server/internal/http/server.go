@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"cardgame/server/internal/auth"
+	"cardgame/server/internal/merges"
+	"cardgame/server/internal/packs"
 )
 
 // Pinger is the slice of the database pool the health check needs.
@@ -20,14 +22,24 @@ type Server struct {
 	db       Pinger
 	auth     *auth.Service
 	authOpts AuthOptions
+	packs    *packs.Service
+	merges   *merges.Service
 	now      func() time.Time
 }
 
 var _ StrictServerInterface = (*Server)(nil)
 
-// NewServer wires the handlers. authSvc may be nil (no database): sign-in is then off.
-func NewServer(db Pinger, authSvc *auth.Service, opts AuthOptions) *Server {
-	return &Server{db: db, auth: authSvc, authOpts: opts, now: time.Now}
+// Services are the game services behind the handlers. Any may be nil (tests
+// without a database); its endpoints are then unavailable.
+type Services struct {
+	Auth   *auth.Service
+	Packs  *packs.Service
+	Merges *merges.Service
+}
+
+// NewServer wires the handlers.
+func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.

@@ -16,6 +16,8 @@ import (
 	"cardgame/server/internal/auth"
 	"cardgame/server/internal/config"
 	httpapi "cardgame/server/internal/http"
+	"cardgame/server/internal/merges"
+	"cardgame/server/internal/packs"
 	"cardgame/server/internal/store"
 )
 
@@ -78,9 +80,14 @@ func run() error {
 	}
 	slog.Info("sign-in", "env", appEnv, "google", googleClientID != "", "devLogin", devLogin)
 
+	api := httpapi.NewServer(pool, httpapi.Services{
+		Auth:   auth.NewService(store.New(pool)),
+		Packs:  packs.NewService(pool),
+		Merges: merges.NewService(pool),
+	}, authOpts)
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           httpapi.NewServer(pool, auth.NewService(store.New(pool)), authOpts).Handler(origins),
+		Handler:           api.Handler(origins),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -11,6 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Card struct {
+	ID           uuid.UUID
+	SeasonCardID string
+	CopyNo       int32
+	OwnerID      uuid.UUID
+	Level        int16
+	AcquiredVia  string
+	AcquiredAt   time.Time
+}
+
 type CardSeason struct {
 	ID        string
 	Name      string
@@ -27,6 +37,14 @@ type CardTemplate struct {
 	Element string
 	Rarity  string
 	Lore    string
+}
+
+type DailyClaim struct {
+	UserID       uuid.UUID
+	Day          time.Time
+	CardSeasonID string
+	PityCounter  int32
+	ClaimedAt    time.Time
 }
 
 type DiscoveredRecipe struct {

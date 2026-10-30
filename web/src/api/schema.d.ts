@@ -106,6 +106,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/packs/daily/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open today's free pack (one per UTC day)
+         * @description The server rolls the 5 cards (rarity odds, pity rule, copy limits) and saves them to the
+         *     player's collection in one transaction. The pack resets at 00:00 UTC.
+         */
+        post: operations["claimDailyPack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/merges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge two of your cards
+         * @description Drop `cardIds[0]` onto `cardIds[1]`. Both cards are used up and one new card is created, in one
+         *     transaction. Two cards of the same spirit and level make that card one level higher (it keeps the
+         *     target card's look and copy number). Two different spirits that form a recipe make a new level-1
+         *     card of the recipe's output spirit; the first time also records the recipe as discovered.
+         */
+        post: operations["mergeCards"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recipes the signed-in player has discovered */
+        get: operations["listRecipes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -138,6 +199,107 @@ export interface components {
              * @description When this account may start trading (created + 7 days, UTC)
              */
             tradeUnlockedAt: string;
+            dailyPack?: components["schemas"]["DailyPackStatus"];
+        };
+        DailyPackStatus: {
+            /** @description Whether today's pack can be claimed */
+            ready: boolean;
+            /**
+             * Format: date-time
+             * @description Next daily reset (00:00 UTC)
+             */
+            nextResetAt: string;
+        };
+        DailyPack: {
+            /**
+             * Format: date
+             * @description The UTC day this pack was claimed for
+             */
+            day: string;
+            cards: components["schemas"]["Card"][];
+            /**
+             * Format: date-time
+             * @description When the next pack can be claimed (00:00 UTC)
+             */
+            nextResetAt: string;
+        };
+        MergeResult: {
+            /** @enum {string} */
+            kind: "level_up" | "recipe";
+            card: components["schemas"]["Card"];
+            /** @description True the first time this player makes this recipe */
+            discovered: boolean;
+        };
+        DiscoveredRecipe: {
+            /** @description The two spirit (template) ids, sorted */
+            inputs: string[];
+            /** @description Spirit id the recipe makes */
+            output: string;
+            /** Format: date-time */
+            discoveredAt: string;
+        };
+        /** @enum {string} */
+        Rarity: "common" | "uncommon" | "rare" | "epic" | "legendary";
+        /** @enum {string} */
+        Element: "earth" | "fire" | "water" | "wind" | "forest";
+        /** @description One owned copy of a season card, with what the client needs to draw it */
+        Card: {
+            /** Format: uuid */
+            id: string;
+            /** @description Catalog id, e.g. s1-0042 */
+            seasonCardId: string;
+            cardSeasonId: string;
+            setNo: number;
+            /** @description Cards in the card season (e.g. 1500), for "#42 / 1500" */
+            setSize: number;
+            /** @description Serial of this copy among all copies of the season card (1 = first pulled) */
+            copyNo: number;
+            /** @description Copy limit of the season card; absent when unlimited */
+            maxCopies?: number;
+            /** @description Spirit id, e.g. gaja-calf (picks the art) */
+            templateId: string;
+            /** @description Full name, e.g. Brightly Moonlit Gaja Calf of Kandy */
+            name: string;
+            /** @description Spirit name without traits, e.g. Gaja Calf */
+            title: string;
+            /** @description Trait words, e.g. "Brightly Moonlit · of Kandy"; empty when plain */
+            epithet: string;
+            /** @description Sinhala spirit name */
+            nameSi: string;
+            element: components["schemas"]["Element"];
+            rarity: components["schemas"]["Rarity"];
+            level: number;
+            /** @description Score at this level */
+            score: number;
+            lore: string;
+            traits: components["schemas"]["CardTraits"];
+            /**
+             * Format: int64
+             * @description Seed for small random art details, so the card looks the same everywhere
+             */
+            artSeed: number;
+            /** @enum {string} */
+            acquiredVia: "pack" | "merge" | "trade";
+            /** Format: date-time */
+            acquiredAt: string;
+        };
+        /** @description Trait ids from the season config (server/seasons/<id>/config.json) */
+        CardTraits: {
+            prefix: string;
+            intensity: number;
+            adverb: string;
+            suffix: string;
+            pattern: string;
+            palette: string;
+            stamp: string;
+            foil: string;
+            visual: {
+                effect: string;
+                /** @description CSS colour, e.g. "#cfd8ff" */
+                tint?: string;
+                accessory?: string;
+                texture?: string;
+            };
         };
         Error: {
             /** @description Machine-readable code, e.g. invalid_token, not_signed_in */
@@ -328,6 +490,150 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    claimDailyPack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The new cards, in reveal order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DailyPack"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Today's pack was already claimed (error already_claimed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No card season is open to draw from (error no_season) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    mergeCards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description [dragged card, target card] */
+                    cardIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The new card */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergeResult"];
+                };
+            };
+            /** @description Bad request, e.g. the same card twice (error same_card) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description A card doesn't exist or isn't yours (error not_owned) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /**
+             * @description The cards don't merge: no_recipe (different spirits without a recipe, or different levels),
+             *     max_level, or sold_out (the recipe's output has no copies left)
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listRecipes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Discovered recipes, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        recipes: components["schemas"]["DiscoveredRecipe"][];
+                    };
                 };
             };
             /** @description Not signed in */

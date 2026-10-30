@@ -119,8 +119,12 @@ func (s *Server) SignInWithGoogle(ctx context.Context, req SignInWithGoogleReque
 	if err != nil {
 		return nil, err
 	}
+	me, err := s.me(ctx, sess.User)
+	if err != nil {
+		return nil, err
+	}
 	cookie := s.sessionCookie(sess.Token, sess.ExpiresAt)
-	return SignInWithGoogle200JSONResponse{Body: toMe(sess.User), Headers: SignInWithGoogle200ResponseHeaders{SetCookie: &cookie}}, nil
+	return SignInWithGoogle200JSONResponse{Body: me, Headers: SignInWithGoogle200ResponseHeaders{SetCookie: &cookie}}, nil
 }
 
 func (s *Server) SignInDev(ctx context.Context, req SignInDevRequestObject) (SignInDevResponseObject, error) {
@@ -139,8 +143,12 @@ func (s *Server) SignInDev(ctx context.Context, req SignInDevRequestObject) (Sig
 	if err != nil {
 		return nil, err
 	}
+	me, err := s.me(ctx, sess.User)
+	if err != nil {
+		return nil, err
+	}
 	cookie := s.sessionCookie(sess.Token, sess.ExpiresAt)
-	return SignInDev200JSONResponse{Body: toMe(sess.User), Headers: SignInDev200ResponseHeaders{SetCookie: &cookie}}, nil
+	return SignInDev200JSONResponse{Body: me, Headers: SignInDev200ResponseHeaders{SetCookie: &cookie}}, nil
 }
 
 func (s *Server) Logout(ctx context.Context, _ LogoutRequestObject) (LogoutResponseObject, error) {
@@ -158,7 +166,11 @@ func (s *Server) GetMe(ctx context.Context, _ GetMeRequestObject) (GetMeResponse
 	if !ok {
 		return GetMe401JSONResponse{Error: "not_signed_in"}, nil
 	}
-	return GetMe200JSONResponse(toMe(user)), nil
+	me, err := s.me(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return GetMe200JSONResponse(me), nil
 }
 
 func ptr[T any](v T) *T { return &v }

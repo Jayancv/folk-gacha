@@ -17,6 +17,54 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for CardAcquiredVia.
+const (
+	Merge CardAcquiredVia = "merge"
+	Pack  CardAcquiredVia = "pack"
+	Trade CardAcquiredVia = "trade"
+)
+
+// Valid indicates whether the value is a known member of the CardAcquiredVia enum.
+func (e CardAcquiredVia) Valid() bool {
+	switch e {
+	case Merge:
+		return true
+	case Pack:
+		return true
+	case Trade:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Element.
+const (
+	Earth  Element = "earth"
+	Fire   Element = "fire"
+	Forest Element = "forest"
+	Water  Element = "water"
+	Wind   Element = "wind"
+)
+
+// Valid indicates whether the value is a known member of the Element enum.
+func (e Element) Valid() bool {
+	switch e {
+	case Earth:
+		return true
+	case Fire:
+		return true
+	case Forest:
+		return true
+	case Water:
+		return true
+	case Wind:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthDatabase.
 const (
 	HealthDatabaseDown HealthDatabase = "down"
@@ -53,6 +101,51 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for MergeResultKind.
+const (
+	LevelUp MergeResultKind = "level_up"
+	Recipe  MergeResultKind = "recipe"
+)
+
+// Valid indicates whether the value is a known member of the MergeResultKind enum.
+func (e MergeResultKind) Valid() bool {
+	switch e {
+	case LevelUp:
+		return true
+	case Recipe:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Rarity.
+const (
+	Common    Rarity = "common"
+	Epic      Rarity = "epic"
+	Legendary Rarity = "legendary"
+	Rare      Rarity = "rare"
+	Uncommon  Rarity = "uncommon"
+)
+
+// Valid indicates whether the value is a known member of the Rarity enum.
+func (e Rarity) Valid() bool {
+	switch e {
+	case Common:
+		return true
+	case Epic:
+		return true
+	case Legendary:
+		return true
+	case Rare:
+		return true
+	case Uncommon:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthConfig defines model for AuthConfig.
 type AuthConfig struct {
 	// DevLogin Whether POST /auth/dev is enabled (local development only)
@@ -61,6 +154,112 @@ type AuthConfig struct {
 	// GoogleClientId OAuth client ID for the Google sign-in button; absent if Google sign-in is off
 	GoogleClientId *string `json:"googleClientId,omitempty"`
 }
+
+// Card One owned copy of a season card, with what the client needs to draw it
+type Card struct {
+	AcquiredAt  time.Time       `json:"acquiredAt"`
+	AcquiredVia CardAcquiredVia `json:"acquiredVia"`
+
+	// ArtSeed Seed for small random art details, so the card looks the same everywhere
+	ArtSeed      int64  `json:"artSeed"`
+	CardSeasonId string `json:"cardSeasonId"`
+
+	// CopyNo Serial of this copy among all copies of the season card (1 = first pulled)
+	CopyNo  int     `json:"copyNo"`
+	Element Element `json:"element"`
+
+	// Epithet Trait words, e.g. "Brightly Moonlit · of Kandy"; empty when plain
+	Epithet string             `json:"epithet"`
+	Id      openapi_types.UUID `json:"id"`
+	Level   int                `json:"level"`
+	Lore    string             `json:"lore"`
+
+	// MaxCopies Copy limit of the season card; absent when unlimited
+	MaxCopies *int `json:"maxCopies,omitempty"`
+
+	// Name Full name, e.g. Brightly Moonlit Gaja Calf of Kandy
+	Name string `json:"name"`
+
+	// NameSi Sinhala spirit name
+	NameSi string `json:"nameSi"`
+	Rarity Rarity `json:"rarity"`
+
+	// Score Score at this level
+	Score int `json:"score"`
+
+	// SeasonCardId Catalog id, e.g. s1-0042
+	SeasonCardId string `json:"seasonCardId"`
+	SetNo        int    `json:"setNo"`
+
+	// SetSize Cards in the card season (e.g. 1500), for "#42 / 1500"
+	SetSize int `json:"setSize"`
+
+	// TemplateId Spirit id, e.g. gaja-calf (picks the art)
+	TemplateId string `json:"templateId"`
+
+	// Title Spirit name without traits, e.g. Gaja Calf
+	Title string `json:"title"`
+
+	// Traits Trait ids from the season config (server/seasons/<id>/config.json)
+	Traits CardTraits `json:"traits"`
+}
+
+// CardAcquiredVia defines model for Card.AcquiredVia.
+type CardAcquiredVia string
+
+// CardTraits Trait ids from the season config (server/seasons/<id>/config.json)
+type CardTraits struct {
+	Adverb    string `json:"adverb"`
+	Foil      string `json:"foil"`
+	Intensity int    `json:"intensity"`
+	Palette   string `json:"palette"`
+	Pattern   string `json:"pattern"`
+	Prefix    string `json:"prefix"`
+	Stamp     string `json:"stamp"`
+	Suffix    string `json:"suffix"`
+	Visual    struct {
+		Accessory *string `json:"accessory,omitempty"`
+		Effect    string  `json:"effect"`
+		Texture   *string `json:"texture,omitempty"`
+
+		// Tint CSS colour, e.g. "#cfd8ff"
+		Tint *string `json:"tint,omitempty"`
+	} `json:"visual"`
+}
+
+// DailyPack defines model for DailyPack.
+type DailyPack struct {
+	Cards []Card `json:"cards"`
+
+	// Day The UTC day this pack was claimed for
+	Day openapi_types.Date `json:"day"`
+
+	// NextResetAt When the next pack can be claimed (00:00 UTC)
+	NextResetAt time.Time `json:"nextResetAt"`
+}
+
+// DailyPackStatus defines model for DailyPackStatus.
+type DailyPackStatus struct {
+	// NextResetAt Next daily reset (00:00 UTC)
+	NextResetAt time.Time `json:"nextResetAt"`
+
+	// Ready Whether today's pack can be claimed
+	Ready bool `json:"ready"`
+}
+
+// DiscoveredRecipe defines model for DiscoveredRecipe.
+type DiscoveredRecipe struct {
+	DiscoveredAt time.Time `json:"discoveredAt"`
+
+	// Inputs The two spirit (template) ids, sorted
+	Inputs []string `json:"inputs"`
+
+	// Output Spirit id the recipe makes
+	Output string `json:"output"`
+}
+
+// Element defines model for Element.
+type Element string
 
 // Error defines model for Error.
 type Error struct {
@@ -87,12 +286,29 @@ type HealthStatus string
 // Me defines model for Me.
 type Me struct {
 	CreatedAt time.Time          `json:"createdAt"`
+	DailyPack *DailyPackStatus   `json:"dailyPack,omitempty"`
 	Id        openapi_types.UUID `json:"id"`
 
 	// TradeUnlockedAt When this account may start trading (created + 7 days, UTC)
 	TradeUnlockedAt time.Time `json:"tradeUnlockedAt"`
 	Username        string    `json:"username"`
 }
+
+// MergeResult defines model for MergeResult.
+type MergeResult struct {
+	// Card One owned copy of a season card, with what the client needs to draw it
+	Card Card `json:"card"`
+
+	// Discovered True the first time this player makes this recipe
+	Discovered bool            `json:"discovered"`
+	Kind       MergeResultKind `json:"kind"`
+}
+
+// MergeResultKind defines model for MergeResult.Kind.
+type MergeResultKind string
+
+// Rarity defines model for Rarity.
+type Rarity string
 
 // SignInDevJSONBody defines parameters for SignInDev.
 type SignInDevJSONBody struct {
@@ -105,11 +321,20 @@ type SignInWithGoogleJSONBody struct {
 	Credential string `json:"credential"`
 }
 
+// MergeCardsJSONBody defines parameters for MergeCards.
+type MergeCardsJSONBody struct {
+	// CardIds [dragged card, target card]
+	CardIds []openapi_types.UUID `json:"cardIds"`
+}
+
 // SignInDevJSONRequestBody defines body for SignInDev for application/json ContentType.
 type SignInDevJSONRequestBody SignInDevJSONBody
 
 // SignInWithGoogleJSONRequestBody defines body for SignInWithGoogle for application/json ContentType.
 type SignInWithGoogleJSONRequestBody SignInWithGoogleJSONBody
+
+// MergeCardsJSONRequestBody defines body for MergeCards for application/json ContentType.
+type MergeCardsJSONRequestBody MergeCardsJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -131,6 +356,15 @@ type ServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// MergeCards Merge two of your cards
+	// (POST /merges)
+	MergeCards(w http.ResponseWriter, r *http.Request)
+	// ClaimDailyPack Open today's free pack (one per UTC day)
+	// (POST /packs/daily/claim)
+	ClaimDailyPack(w http.ResponseWriter, r *http.Request)
+	// ListRecipes Recipes the signed-in player has discovered
+	// (GET /recipes)
+	ListRecipes(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -217,6 +451,48 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MergeCards operation middleware
+func (siw *ServerInterfaceWrapper) MergeCards(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MergeCards(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimDailyPack operation middleware
+func (siw *ServerInterfaceWrapper) ClaimDailyPack(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimDailyPack(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRecipes operation middleware
+func (siw *ServerInterfaceWrapper) ListRecipes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRecipes(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -352,6 +628,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/dev", wrapper.SignInDev)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/packs/daily/claim", wrapper.ClaimDailyPack)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/merges", wrapper.MergeCards)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/recipes", wrapper.ListRecipes)
 
 	return m
 }
@@ -590,6 +869,184 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	return err
 }
 
+type MergeCardsRequestObject struct {
+	Body *MergeCardsJSONRequestBody
+}
+
+type MergeCardsResponseObject interface {
+	VisitMergeCardsResponse(w http.ResponseWriter) error
+}
+
+type MergeCards200JSONResponse MergeResult
+
+func (response MergeCards200JSONResponse) VisitMergeCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MergeCards400JSONResponse Error
+
+func (response MergeCards400JSONResponse) VisitMergeCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MergeCards401JSONResponse Error
+
+func (response MergeCards401JSONResponse) VisitMergeCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MergeCards404JSONResponse Error
+
+func (response MergeCards404JSONResponse) VisitMergeCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MergeCards409JSONResponse Error
+
+func (response MergeCards409JSONResponse) VisitMergeCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDailyPackRequestObject struct {
+}
+
+type ClaimDailyPackResponseObject interface {
+	VisitClaimDailyPackResponse(w http.ResponseWriter) error
+}
+
+type ClaimDailyPack200JSONResponse DailyPack
+
+func (response ClaimDailyPack200JSONResponse) VisitClaimDailyPackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDailyPack401JSONResponse Error
+
+func (response ClaimDailyPack401JSONResponse) VisitClaimDailyPackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDailyPack409JSONResponse Error
+
+func (response ClaimDailyPack409JSONResponse) VisitClaimDailyPackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDailyPack503JSONResponse Error
+
+func (response ClaimDailyPack503JSONResponse) VisitClaimDailyPackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRecipesRequestObject struct {
+}
+
+type ListRecipesResponseObject interface {
+	VisitListRecipesResponse(w http.ResponseWriter) error
+}
+
+type ListRecipes200JSONResponse struct {
+	Recipes []DiscoveredRecipe `json:"recipes"`
+}
+
+func (response ListRecipes200JSONResponse) VisitListRecipesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRecipes401JSONResponse Error
+
+func (response ListRecipes401JSONResponse) VisitListRecipesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetAuthConfig Which sign-in options this server offers
@@ -610,6 +1067,15 @@ type StrictServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// MergeCards Merge two of your cards
+	// (POST /merges)
+	MergeCards(ctx context.Context, request MergeCardsRequestObject) (MergeCardsResponseObject, error)
+	// ClaimDailyPack Open today's free pack (one per UTC day)
+	// (POST /packs/daily/claim)
+	ClaimDailyPack(ctx context.Context, request ClaimDailyPackRequestObject) (ClaimDailyPackResponseObject, error)
+	// ListRecipes Recipes the signed-in player has discovered
+	// (GET /recipes)
+	ListRecipes(ctx context.Context, request ListRecipesRequestObject) (ListRecipesResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -802,6 +1268,85 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MergeCards operation middleware
+func (sh *strictHandler) MergeCards(w http.ResponseWriter, r *http.Request) {
+	var request MergeCardsRequestObject
+
+	var body MergeCardsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MergeCards(ctx, request.(MergeCardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MergeCards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MergeCardsResponseObject); ok {
+		if err := validResponse.VisitMergeCardsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClaimDailyPack operation middleware
+func (sh *strictHandler) ClaimDailyPack(w http.ResponseWriter, r *http.Request) {
+	var request ClaimDailyPackRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimDailyPack(ctx, request.(ClaimDailyPackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimDailyPack")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimDailyPackResponseObject); ok {
+		if err := validResponse.VisitClaimDailyPackResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRecipes operation middleware
+func (sh *strictHandler) ListRecipes(w http.ResponseWriter, r *http.Request) {
+	var request ListRecipesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRecipes(ctx, request.(ListRecipesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRecipes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRecipesResponseObject); ok {
+		if err := validResponse.VisitListRecipesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
