@@ -1,0 +1,33 @@
+# /users/{username}
+get:
+  operationId: getProfile
+  summary: A player's profile
+  description: |
+    Stats (collection power = sum of the best 10 card scores, never ranked), and up to 5 showcase
+    cards: the player's own pick, or their best cards until they pick (`showcaseChosen: false`).
+  parameters:
+    - name: username
+      in: path
+      required: true
+      description: Case-insensitive
+      schema:
+        type: string
+  responses:
+    "200":
+      description: The profile
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Profile.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "404":
+      description: No such player (error not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

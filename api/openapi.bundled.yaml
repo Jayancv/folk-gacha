@@ -153,6 +153,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /me/showcase:
+    put:
+      operationId: setShowcase
+      summary: Choose the cards on your profile
+      description: Up to 5 of your own cards, in display order. An empty list shows your best cards again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cardIds
+              properties:
+                cardIds:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Your updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          description: More than 5 cards, the same card twice (bad_showcase), or a card that isn't yours (not_owned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/{username}:
+    get:
+      operationId: getProfile
+      summary: A player's profile
+      description: |
+        Stats (collection power = sum of the best 10 card scores, never ranked), and up to 5 showcase
+        cards: the player's own pick, or their best cards until they pick (`showcaseChosen: false`).
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: Case-insensitive
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such player (error not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /packs/daily/claim:
     post:
       operationId: claimDailyPack
@@ -522,6 +594,9 @@ components:
           description: When this account may start trading (created + 7 days, UTC)
         dailyPack:
           $ref: '#/components/schemas/DailyPackStatus'
+        displayName:
+          type: string
+          description: Your full name from Google (only ever shown to you); absent for dev logins
     DailyPackStatus:
       type: object
       required:
@@ -832,6 +907,44 @@ components:
           type: string
         points:
           type: integer
+    Profile:
+      type: object
+      required:
+        - username
+        - joinedAt
+        - collectionPower
+        - cardCount
+        - recipesDiscovered
+        - podiums
+        - showcase
+        - showcaseChosen
+      properties:
+        username:
+          type: string
+        joinedAt:
+          type: string
+          format: date-time
+        collectionPower:
+          type: integer
+          description: Sum of the player's best 10 card scores (shown, never ranked)
+        cardCount:
+          type: integer
+        recipesDiscovered:
+          type: integer
+        podiums:
+          type: integer
+          description: Weekly seasons finished in the top 3
+        showcase:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/Card'
+        showcaseChosen:
+          type: boolean
+          description: False while the showcase is just the player's best cards
+        displayName:
+          type: string
+          description: The player's full name; only included on your own profile (other players see the username)
     PushKey:
       type: object
       required:

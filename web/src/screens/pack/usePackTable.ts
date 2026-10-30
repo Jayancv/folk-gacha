@@ -9,6 +9,7 @@ import { SHOWCASE, useShowcase } from '../../dev/useShowcase';
 import type { CardData } from '../../game/cards/model';
 import { CARDS_KEY } from '../collection/useCollection';
 import { LEADERBOARD_KEY } from '../leaderboard/useLeaderboard';
+import { PROFILE_KEY } from '../profile/useProfile';
 
 /** Today's opened pack, kept for this session so the Pack tab can show it again. */
 interface OpenedPack
@@ -52,6 +53,7 @@ export function usePackTable ()
             deal(outcome.cards);
             void qc.invalidateQueries({ queryKey: CARDS_KEY });
             void qc.invalidateQueries({ queryKey: LEADERBOARD_KEY }); // the pack earned season points
+            void qc.invalidateQueries({ queryKey: PROFILE_KEY }); // new cards: stats and best cards
         }
         else
         {

@@ -83,7 +83,11 @@ func (s *Server) sessionCookie(token string, expires time.Time) string {
 }
 
 func toMe(u store.User) Me {
-	return Me{Id: u.ID, Username: u.Username, CreatedAt: u.CreatedAt.UTC(), TradeUnlockedAt: u.TradeUnlockedAt.UTC()}
+	me := Me{Id: u.ID, Username: u.Username, CreatedAt: u.CreatedAt.UTC(), TradeUnlockedAt: u.TradeUnlockedAt.UTC()}
+	if u.DisplayName != "" {
+		me.DisplayName = ptr(u.DisplayName)
+	}
+	return me
 }
 
 func (s *Server) GetAuthConfig(context.Context, GetAuthConfigRequestObject) (GetAuthConfigResponseObject, error) {
@@ -115,7 +119,7 @@ func (s *Server) SignInWithGoogle(ctx context.Context, req SignInWithGoogleReque
 	if hint == "" {
 		hint = id.Email
 	}
-	sess, err := s.auth.SignIn(ctx, "google:"+id.Subject, hint)
+	sess, err := s.auth.SignInWithDisplayName(ctx, "google:"+id.Subject, hint, id.Name)
 	if err != nil {
 		return nil, err
 	}

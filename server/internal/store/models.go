@@ -121,10 +121,17 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
+type ShowcaseCard struct {
+	UserID   uuid.UUID
+	Position int16
+	CardID   uuid.UUID
+}
+
 type User struct {
 	ID              uuid.UUID
 	AuthID          string
 	Username        string
 	CreatedAt       time.Time
 	TradeUnlockedAt time.Time
+	DisplayName     string
 }

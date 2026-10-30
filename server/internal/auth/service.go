@@ -25,6 +25,7 @@ type Store interface {
 	CreateSession(ctx context.Context, arg store.CreateSessionParams) error
 	GetSessionUser(ctx context.Context, tokenHash []byte) (store.User, error)
 	DeleteSession(ctx context.Context, tokenHash []byte) error
+	SetDisplayName(ctx context.Context, arg store.SetDisplayNameParams) (store.User, error)
 }
 
 type Service struct {
@@ -47,9 +48,21 @@ type Session struct {
 // SignIn finds or creates the user for authID ("google:<sub>", "dev:<name>") and
 // starts a session. nameHint seeds the username of a new account.
 func (s *Service) SignIn(ctx context.Context, authID, nameHint string) (Session, error) {
+	return s.SignInWithDisplayName(ctx, authID, nameHint, "")
+}
+
+// SignInWithDisplayName is SignIn that also keeps the player's full name from the
+// provider (cleaned with CleanDisplayName) up to date: it can change there. An empty
+// name leaves the stored one alone.
+func (s *Service) SignInWithDisplayName(ctx context.Context, authID, nameHint, displayName string) (Session, error) {
 	user, err := s.findOrCreate(ctx, authID, nameHint)
 	if err != nil {
 		return Session{}, err
+	}
+	if name := CleanDisplayName(displayName); name != "" && name != user.DisplayName {
+		if user, err = s.store.SetDisplayName(ctx, store.SetDisplayNameParams{ID: user.ID, DisplayName: name}); err != nil {
+			return Session{}, fmt.Errorf("auth: save display name: %w", err)
+		}
 	}
 	token := NewToken()
 	expires := s.now().UTC().Add(SessionTTL)

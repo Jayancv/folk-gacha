@@ -1,0 +1,39 @@
+# /me/showcase
+put:
+  operationId: setShowcase
+  summary: Choose the cards on your profile
+  description: Up to 5 of your own cards, in display order. An empty list shows your best cards again.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - cardIds
+          properties:
+            cardIds:
+              type: array
+              maxItems: 5
+              items:
+                type: string
+                format: uuid
+  responses:
+    "200":
+      description: Your updated profile
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Profile.yaml
+    "400":
+      description: More than 5 cards, the same card twice (bad_showcase), or a card that isn't yours (not_owned)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

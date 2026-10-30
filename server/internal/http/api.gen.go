@@ -358,9 +358,12 @@ type LeaderboardSeason struct {
 
 // Me defines model for Me.
 type Me struct {
-	CreatedAt time.Time          `json:"createdAt"`
-	DailyPack *DailyPackStatus   `json:"dailyPack,omitempty"`
-	Id        openapi_types.UUID `json:"id"`
+	CreatedAt time.Time        `json:"createdAt"`
+	DailyPack *DailyPackStatus `json:"dailyPack,omitempty"`
+
+	// DisplayName Your full name from Google (only ever shown to you); absent for dev logins
+	DisplayName *string            `json:"displayName,omitempty"`
+	Id          openapi_types.UUID `json:"id"`
 
 	// TradeUnlockedAt When this account may start trading (created + 7 days, UTC)
 	TradeUnlockedAt time.Time `json:"tradeUnlockedAt"`
@@ -379,6 +382,27 @@ type MergeResult struct {
 
 // MergeResultKind defines model for MergeResult.Kind.
 type MergeResultKind string
+
+// Profile defines model for Profile.
+type Profile struct {
+	CardCount int `json:"cardCount"`
+
+	// CollectionPower Sum of the player's best 10 card scores (shown, never ranked)
+	CollectionPower int `json:"collectionPower"`
+
+	// DisplayName The player's full name; only included on your own profile (other players see the username)
+	DisplayName *string   `json:"displayName,omitempty"`
+	JoinedAt    time.Time `json:"joinedAt"`
+
+	// Podiums Weekly seasons finished in the top 3
+	Podiums           int    `json:"podiums"`
+	RecipesDiscovered int    `json:"recipesDiscovered"`
+	Showcase          []Card `json:"showcase"`
+
+	// ShowcaseChosen False while the showcase is just the player's best cards
+	ShowcaseChosen bool   `json:"showcaseChosen"`
+	Username       string `json:"username"`
+}
 
 // PushKey defines model for PushKey.
 type PushKey struct {
@@ -435,6 +459,11 @@ type ListCardsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// SetShowcaseJSONBody defines parameters for SetShowcase.
+type SetShowcaseJSONBody struct {
+	CardIds []openapi_types.UUID `json:"cardIds"`
+}
+
 // MergeCardsJSONBody defines parameters for MergeCards.
 type MergeCardsJSONBody struct {
 	// CardIds [dragged card, target card]
@@ -451,6 +480,9 @@ type SignInDevJSONRequestBody SignInDevJSONBody
 
 // SignInWithGoogleJSONRequestBody defines body for SignInWithGoogle for application/json ContentType.
 type SignInWithGoogleJSONRequestBody SignInWithGoogleJSONBody
+
+// SetShowcaseJSONRequestBody defines body for SetShowcase for application/json ContentType.
+type SetShowcaseJSONRequestBody SetShowcaseJSONBody
 
 // MergeCardsJSONRequestBody defines body for MergeCards for application/json ContentType.
 type MergeCardsJSONRequestBody MergeCardsJSONBody
@@ -490,6 +522,9 @@ type ServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// SetShowcase Choose the cards on your profile
+	// (PUT /me/showcase)
+	SetShowcase(w http.ResponseWriter, r *http.Request)
 	// MergeCards Merge two of your cards
 	// (POST /merges)
 	MergeCards(w http.ResponseWriter, r *http.Request)
@@ -508,6 +543,9 @@ type ServerInterface interface {
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(w http.ResponseWriter, r *http.Request)
+	// GetProfile A player's profile
+	// (GET /users/{username})
+	GetProfile(w http.ResponseWriter, r *http.Request, username string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -767,6 +805,20 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// SetShowcase operation middleware
+func (siw *ServerInterfaceWrapper) SetShowcase(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetShowcase(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // MergeCards operation middleware
 func (siw *ServerInterfaceWrapper) MergeCards(w http.ResponseWriter, r *http.Request) {
 
@@ -842,6 +894,32 @@ func (siw *ServerInterfaceWrapper) ListRecipes(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListRecipes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "username" -------------
+	var username string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", r.PathValue("username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProfile(w, r, username)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -977,6 +1055,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/dev", wrapper.SignInDev)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/showcase", wrapper.SetShowcase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}", wrapper.GetProfile)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/packs/daily/claim", wrapper.ClaimDailyPack)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/merges", wrapper.MergeCards)
@@ -1331,6 +1411,56 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	return err
 }
 
+type SetShowcaseRequestObject struct {
+	Body *SetShowcaseJSONRequestBody
+}
+
+type SetShowcaseResponseObject interface {
+	VisitSetShowcaseResponse(w http.ResponseWriter) error
+}
+
+type SetShowcase200JSONResponse Profile
+
+func (response SetShowcase200JSONResponse) VisitSetShowcaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetShowcase400JSONResponse Error
+
+func (response SetShowcase400JSONResponse) VisitSetShowcaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetShowcase401JSONResponse Error
+
+func (response SetShowcase401JSONResponse) VisitSetShowcaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type MergeCardsRequestObject struct {
 	Body *MergeCardsJSONRequestBody
 }
@@ -1632,6 +1762,56 @@ func (response ListRecipes401JSONResponse) VisitListRecipesResponse(w http.Respo
 	return err
 }
 
+type GetProfileRequestObject struct {
+	Username string `json:"username"`
+}
+
+type GetProfileResponseObject interface {
+	VisitGetProfileResponse(w http.ResponseWriter) error
+}
+
+type GetProfile200JSONResponse Profile
+
+func (response GetProfile200JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProfile401JSONResponse Error
+
+func (response GetProfile401JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProfile404JSONResponse Error
+
+func (response GetProfile404JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetAuthConfig Which sign-in options this server offers
@@ -1661,6 +1841,9 @@ type StrictServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// SetShowcase Choose the cards on your profile
+	// (PUT /me/showcase)
+	SetShowcase(ctx context.Context, request SetShowcaseRequestObject) (SetShowcaseResponseObject, error)
 	// MergeCards Merge two of your cards
 	// (POST /merges)
 	MergeCards(ctx context.Context, request MergeCardsRequestObject) (MergeCardsResponseObject, error)
@@ -1679,6 +1862,9 @@ type StrictServerInterface interface {
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(ctx context.Context, request ListRecipesRequestObject) (ListRecipesResponseObject, error)
+	// GetProfile A player's profile
+	// (GET /users/{username})
+	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1954,6 +2140,37 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// SetShowcase operation middleware
+func (sh *strictHandler) SetShowcase(w http.ResponseWriter, r *http.Request) {
+	var request SetShowcaseRequestObject
+
+	var body SetShowcaseJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetShowcase(ctx, request.(SetShowcaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetShowcase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetShowcaseResponseObject); ok {
+		if err := validResponse.VisitSetShowcaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // MergeCards operation middleware
 func (sh *strictHandler) MergeCards(w http.ResponseWriter, r *http.Request) {
 	var request MergeCardsRequestObject
@@ -2112,6 +2329,32 @@ func (sh *strictHandler) ListRecipes(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListRecipesResponseObject); ok {
 		if err := validResponse.VisitListRecipesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProfile operation middleware
+func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, username string) {
+	var request GetProfileRequestObject
+
+	request.Username = username
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProfile(ctx, request.(GetProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProfileResponseObject); ok {
+		if err := validResponse.VisitGetProfileResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

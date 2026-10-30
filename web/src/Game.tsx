@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { Me } from './auth/useAuth';
 import { ApiStatus } from './app/ApiStatus';
 import { InstallBanner } from './app/install/InstallBanner';
@@ -5,7 +6,9 @@ import { useInstallPrompt } from './app/install/useInstallPrompt';
 import { PackReadyToggle } from './app/push/PackReadyToggle';
 import { usePushNotifications } from './app/push/usePushNotifications';
 import { TabBar } from './app/TabBar';
-import { useTabs } from './app/useTabs';
+import { isReactScreen, useTabs } from './app/useTabs';
+import { EventBus } from './bridge/EventBus';
+import { GameEvents } from './bridge/events';
 import { ShowcaseAgainButton, ShowcasePanel } from './dev/ShowcasePanel';
 import { PhaserGame } from './PhaserGame';
 import { BoardLoadError } from './screens/board/BoardLoadError';
@@ -13,6 +16,7 @@ import { useBoardTable } from './screens/board/useBoardTable';
 import { Collection } from './screens/collection/Collection';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
+import { Profile } from './screens/profile/Profile';
 import { usePackTable } from './screens/pack/usePackTable';
 import { UserChip } from './screens/UserChip';
 
@@ -26,6 +30,22 @@ export default function Game ({ me }: { me: Me })
     const board = useBoardTable();
     const install = useInstallPrompt();
     const notifications = usePushNotifications();
+    // A profile opens over any screen (from the player chip or a leaderboard row).
+    const [profileOf, setProfileOf] = useState<string | null>(null);
+    // Over a table scene, the game loop sleeps while the profile covers it.
+    const coversTable = profileOf !== null && !isReactScreen(tab);
+    useEffect(() =>
+    {
+        if (!coversTable)
+        {
+            return;
+        }
+        EventBus.emit(GameEvents.SetPaused, { paused: true });
+        return () =>
+        {
+            EventBus.emit(GameEvents.SetPaused, { paused: false });
+        };
+    }, [coversTable]);
     // Offer installing while the player waits for tomorrow's pack: a natural moment, and no cards on the table to cover.
     const waitingForPack = tab === 'PackOpen' && !pack.opened && !pack.showcase && me.dailyPack?.ready === false;
 
@@ -53,9 +73,10 @@ export default function Game ({ me }: { me: Me })
                     <Collection />
                 </div>
             )}
-            {tab === 'Leaderboard' && <Leaderboard me={me} />}
+            {tab === 'Leaderboard' && <Leaderboard me={me} onOpenProfile={setProfileOf} />}
             <ApiStatus />
-            <UserChip me={me} />
+            <UserChip me={me} onOpenProfile={() => setProfileOf(me.username)} />
+            {profileOf && <Profile username={profileOf} me={me} onClose={() => setProfileOf(null)} />}
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}

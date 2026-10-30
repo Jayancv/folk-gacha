@@ -1,0 +1,37 @@
+type: object
+required:
+  - username
+  - joinedAt
+  - collectionPower
+  - cardCount
+  - recipesDiscovered
+  - podiums
+  - showcase
+  - showcaseChosen
+properties:
+  username:
+    type: string
+  joinedAt:
+    type: string
+    format: date-time
+  collectionPower:
+    type: integer
+    description: Sum of the player's best 10 card scores (shown, never ranked)
+  cardCount:
+    type: integer
+  recipesDiscovered:
+    type: integer
+  podiums:
+    type: integer
+    description: Weekly seasons finished in the top 3
+  showcase:
+    type: array
+    maxItems: 5
+    items:
+      $ref: ./Card.yaml
+  showcaseChosen:
+    type: boolean
+    description: False while the showcase is just the player's best cards
+  displayName:
+    type: string
+    description: The player's full name; only included on your own profile (other players see the username)

@@ -31,7 +31,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (auth_id, username)
 VALUES ($1, $2)
-RETURNING id, auth_id, username, created_at, trade_unlocked_at
+RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name
 `
 
 type CreateUserParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Username,
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -74,7 +75,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
 }
 
 const getSessionUser = `-- name: GetSessionUser :one
-SELECT u.id, u.auth_id, u.username, u.created_at, u.trade_unlocked_at
+SELECT u.id, u.auth_id, u.username, u.created_at, u.trade_unlocked_at, u.display_name
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.expires_at > now()
@@ -90,12 +91,13 @@ func (q *Queries) GetSessionUser(ctx context.Context, tokenHash []byte) (User, e
 		&i.Username,
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getUserByAuthID = `-- name: GetUserByAuthID :one
-SELECT id, auth_id, username, created_at, trade_unlocked_at FROM users WHERE auth_id = $1
+SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name FROM users WHERE auth_id = $1
 `
 
 func (q *Queries) GetUserByAuthID(ctx context.Context, authID string) (User, error) {
@@ -107,6 +109,31 @@ func (q *Queries) GetUserByAuthID(ctx context.Context, authID string) (User, err
 		&i.Username,
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
+		&i.DisplayName,
+	)
+	return i, err
+}
+
+const setDisplayName = `-- name: SetDisplayName :one
+UPDATE users SET display_name = $2 WHERE id = $1 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name
+`
+
+type SetDisplayNameParams struct {
+	ID          uuid.UUID
+	DisplayName string
+}
+
+// Keeps the full name in step with the sign-in provider (it can change there).
+func (q *Queries) SetDisplayName(ctx context.Context, arg SetDisplayNameParams) (User, error) {
+	row := q.db.QueryRow(ctx, setDisplayName, arg.ID, arg.DisplayName)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AuthID,
+		&i.Username,
+		&i.CreatedAt,
+		&i.TradeUnlockedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }

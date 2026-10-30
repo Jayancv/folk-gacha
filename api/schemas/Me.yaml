@@ -19,3 +19,6 @@ properties:
     description: When this account may start trading (created + 7 days, UTC)
   dailyPack:
     $ref: ./DailyPackStatus.yaml
+  displayName:
+    type: string
+    description: Your full name from Google (only ever shown to you); absent for dev logins

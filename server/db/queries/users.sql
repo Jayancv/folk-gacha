@@ -22,3 +22,7 @@ DELETE FROM sessions WHERE token_hash = $1;
 
 -- name: DeleteExpiredSessions :execrows
 DELETE FROM sessions WHERE expires_at <= now();
+
+-- name: SetDisplayName :one
+-- Keeps the full name in step with the sign-in provider (it can change there).
+UPDATE users SET display_name = $2 WHERE id = $1 RETURNING *;

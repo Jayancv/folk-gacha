@@ -12,6 +12,7 @@ import (
 	"cardgame/server/internal/leaderboard"
 	"cardgame/server/internal/merges"
 	"cardgame/server/internal/packs"
+	"cardgame/server/internal/profile"
 	"cardgame/server/internal/push"
 )
 
@@ -31,6 +32,7 @@ type Server struct {
 	leaderboard   *leaderboard.Service
 	push          *push.Service
 	pushPublicKey string
+	profiles      *profile.Service
 	now           func() time.Time
 }
 
@@ -47,11 +49,12 @@ type Services struct {
 	// Push and PushPublicKey enable notifications (both set, or both empty).
 	Push          *push.Service
 	PushPublicKey string
+	Profiles      *profile.Service
 }
 
 // NewServer wires the handlers.
 func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
-	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, authOpts: opts, now: time.Now}
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.

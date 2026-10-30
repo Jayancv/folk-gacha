@@ -26,6 +26,10 @@ paths:
     $ref: ./paths/auth/logout.yaml
   /me:
     $ref: ./paths/me.yaml
+  /me/showcase:
+    $ref: ./paths/me/showcase.yaml
+  /users/{username}:
+    $ref: ./paths/users/{username}.yaml
   /packs/daily/claim:
     $ref: ./paths/packs/daily/claim.yaml
   /cards:
@@ -84,6 +88,8 @@ components:
       $ref: ./schemas/LeaderboardSeason.yaml
     LeaderboardEntry:
       $ref: ./schemas/LeaderboardEntry.yaml
+    Profile:
+      $ref: ./schemas/Profile.yaml
     PushKey:
       $ref: ./schemas/PushKey.yaml
     PushSubscription:

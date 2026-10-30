@@ -5,7 +5,7 @@ import type { Leaderboard } from './useLeaderboard';
 import { YourRankCard } from './YourRankCard';
 
 // One week's standings: status, your rank, the top players (or an empty state), and how points work.
-export function Standings ({ board, me }: { board: Leaderboard; me: Me })
+export function Standings ({ board, me, onOpenProfile }: { board: Leaderboard; me: Me; onOpenProfile: (username: string) => void })
 {
     return (
         <>
@@ -17,7 +17,7 @@ export function Standings ({ board, me }: { board: Leaderboard; me: Me })
                 </p>
             ) : (
                 <ol className="mt-3 flex flex-col gap-1.5" aria-label="Top players">
-                    {board.top.map(e => <LeaderboardRow key={e.rank} entry={e} mine={e.username === me.username} />)}
+                    {board.top.map(e => <LeaderboardRow key={e.rank} entry={e} mine={e.username === me.username} onOpen={() => onOpenProfile(e.username)} />)}
                 </ol>
             )}
             <p className="mt-4 text-center text-xs text-[#bba595]/80">

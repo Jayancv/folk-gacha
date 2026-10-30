@@ -20,6 +20,7 @@ import (
 	"cardgame/server/internal/leaderboard"
 	"cardgame/server/internal/merges"
 	"cardgame/server/internal/packs"
+	"cardgame/server/internal/profile"
 	"cardgame/server/internal/push"
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
@@ -102,6 +103,7 @@ func run() error {
 		Leaderboard:   leaderboard.NewService(pool),
 		Push:          pushSvc,
 		PushPublicKey: vapidPublic,
+		Profiles:      profile.NewService(pool),
 	}, authOpts)
 	srv := &http.Server{
 		Addr:              ":" + port,

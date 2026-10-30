@@ -70,6 +70,21 @@ func (m *MemStore) CreateUser(_ context.Context, arg store.CreateUserParams) (st
 	return u, nil
 }
 
+func (m *MemStore) SetDisplayName(_ context.Context, arg store.SetDisplayNameParams) (store.User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Fail != nil {
+		return store.User{}, m.Fail
+	}
+	for i, u := range m.users {
+		if u.ID == arg.ID {
+			m.users[i].DisplayName = arg.DisplayName
+			return m.users[i], nil
+		}
+	}
+	return store.User{}, pgx.ErrNoRows
+}
+
 func (m *MemStore) CreateSession(_ context.Context, arg store.CreateSessionParams) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
