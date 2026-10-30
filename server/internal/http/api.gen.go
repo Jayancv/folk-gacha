@@ -367,7 +367,10 @@ type Me struct {
 
 	// TradeUnlockedAt When this account may start trading (created + 7 days, UTC)
 	TradeUnlockedAt time.Time `json:"tradeUnlockedAt"`
-	Username        string    `json:"username"`
+
+	// TutorialDone The player finished or skipped the first-time tutorial (on any device)
+	TutorialDone bool   `json:"tutorialDone"`
+	Username     string `json:"username"`
 }
 
 // MergeResult defines model for MergeResult.
@@ -525,6 +528,9 @@ type ServerInterface interface {
 	// SetShowcase Choose the cards on your profile
 	// (PUT /me/showcase)
 	SetShowcase(w http.ResponseWriter, r *http.Request)
+	// CompleteTutorial Mark the first-time tutorial as finished (or skipped)
+	// (POST /me/tutorial)
+	CompleteTutorial(w http.ResponseWriter, r *http.Request)
 	// MergeCards Merge two of your cards
 	// (POST /merges)
 	MergeCards(w http.ResponseWriter, r *http.Request)
@@ -819,6 +825,20 @@ func (siw *ServerInterfaceWrapper) SetShowcase(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// CompleteTutorial operation middleware
+func (siw *ServerInterfaceWrapper) CompleteTutorial(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteTutorial(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // MergeCards operation middleware
 func (siw *ServerInterfaceWrapper) MergeCards(w http.ResponseWriter, r *http.Request) {
 
@@ -1056,6 +1076,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/showcase", wrapper.SetShowcase)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/me/tutorial", wrapper.CompleteTutorial)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}", wrapper.GetProfile)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/packs/daily/claim", wrapper.ClaimDailyPack)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
@@ -1461,6 +1482,35 @@ func (response SetShowcase401JSONResponse) VisitSetShowcaseResponse(w http.Respo
 	return err
 }
 
+type CompleteTutorialRequestObject struct {
+}
+
+type CompleteTutorialResponseObject interface {
+	VisitCompleteTutorialResponse(w http.ResponseWriter) error
+}
+
+type CompleteTutorial204Response struct {
+}
+
+func (response CompleteTutorial204Response) VisitCompleteTutorialResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CompleteTutorial401JSONResponse Error
+
+func (response CompleteTutorial401JSONResponse) VisitCompleteTutorialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type MergeCardsRequestObject struct {
 	Body *MergeCardsJSONRequestBody
 }
@@ -1844,6 +1894,9 @@ type StrictServerInterface interface {
 	// SetShowcase Choose the cards on your profile
 	// (PUT /me/showcase)
 	SetShowcase(ctx context.Context, request SetShowcaseRequestObject) (SetShowcaseResponseObject, error)
+	// CompleteTutorial Mark the first-time tutorial as finished (or skipped)
+	// (POST /me/tutorial)
+	CompleteTutorial(ctx context.Context, request CompleteTutorialRequestObject) (CompleteTutorialResponseObject, error)
 	// MergeCards Merge two of your cards
 	// (POST /merges)
 	MergeCards(ctx context.Context, request MergeCardsRequestObject) (MergeCardsResponseObject, error)
@@ -2164,6 +2217,30 @@ func (sh *strictHandler) SetShowcase(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetShowcaseResponseObject); ok {
 		if err := validResponse.VisitSetShowcaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteTutorial operation middleware
+func (sh *strictHandler) CompleteTutorial(w http.ResponseWriter, r *http.Request) {
+	var request CompleteTutorialRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteTutorial(ctx, request.(CompleteTutorialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteTutorial")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteTutorialResponseObject); ok {
+		if err := validResponse.VisitCompleteTutorialResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

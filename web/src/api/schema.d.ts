@@ -126,6 +126,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/tutorial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark the first-time tutorial as finished (or skipped)
+         * @description Recorded once per account, so no device shows the tutorial again.
+         */
+        post: operations["completeTutorial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/{username}": {
         parameters: {
             query?: never;
@@ -345,6 +365,8 @@ export interface components {
             dailyPack?: components["schemas"]["DailyPackStatus"];
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
             displayName?: string;
+            /** @description The player finished or skipped the first-time tutorial (on any device) */
+            tutorialDone: boolean;
         };
         DailyPackStatus: {
             /** @description Whether today's pack can be claimed */
@@ -753,6 +775,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Error"];
                 };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    completeTutorial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not signed in */
             401: {

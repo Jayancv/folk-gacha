@@ -192,6 +192,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /me/tutorial:
+    post:
+      operationId: completeTutorial
+      summary: Mark the first-time tutorial as finished (or skipped)
+      description: Recorded once per account, so no device shows the tutorial again.
+      responses:
+        '204':
+          description: Recorded
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /users/{username}:
     get:
       operationId: getProfile
@@ -579,6 +593,7 @@ components:
         - username
         - createdAt
         - tradeUnlockedAt
+        - tutorialDone
       properties:
         id:
           type: string
@@ -597,6 +612,9 @@ components:
         displayName:
           type: string
           description: Your full name from Google (only ever shown to you); absent for dev logins
+        tutorialDone:
+          type: boolean
+          description: The player finished or skipped the first-time tutorial (on any device)
     DailyPackStatus:
       type: object
       required:

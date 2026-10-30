@@ -87,7 +87,7 @@ func (q *Queries) GetProfileStats(ctx context.Context, userID uuid.UUID) (GetPro
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name FROM users WHERE lower(username) = lower($1)
+SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at FROM users WHERE lower(username) = lower($1)
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, error) {
@@ -100,6 +100,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
 		&i.DisplayName,
+		&i.TutorialDoneAt,
 	)
 	return i, err
 }

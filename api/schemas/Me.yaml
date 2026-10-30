@@ -4,6 +4,7 @@ required:
   - username
   - createdAt
   - tradeUnlockedAt
+  - tutorialDone
 properties:
   id:
     type: string
@@ -22,3 +23,6 @@ properties:
   displayName:
     type: string
     description: Your full name from Google (only ever shown to you); absent for dev logins
+  tutorialDone:
+    type: boolean
+    description: The player finished or skipped the first-time tutorial (on any device)

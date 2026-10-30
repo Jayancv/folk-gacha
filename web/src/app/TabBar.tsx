@@ -15,6 +15,7 @@ export function TabBar ({ tab, onSwitch }: { tab: Tab; onSwitch: (tab: Tab) => v
             {TABS.map(t => (
                 <button
                     key={t.tab}
+                    data-tutorial={`tab-${t.tab}`}
                     onClick={() => onSwitch(t.tab)}
                     aria-current={tab === t.tab ? 'page' : undefined}
                     className={`flex min-w-[4.5rem] flex-col items-center gap-0.5 rounded-xl px-3 py-2 text-xs font-bold tracking-wide ${

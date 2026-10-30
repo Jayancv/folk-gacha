@@ -28,6 +28,8 @@ paths:
     $ref: ./paths/me.yaml
   /me/showcase:
     $ref: ./paths/me/showcase.yaml
+  /me/tutorial:
+    $ref: ./paths/me/tutorial.yaml
   /users/{username}:
     $ref: ./paths/users/{username}.yaml
   /packs/daily/claim:

@@ -57,6 +57,7 @@ export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, wai
                     <>
                         <p className="font-serif text-lg font-bold text-[#f6eadc]">Your daily pack is here</p>
                         <button
+                            data-tutorial="claim"
                             onClick={onClaim}
                             disabled={claiming}
                             className="rounded-full bg-[#e7b54a] px-7 py-3 text-base font-bold text-[#170e10] shadow-lg active:scale-95 disabled:opacity-60"

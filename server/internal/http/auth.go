@@ -83,7 +83,7 @@ func (s *Server) sessionCookie(token string, expires time.Time) string {
 }
 
 func toMe(u store.User) Me {
-	me := Me{Id: u.ID, Username: u.Username, CreatedAt: u.CreatedAt.UTC(), TradeUnlockedAt: u.TradeUnlockedAt.UTC()}
+	me := Me{Id: u.ID, Username: u.Username, CreatedAt: u.CreatedAt.UTC(), TradeUnlockedAt: u.TradeUnlockedAt.UTC(), TutorialDone: u.TutorialDoneAt.Valid}
 	if u.DisplayName != "" {
 		me.DisplayName = ptr(u.DisplayName)
 	}
@@ -175,6 +175,17 @@ func (s *Server) GetMe(ctx context.Context, _ GetMeRequestObject) (GetMeResponse
 		return nil, err
 	}
 	return GetMe200JSONResponse(me), nil
+}
+
+func (s *Server) CompleteTutorial(ctx context.Context, _ CompleteTutorialRequestObject) (CompleteTutorialResponseObject, error) {
+	user, ok := userFrom(ctx)
+	if !ok || s.auth == nil {
+		return CompleteTutorial401JSONResponse{Error: "not_signed_in"}, nil
+	}
+	if _, err := s.auth.CompleteTutorial(ctx, user.ID); err != nil {
+		return nil, err
+	}
+	return CompleteTutorial204Response{}, nil
 }
 
 func ptr[T any](v T) *T { return &v }

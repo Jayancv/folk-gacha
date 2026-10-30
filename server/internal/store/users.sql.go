@@ -12,6 +12,26 @@ import (
 	"github.com/google/uuid"
 )
 
+const completeTutorial = `-- name: CompleteTutorial :one
+UPDATE users SET tutorial_done_at = coalesce(tutorial_done_at, now()) WHERE id = $1 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at
+`
+
+// Records the first time only (finishing again or skipping later changes nothing).
+func (q *Queries) CompleteTutorial(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, completeTutorial, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AuthID,
+		&i.Username,
+		&i.CreatedAt,
+		&i.TradeUnlockedAt,
+		&i.DisplayName,
+		&i.TutorialDoneAt,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :exec
 INSERT INTO sessions (token_hash, user_id, expires_at)
 VALUES ($1, $2, $3)
@@ -31,7 +51,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (auth_id, username)
 VALUES ($1, $2)
-RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name
+RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at
 `
 
 type CreateUserParams struct {
@@ -49,6 +69,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
 		&i.DisplayName,
+		&i.TutorialDoneAt,
 	)
 	return i, err
 }
@@ -75,7 +96,7 @@ func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
 }
 
 const getSessionUser = `-- name: GetSessionUser :one
-SELECT u.id, u.auth_id, u.username, u.created_at, u.trade_unlocked_at, u.display_name
+SELECT u.id, u.auth_id, u.username, u.created_at, u.trade_unlocked_at, u.display_name, u.tutorial_done_at
 FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.expires_at > now()
@@ -92,12 +113,13 @@ func (q *Queries) GetSessionUser(ctx context.Context, tokenHash []byte) (User, e
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
 		&i.DisplayName,
+		&i.TutorialDoneAt,
 	)
 	return i, err
 }
 
 const getUserByAuthID = `-- name: GetUserByAuthID :one
-SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name FROM users WHERE auth_id = $1
+SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at FROM users WHERE auth_id = $1
 `
 
 func (q *Queries) GetUserByAuthID(ctx context.Context, authID string) (User, error) {
@@ -110,12 +132,13 @@ func (q *Queries) GetUserByAuthID(ctx context.Context, authID string) (User, err
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
 		&i.DisplayName,
+		&i.TutorialDoneAt,
 	)
 	return i, err
 }
 
 const setDisplayName = `-- name: SetDisplayName :one
-UPDATE users SET display_name = $2 WHERE id = $1 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name
+UPDATE users SET display_name = $2 WHERE id = $1 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at
 `
 
 type SetDisplayNameParams struct {
@@ -134,6 +157,7 @@ func (q *Queries) SetDisplayName(ctx context.Context, arg SetDisplayNameParams) 
 		&i.CreatedAt,
 		&i.TradeUnlockedAt,
 		&i.DisplayName,
+		&i.TutorialDoneAt,
 	)
 	return i, err
 }

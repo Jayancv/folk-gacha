@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"cardgame/server/internal/auth"
 	"cardgame/server/internal/store"
@@ -79,6 +80,23 @@ func (m *MemStore) SetDisplayName(_ context.Context, arg store.SetDisplayNamePar
 	for i, u := range m.users {
 		if u.ID == arg.ID {
 			m.users[i].DisplayName = arg.DisplayName
+			return m.users[i], nil
+		}
+	}
+	return store.User{}, pgx.ErrNoRows
+}
+
+func (m *MemStore) CompleteTutorial(_ context.Context, id uuid.UUID) (store.User, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.Fail != nil {
+		return store.User{}, m.Fail
+	}
+	for i, u := range m.users {
+		if u.ID == id {
+			if !m.users[i].TutorialDoneAt.Valid {
+				m.users[i].TutorialDoneAt = pgtype.Timestamptz{Time: m.Now().UTC(), Valid: true}
+			}
 			return m.users[i], nil
 		}
 	}

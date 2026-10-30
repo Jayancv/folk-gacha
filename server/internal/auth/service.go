@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"math/rand/v2"
 	"time"
 
@@ -26,6 +27,7 @@ type Store interface {
 	GetSessionUser(ctx context.Context, tokenHash []byte) (store.User, error)
 	DeleteSession(ctx context.Context, tokenHash []byte) error
 	SetDisplayName(ctx context.Context, arg store.SetDisplayNameParams) (store.User, error)
+	CompleteTutorial(ctx context.Context, id uuid.UUID) (store.User, error)
 }
 
 type Service struct {
@@ -97,6 +99,16 @@ func (s *Service) findOrCreate(ctx context.Context, authID, nameHint string) (st
 		// Username taken: try the next candidate.
 	}
 	return store.User{}, errors.New("auth: no free username")
+}
+
+// CompleteTutorial records that the player finished (or skipped) the first-time
+// tutorial, so no device shows it again. Doing it twice keeps the first time.
+func (s *Service) CompleteTutorial(ctx context.Context, userID uuid.UUID) (store.User, error) {
+	user, err := s.store.CompleteTutorial(ctx, userID)
+	if err != nil {
+		return store.User{}, fmt.Errorf("auth: complete tutorial: %w", err)
+	}
+	return user, nil
 }
 
 // UserForToken returns the user behind a session cookie value.

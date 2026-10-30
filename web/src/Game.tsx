@@ -17,6 +17,8 @@ import { Collection } from './screens/collection/Collection';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { Profile } from './screens/profile/Profile';
+import { TutorialOverlay } from './tutorial/TutorialOverlay';
+import { useTutorial } from './tutorial/useTutorial';
 import { usePackTable } from './screens/pack/usePackTable';
 import { UserChip } from './screens/UserChip';
 
@@ -32,6 +34,9 @@ export default function Game ({ me }: { me: Me })
     const notifications = usePushNotifications();
     // A profile opens over any screen (from the player chip or a leaderboard row).
     const [profileOf, setProfileOf] = useState<string | null>(null);
+    const tutorial = useTutorial(me, {
+        tab, packOpened: pack.opened, packRevealed: pack.revealed, boardCards: board.cards, showcase: pack.showcase !== null
+    });
     // Over a table scene, the game loop sleeps while the profile covers it.
     const coversTable = profileOf !== null && !isReactScreen(tab);
     useEffect(() =>
@@ -76,6 +81,9 @@ export default function Game ({ me }: { me: Me })
             {tab === 'Leaderboard' && <Leaderboard me={me} onOpenProfile={setProfileOf} />}
             <ApiStatus />
             <UserChip me={me} onOpenProfile={() => setProfileOf(me.username)} />
+            {tutorial.active && !profileOf && (
+                <TutorialOverlay content={tutorial.content} number={tutorial.number} onNext={tutorial.next} onSkip={tutorial.skip} />
+            )}
             {profileOf && <Profile username={profileOf} me={me} onClose={() => setProfileOf(null)} />}
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">

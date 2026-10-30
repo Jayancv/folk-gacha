@@ -134,4 +134,5 @@ type User struct {
 	CreatedAt       time.Time
 	TradeUnlockedAt time.Time
 	DisplayName     string
+	TutorialDoneAt  pgtype.Timestamptz
 }
