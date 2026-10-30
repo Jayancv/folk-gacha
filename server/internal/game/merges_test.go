@@ -20,6 +20,7 @@ func TestPlanMerge(t *testing.T) {
 		{"level up", calf(1), calf(1), "", MergePlan{Kind: LevelUp, Level: 2}, nil},
 		{"level 4 to 5", calf(4), calf(4), "", MergePlan{Kind: LevelUp, Level: 5}, nil},
 		{"already max level", calf(MaxLevel), calf(MaxLevel), "", MergePlan{}, ErrMaxLevel},
+		{"bad stored level above max", calf(MaxLevel + 1), calf(MaxLevel + 1), "", MergePlan{}, ErrMaxLevel},
 		{"same spirit, different levels", calf(1), calf(2), "", MergePlan{}, ErrNoRecipe},
 		{"recipe at any level starts at 1", calf(2), simha, "gajasinghe", MergePlan{Kind: RecipeMerge, Level: 1, Output: "gajasinghe"}, nil},
 		{"different spirits, no recipe", calf(1), malu, "", MergePlan{}, ErrNoRecipe},

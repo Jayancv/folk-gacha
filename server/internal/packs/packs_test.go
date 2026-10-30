@@ -149,6 +149,36 @@ func TestMidnightResetUTC(t *testing.T) {
 	}
 }
 
+// What /me reports: not ready right after claiming, ready again from 00:00 UTC.
+func TestStatusResetsAtMidnightUTC(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	user := newUser(t, pool, "waiter")
+	claimedAt := time.Date(2026, 10, 30, 23, 58, 0, 0, time.UTC)
+	if _, err := service(pool, claimedAt, nil).ClaimDaily(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	midnight := time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		at        time.Time
+		ready     bool
+		nextReset time.Time
+	}{
+		{claimedAt, false, midnight},
+		{midnight.Add(-time.Nanosecond), false, midnight},
+		{midnight, true, midnight.AddDate(0, 0, 1)},
+	}
+	for _, tt := range tests {
+		st, err := service(pool, tt.at, nil).Status(ctx, user)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Ready != tt.ready || !st.NextReset.Equal(tt.nextReset) {
+			t.Errorf("at %v: %+v, want ready=%v next=%v", tt.at, st, tt.ready, tt.nextReset)
+		}
+	}
+}
+
 // Many claims at once for one player: exactly one wins.
 func TestConcurrentClaimsGiveOnePack(t *testing.T) {
 	pool := setup(t)

@@ -103,17 +103,42 @@ func TestDryPacksAfter(t *testing.T) {
 	}
 }
 
-// Over many simulated players, no one ever goes PityPacks packs without a Rare.
+func TestPityStillTriggersWhenOverdue(t *testing.T) {
+	// A counter past 6 (shouldn't happen, but e.g. after a rule change) still guarantees a Rare.
+	got := RollPack(rolls(0), PityPacks+3)
+	if !slices.ContainsFunc(got, Rarity.AtLeastRare) {
+		t.Fatalf("overdue pack had no Rare: %v", got)
+	}
+}
+
+// Over many simulated players, no one ever goes PityPacks packs without a Rare,
+// and pity really is what saves them (the streak reaches its limit).
 func TestPityGuaranteeHolds(t *testing.T) {
 	rng := rand.New(rand.NewPCG(7, 7))
+	saves, packs, luckyPacks := 0, 0, 0
 	for range 2000 {
 		dry := 0
 		for range 60 {
-			dry = DryPacksAfter(dry, RollPack(rng, dry))
+			pack := RollPack(rng, dry)
+			packs++
+			if dry == PityPacks-1 {
+				saves++ // this pack only has a Rare+ because of pity, or by luck
+			}
+			if slices.ContainsFunc(pack, Rarity.AtLeastRare) {
+				luckyPacks++
+			}
+			dry = DryPacksAfter(dry, pack)
 			if dry >= PityPacks {
 				t.Fatalf("went %d packs without a Rare", dry)
 			}
 		}
+	}
+	if saves == 0 {
+		t.Fatal("no player ever reached the pity pack; the test proves nothing")
+	}
+	// Without pity a pack has a Rare+ with chance 1 - 0.9^5 ≈ 41%; pity lifts it slightly.
+	if rate := float64(luckyPacks) / float64(packs); rate < 0.40 || rate > 0.44 {
+		t.Fatalf("%.3f of packs had a Rare or better, want about 0.41-0.43", rate)
 	}
 }
 
@@ -183,6 +208,41 @@ func TestClaimDayAroundMidnightUTC(t *testing.T) {
 	for _, tt := range tests {
 		if got := ClaimDay(tt.at); !got.Equal(tt.want) || got.Location() != time.UTC {
 			t.Errorf("%s: got %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestClaimDayInExtremeTimeZones(t *testing.T) {
+	// The same instant is one UTC day everywhere, even 26 hours apart on the clock.
+	instant := time.Date(2026, 10, 30, 11, 0, 0, 0, time.UTC)
+	for _, zone := range []*time.Location{time.FixedZone("UTC+14", 14*3600), time.FixedZone("UTC-12", -12*3600)} {
+		if got := ClaimDay(instant.In(zone)); !got.Equal(ClaimDay(instant)) {
+			t.Errorf("%s: %v", zone, got)
+		}
+	}
+}
+
+func TestNextResetAcrossMonthsAndLeapDays(t *testing.T) {
+	tests := []struct{ at, want time.Time }{
+		{time.Date(2028, 2, 28, 23, 0, 0, 0, time.UTC), time.Date(2028, 2, 29, 0, 0, 0, 0, time.UTC)}, // leap year
+		{time.Date(2028, 2, 29, 23, 0, 0, 0, time.UTC), time.Date(2028, 3, 1, 0, 0, 0, 0, time.UTC)},
+		{time.Date(2027, 2, 28, 23, 0, 0, 0, time.UTC), time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC)}, // not a leap year
+		{time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC), time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)},
+	}
+	for _, tt := range tests {
+		if got := NextReset(tt.at); !got.Equal(tt.want) {
+			t.Errorf("NextReset(%v) = %v, want %v", tt.at, got, tt.want)
+		}
+	}
+}
+
+func TestNextResetIsAlwaysWithin24Hours(t *testing.T) {
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for m := 0; m < 366*24*60; m += 37 { // every 37 minutes for a year
+		at := start.Add(time.Duration(m) * time.Minute)
+		wait := NextReset(at).Sub(at)
+		if wait <= 0 || wait > 24*time.Hour || !NextReset(at).Equal(ClaimDay(at).AddDate(0, 0, 1)) {
+			t.Fatalf("at %v: next reset %v", at, NextReset(at))
 		}
 	}
 }
