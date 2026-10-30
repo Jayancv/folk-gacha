@@ -36,3 +36,19 @@ JOIN users u ON u.id = r.user_id
 WHERE r.season_id = $1
 ORDER BY r.rank
 LIMIT $2;
+
+-- name: LockSeasonForPoints :one
+-- Share-locks the season row before adding points. Finalizing takes FOR UPDATE on
+-- the same row, so a freeze either waits for these points to commit, or has
+-- already committed and finalized_at is set (READ COMMITTED re-reads the row).
+SELECT finalized_at FROM seasons WHERE id = $1 FOR KEY SHARE;
+
+-- name: AddSeasonPoints :exec
+-- updated_at is when the player last scored: ties go to whoever got there first.
+INSERT INTO season_points (season_id, user_id, points, updated_at)
+VALUES (@season_id, @user_id, @points, @scored_at)
+ON CONFLICT (season_id, user_id) DO UPDATE
+SET points = season_points.points + EXCLUDED.points, updated_at = EXCLUDED.updated_at;
+
+-- name: GetSeasonPoints :one
+SELECT points FROM season_points WHERE season_id = $1 AND user_id = $2;

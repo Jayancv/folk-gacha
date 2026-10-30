@@ -103,7 +103,7 @@ func (q *Queries) ListDiscoveredRecipes(ctx context.Context, userID uuid.UUID) (
 }
 
 const lockOwnedCards = `-- name: LockOwnedCards :many
-SELECT c.id, c.season_card_id, c.copy_no, c.level, sc.template_id, sc.card_season_id
+SELECT c.id, c.season_card_id, c.copy_no, c.level, sc.template_id, sc.card_season_id, sc.score
 FROM cards c
 JOIN season_cards sc ON sc.id = c.season_card_id
 WHERE c.id = ANY($1::uuid[]) AND c.owner_id = $2
@@ -123,6 +123,7 @@ type LockOwnedCardsRow struct {
 	Level        int16
 	TemplateID   string
 	CardSeasonID string
+	Score        int32
 }
 
 // The player's cards among @ids, row-locked for the merge. Locked in id order
@@ -144,6 +145,7 @@ func (q *Queries) LockOwnedCards(ctx context.Context, arg LockOwnedCardsParams) 
 			&i.Level,
 			&i.TemplateID,
 			&i.CardSeasonID,
+			&i.Score,
 		); err != nil {
 			return nil, err
 		}

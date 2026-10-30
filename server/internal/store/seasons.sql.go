@@ -13,6 +13,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addSeasonPoints = `-- name: AddSeasonPoints :exec
+INSERT INTO season_points (season_id, user_id, points, updated_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (season_id, user_id) DO UPDATE
+SET points = season_points.points + EXCLUDED.points, updated_at = EXCLUDED.updated_at
+`
+
+type AddSeasonPointsParams struct {
+	SeasonID string
+	UserID   uuid.UUID
+	Points   int32
+	ScoredAt time.Time
+}
+
+// updated_at is when the player last scored: ties go to whoever got there first.
+func (q *Queries) AddSeasonPoints(ctx context.Context, arg AddSeasonPointsParams) error {
+	_, err := q.db.Exec(ctx, addSeasonPoints,
+		arg.SeasonID,
+		arg.UserID,
+		arg.Points,
+		arg.ScoredAt,
+	)
+	return err
+}
+
 const ensureSeason = `-- name: EnsureSeason :exec
 INSERT INTO seasons (id, starts_at, ends_at) VALUES ($1, $2, $3)
 ON CONFLICT (id) DO NOTHING
@@ -63,6 +88,22 @@ func (q *Queries) GetSeason(ctx context.Context, id string) (Season, error) {
 		&i.FinalizedAt,
 	)
 	return i, err
+}
+
+const getSeasonPoints = `-- name: GetSeasonPoints :one
+SELECT points FROM season_points WHERE season_id = $1 AND user_id = $2
+`
+
+type GetSeasonPointsParams struct {
+	SeasonID string
+	UserID   uuid.UUID
+}
+
+func (q *Queries) GetSeasonPoints(ctx context.Context, arg GetSeasonPointsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getSeasonPoints, arg.SeasonID, arg.UserID)
+	var points int32
+	err := row.Scan(&points)
+	return points, err
 }
 
 const listSeasonResults = `-- name: ListSeasonResults :many
@@ -136,6 +177,20 @@ func (q *Queries) ListSeasonsToFinalize(ctx context.Context, endedBefore time.Ti
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockSeasonForPoints = `-- name: LockSeasonForPoints :one
+SELECT finalized_at FROM seasons WHERE id = $1 FOR KEY SHARE
+`
+
+// Share-locks the season row before adding points. Finalizing takes FOR UPDATE on
+// the same row, so a freeze either waits for these points to commit, or has
+// already committed and finalized_at is set (READ COMMITTED re-reads the row).
+func (q *Queries) LockSeasonForPoints(ctx context.Context, id string) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, lockSeasonForPoints, id)
+	var finalized_at pgtype.Timestamptz
+	err := row.Scan(&finalized_at)
+	return finalized_at, err
 }
 
 const lockSeasonToFinalize = `-- name: LockSeasonToFinalize :one

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -280,5 +281,60 @@ func TestConcurrentMergesOfOneCard(t *testing.T) {
 		if got := len(owned(t, pool, user)); got != before-1 {
 			t.Fatalf("round %d: %d cards, want %d", round, got, before-1)
 		}
+	}
+}
+
+func seasonPoints(t *testing.T, pool *pgxpool.Pool, user uuid.UUID) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), "SELECT coalesce(sum(points), 0) FROM season_points WHERE user_id = $1", user).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func level1Score(t *testing.T, pool *pgxpool.Pool, card uuid.UUID) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), "SELECT sc.score FROM cards c JOIN season_cards sc ON sc.id = c.season_card_id WHERE c.id = $1", card).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// A merge earns the new card's score, in the week of the merge.
+func TestMergesEarnSeasonPoints(t *testing.T) {
+	pool, svc := setup(t)
+	ctx := context.Background()
+	svc.Now = func() time.Time { return time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC) }
+	user := newUser(t, pool, "merger")
+
+	target := give(t, pool, user, "gaja-calf", 1, 2)
+	up, err := svc.Merge(ctx, user, give(t, pool, user, "gaja-calf", 0, 2), target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantUp := game.LevelScore(level1Score(t, pool, up.Card.ID), 3)
+	if up.Points != wantUp || up.SeasonID != "2026-W44" {
+		t.Fatalf("level up earned %d in %s, want %d in 2026-W44", up.Points, up.SeasonID, wantUp)
+	}
+
+	recipe, err := svc.Merge(ctx, user, give(t, pool, user, "simha", 0, 1), up.Card.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := level1Score(t, pool, recipe.Card.ID); recipe.Points != want {
+		t.Fatalf("recipe earned %d, want the Gajasinghe's score %d", recipe.Points, want)
+	}
+	if got := seasonPoints(t, pool, user); got != up.Points+recipe.Points {
+		t.Fatalf("season points = %d, want %d", got, up.Points+recipe.Points)
+	}
+
+	// Failed merges earn nothing.
+	if _, err := svc.Merge(ctx, user, give(t, pool, user, "malu", 0, 1), give(t, pool, user, "ura", 0, 1)); !errors.Is(err, game.ErrNoRecipe) {
+		t.Fatal(err)
+	}
+	if got := seasonPoints(t, pool, user); got != up.Points+recipe.Points {
+		t.Fatalf("a failed merge changed the points to %d", got)
 	}
 }

@@ -14,6 +14,7 @@ import (
 
 	"cardgame/server/internal/game"
 	"cardgame/server/internal/mint"
+	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
 )
 
@@ -42,6 +43,9 @@ type Claim struct {
 	// Cards in reveal order.
 	Cards     []store.GetOwnedCardsRow
 	NextReset time.Time
+	// Points the pack earned in the weekly season (0 if that season was already frozen).
+	Points   int
+	SeasonID string
 }
 
 // Status is whether today's pack can be claimed.
@@ -63,10 +67,13 @@ func (s *Service) Status(ctx context.Context, userID uuid.UUID) (Status, error) 
 // ClaimDaily opens today's pack for the player.
 func (s *Service) ClaimDaily(ctx context.Context, userID uuid.UUID) (Claim, error) {
 	now := s.Now()
-	var ids []uuid.UUID
+	var (
+		ids    []uuid.UUID
+		earned earnedPoints
+	)
 	err := mint.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
-		ids, err = s.claimTx(ctx, q, userID, now)
+		ids, earned, err = s.claimTx(ctx, q, userID, now)
 		return err
 	})
 	switch {
@@ -81,43 +88,48 @@ func (s *Service) ClaimDaily(ctx context.Context, userID uuid.UUID) (Claim, erro
 	if err != nil {
 		return Claim{}, err
 	}
-	return Claim{Day: game.ClaimDay(now), Cards: cards, NextReset: game.NextReset(now)}, nil
+	return Claim{Day: game.ClaimDay(now), Cards: cards, NextReset: game.NextReset(now), Points: earned.points, SeasonID: earned.season}, nil
 }
 
-func (s *Service) claimTx(ctx context.Context, q *store.Queries, userID uuid.UUID, now time.Time) ([]uuid.UUID, error) {
+type earnedPoints struct {
+	season string
+	points int
+}
+
+func (s *Service) claimTx(ctx context.Context, q *store.Queries, userID uuid.UUID, now time.Time) ([]uuid.UUID, earnedPoints, error) {
 	// Lock the player so their claims run one at a time; others aren't blocked.
 	if _, err := q.LockUser(ctx, userID); err != nil {
-		return nil, fmt.Errorf("lock user: %w", err)
+		return nil, earnedPoints{}, fmt.Errorf("lock user: %w", err)
 	}
 	day := game.ClaimDay(now)
 	claimed, err := q.HasClaimedDay(ctx, store.HasClaimedDayParams{UserID: userID, Day: day})
 	if err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 	if claimed {
-		return nil, ErrAlreadyClaimed
+		return nil, earnedPoints{}, ErrAlreadyClaimed
 	}
 	season, err := q.CurrentCardSeason(ctx, now)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNoSeason
+		return nil, earnedPoints{}, ErrNoSeason
 	}
 	if err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 	dry, err := q.LastPityCounter(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		dry = 0
 	} else if err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 
 	pullable, err := q.ListPullableCards(ctx, store.ListPullableCardsParams{CardSeasonID: season.ID})
 	if err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 	picks, err := mint.Pick(s.Rand, game.RollPack(s.Rand, int(dry)), pullable)
 	if err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 
 	got := make([]game.Rarity, len(picks))
@@ -128,21 +140,32 @@ func (s *Service) claimTx(ctx context.Context, q *store.Queries, userID uuid.UUI
 		UserID: userID, Day: day, CardSeasonID: season.ID,
 		PityCounter: int32(game.DryPacksAfter(int(dry), got)),
 	}); err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 
 	copyNos, err := mint.Take(ctx, q, picks)
 	if err != nil {
-		return nil, err
+		return nil, earnedPoints{}, err
 	}
 	ids := make([]uuid.UUID, len(picks))
+	points := 0
 	for i, p := range picks {
 		ids[i], err = q.CreateCard(ctx, store.CreateCardParams{
 			SeasonCardID: p.ID, CopyNo: copyNos[i], OwnerID: userID, Level: 1, AcquiredVia: "pack",
 		})
 		if err != nil {
-			return nil, err
+			return nil, earnedPoints{}, err
 		}
+		points += int(p.Score) // level 1: the card's own score
 	}
-	return ids, nil
+
+	// Season points for the week of the claim, in the same transaction as the cards.
+	week, added, err := seasons.AddPoints(ctx, q, userID, now, points)
+	if err != nil {
+		return nil, earnedPoints{}, err
+	}
+	if !added {
+		points = 0
+	}
+	return ids, earnedPoints{season: week.ID, points: points}, nil
 }

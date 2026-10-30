@@ -6,6 +6,7 @@ package merges
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -14,6 +15,7 @@ import (
 
 	"cardgame/server/internal/game"
 	"cardgame/server/internal/mint"
+	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
 )
 
@@ -34,10 +36,12 @@ type Service struct {
 	pool *pgxpool.Pool
 	// Rand picks which season card a recipe makes. Must be safe for concurrent use.
 	Rand game.Rand
+	// Now is replaceable in tests (season points go to the week of the merge).
+	Now func() time.Time
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, Rand: mint.GlobalRand{}}
+	return &Service{pool: pool, Rand: mint.GlobalRand{}, Now: time.Now}
 }
 
 // Result is a finished merge.
@@ -46,6 +50,10 @@ type Result struct {
 	Card store.GetOwnedCardsRow
 	// Discovered is true the first time this player makes this recipe.
 	Discovered bool
+	// Points the merge earned in the weekly season: the new card's score
+	// (0 if that season was already frozen).
+	Points   int
+	SeasonID string
 }
 
 // Merge drops `dragged` onto `target`. A level-up keeps the target's season
@@ -55,11 +63,12 @@ func (s *Service) Merge(ctx context.Context, userID, dragged, target uuid.UUID) 
 	if dragged == target {
 		return Result{}, ErrSameCard
 	}
+	now := s.Now()
 	var res Result
 	var id uuid.UUID
 	err := mint.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
-		res, id, err = s.mergeTx(ctx, q, userID, dragged, target)
+		res, id, err = s.mergeTx(ctx, q, userID, dragged, target, now)
 		return err
 	})
 	if errors.Is(err, mint.ErrSoldOut) {
@@ -76,7 +85,7 @@ func (s *Service) Merge(ctx context.Context, userID, dragged, target uuid.UUID) 
 	return res, nil
 }
 
-func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, draggedID, targetID uuid.UUID) (Result, uuid.UUID, error) {
+func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, draggedID, targetID uuid.UUID, now time.Time) (Result, uuid.UUID, error) {
 	// Row locks on both cards: a concurrent merge or (later) trade of either
 	// card waits for this transaction, then finds the card gone.
 	rows, err := q.LockOwnedCards(ctx, store.LockOwnedCardsParams{Ids: []uuid.UUID{draggedID, targetID}, OwnerID: userID})
@@ -114,10 +123,12 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 
 	res := Result{Kind: plan.Kind}
 	newCard := store.CreateCardParams{OwnerID: userID, Level: int16(plan.Level), AcquiredVia: "merge"}
+	var level1Score int32 // score of the new card's season card at level 1
 	switch plan.Kind {
 	case game.LevelUp:
 		// Same copy, one level higher (its row was just deleted, so the copy number is free).
 		newCard.SeasonCardID, newCard.CopyNo = target.SeasonCardID, target.CopyNo
+		level1Score = target.Score
 	case game.RecipeMerge:
 		pullable, err := q.ListPullableCards(ctx, store.ListPullableCardsParams{
 			CardSeasonID: target.CardSeasonID,
@@ -139,6 +150,7 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 			return Result{}, uuid.Nil, err
 		}
 		newCard.SeasonCardID, newCard.CopyNo = picks[0].ID, copyNos[0]
+		level1Score = picks[0].Score
 
 		n, err := q.DiscoverRecipe(ctx, store.DiscoverRecipeParams{UserID: userID, RecipeID: recipe.ID})
 		if err != nil {
@@ -149,6 +161,17 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	id, err := q.CreateCard(ctx, newCard)
 	if err != nil {
 		return Result{}, uuid.Nil, err
+	}
+
+	// Season points for the week of the merge, in the same transaction: the new card's score.
+	points := game.LevelScore(int(level1Score), plan.Level)
+	week, added, err := seasons.AddPoints(ctx, q, userID, now, points)
+	if err != nil {
+		return Result{}, uuid.Nil, err
+	}
+	res.SeasonID = week.ID
+	if added {
+		res.Points = points
 	}
 	return res, id, nil
 }

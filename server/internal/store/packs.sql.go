@@ -194,7 +194,7 @@ func (q *Queries) LastPityCounter(ctx context.Context, userID uuid.UUID) (int32,
 }
 
 const listPullableCards = `-- name: ListPullableCards :many
-SELECT id, rarity, drop_weight, max_copies, minted FROM season_cards
+SELECT id, rarity, drop_weight, max_copies, minted, score FROM season_cards
 WHERE card_season_id = $1
   AND ($2::text IS NULL OR template_id = $2)
   AND (max_copies IS NULL OR minted < max_copies)
@@ -212,6 +212,7 @@ type ListPullableCardsRow struct {
 	DropWeight float64
 	MaxCopies  pgtype.Int4
 	Minted     int32
+	Score      int32
 }
 
 // Every card of the season that still has copies left; only one spirit's when
@@ -231,6 +232,7 @@ func (q *Queries) ListPullableCards(ctx context.Context, arg ListPullableCardsPa
 			&i.DropWeight,
 			&i.MaxCopies,
 			&i.Minted,
+			&i.Score,
 		); err != nil {
 			return nil, err
 		}

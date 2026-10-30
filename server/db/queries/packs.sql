@@ -24,7 +24,7 @@ VALUES ($1, $2, $3, $4);
 -- name: ListPullableCards :many
 -- Every card of the season that still has copies left; only one spirit's when
 -- @template_id is set (recipe outputs).
-SELECT id, rarity, drop_weight, max_copies, minted FROM season_cards
+SELECT id, rarity, drop_weight, max_copies, minted, score FROM season_cards
 WHERE card_season_id = @card_season_id
   AND (sqlc.narg(template_id)::text IS NULL OR template_id = sqlc.narg(template_id))
   AND (max_copies IS NULL OR minted < max_copies)

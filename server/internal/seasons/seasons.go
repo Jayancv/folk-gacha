@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,6 +34,27 @@ func Ensure(ctx context.Context, q *store.Queries, t time.Time) (game.Season, er
 	s := game.SeasonFor(t)
 	err := q.EnsureSeason(ctx, store.EnsureSeasonParams{ID: s.ID, StartsAt: s.StartsAt, EndsAt: s.EndsAt})
 	return s, err
+}
+
+// AddPoints credits points to the player in the season containing at, inside the
+// caller's transaction (claims and merges). It reports false, and adds nothing, when
+// that season's standings are already frozen; with game.FinalizeGrace that only
+// happens to a transaction still running minutes after the week ended.
+func AddPoints(ctx context.Context, q *store.Queries, userID uuid.UUID, at time.Time, points int) (game.Season, bool, error) {
+	s, err := Ensure(ctx, q, at)
+	if err != nil || points <= 0 {
+		return s, false, err
+	}
+	finalized, err := q.LockSeasonForPoints(ctx, s.ID)
+	if err != nil {
+		return s, false, err
+	}
+	if finalized.Valid {
+		slog.WarnContext(ctx, "season points skipped: season already finalized", "season", s.ID, "user", userID, "points", points)
+		return s, false, nil
+	}
+	err = q.AddSeasonPoints(ctx, store.AddSeasonPointsParams{SeasonID: s.ID, UserID: userID, Points: int32(points), ScoredAt: at})
+	return s, err == nil, err
 }
 
 // Rollover makes sure the current season exists, then freezes the standings of

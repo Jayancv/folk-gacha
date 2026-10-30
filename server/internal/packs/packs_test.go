@@ -354,3 +354,54 @@ func TestNoOpenSeason(t *testing.T) {
 		t.Fatal("a failed claim used up the day")
 	}
 }
+
+func seasonPoints(t *testing.T, pool *pgxpool.Pool, season string, user uuid.UUID) int {
+	t.Helper()
+	return queryInt(t, pool, "SELECT coalesce(sum(points), 0) FROM season_points WHERE season_id = $1 AND user_id = $2", season, user)
+}
+
+// A pack earns the scores of its cards in the week it was claimed.
+func TestClaimEarnsSeasonPoints(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	user := newUser(t, pool, "earner")
+
+	claim, err := service(pool, noon, nil).ClaimDaily(ctx, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 0
+	for _, c := range claim.Cards {
+		want += int(c.Score)
+	}
+	if claim.SeasonID != "2026-W44" || claim.Points != want || want == 0 {
+		t.Fatalf("claim earned %d in %s, want %d in 2026-W44", claim.Points, claim.SeasonID, want)
+	}
+	if got := seasonPoints(t, pool, "2026-W44", user); got != want {
+		t.Fatalf("season points = %d, want %d", got, want)
+	}
+
+	// Saturday's pack adds to the same week; Monday's starts the next.
+	sat, err := service(pool, noon.AddDate(0, 0, 1), nil).ClaimDaily(ctx, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := seasonPoints(t, pool, "2026-W44", user); got != want+sat.Points {
+		t.Fatalf("week 44 after Saturday = %d, want %d", got, want+sat.Points)
+	}
+	mon, err := service(pool, time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC), nil).ClaimDaily(ctx, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mon.SeasonID != "2026-W45" || seasonPoints(t, pool, "2026-W45", user) != mon.Points {
+		t.Fatalf("Monday's claim went to %s", mon.SeasonID)
+	}
+
+	// A failed claim earns nothing.
+	if _, err := service(pool, noon.AddDate(0, 0, 1), nil).ClaimDaily(ctx, user); !errors.Is(err, packs.ErrAlreadyClaimed) {
+		t.Fatal(err)
+	}
+	if got := seasonPoints(t, pool, "2026-W44", user); got != want+sat.Points {
+		t.Fatalf("a refused claim changed the points to %d", got)
+	}
+}

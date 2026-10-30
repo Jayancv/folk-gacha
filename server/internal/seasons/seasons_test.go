@@ -2,12 +2,14 @@ package seasons_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cardgame/server/internal/dbtest"
@@ -213,5 +215,108 @@ func TestRunStopsWithItsContext(t *testing.T) {
 	case <-stopped:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run didn't stop")
+	}
+}
+
+func points(t *testing.T, pool *pgxpool.Pool, season string, user uuid.UUID) int {
+	t.Helper()
+	p, err := store.New(pool).GetSeasonPoints(context.Background(), store.GetSeasonPointsParams{SeasonID: season, UserID: user})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return int(p)
+}
+
+func TestAddPointsAccumulatesPerWeek(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	q := store.New(pool)
+	user := newUser(t, pool, "scorer")
+
+	for _, p := range []int{50, 0, 25} { // 0 points (nothing earned) adds nothing
+		if _, _, err := seasons.AddPoints(ctx, q, user, friday, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	monday := time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC)
+	s, added, err := seasons.AddPoints(ctx, q, user, monday, 10)
+	if err != nil || !added || s.ID != "2026-W45" {
+		t.Fatalf("monday: %+v %v %v", s, added, err)
+	}
+	if got := points(t, pool, week44, user); got != 75 {
+		t.Fatalf("week 44 points = %d, want 75", got)
+	}
+	if got := points(t, pool, "2026-W45", user); got != 10 {
+		t.Fatalf("week 45 points = %d, want 10", got)
+	}
+	var scoredAt time.Time
+	if err := pool.QueryRow(ctx, "SELECT updated_at FROM season_points WHERE season_id = $1 AND user_id = $2", week44, user).Scan(&scoredAt); err != nil || !scoredAt.Equal(friday) {
+		t.Fatalf("updated_at = %v (%v), want the last time points were added", scoredAt, err)
+	}
+}
+
+func TestAddPointsSkipsAFrozenSeason(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	user := newUser(t, pool, "latecomer")
+	if _, err := at(pool, friday).Rollover(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := at(pool, friday.AddDate(0, 0, 7)).Rollover(ctx); err != nil { // freezes week 44
+		t.Fatal(err)
+	}
+	_, added, err := seasons.AddPoints(ctx, store.New(pool), user, friday, 100)
+	if err != nil || added {
+		t.Fatalf("added = %v (%v), want points refused for a frozen season", added, err)
+	}
+	if got := points(t, pool, week44, user); got != 0 {
+		t.Fatalf("frozen season got %d points", got)
+	}
+}
+
+// A claim at Sunday 23:59:59 whose transaction is still open when the freeze
+// starts: the freeze waits for it, and its points are in the final standings.
+func TestFreezeWaitsForPointsBeingAdded(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	user := newUser(t, pool, "lastsecond")
+	if _, err := at(pool, friday).Rollover(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	lastSecond := time.Date(2026, 11, 1, 23, 59, 59, 0, time.UTC)
+	if _, added, err := seasons.AddPoints(ctx, store.New(tx), user, lastSecond, 60); err != nil || !added {
+		t.Fatalf("add: %v %v", added, err)
+	}
+
+	frozen := make(chan []string, 1)
+	go func() {
+		done, err := at(pool, lastSecond.Add(game.FinalizeGrace+time.Second)).Rollover(ctx)
+		if err != nil {
+			t.Error(err)
+		}
+		frozen <- done
+	}()
+	select {
+	case done := <-frozen:
+		t.Fatalf("froze %v while points were still being added", done)
+	case <-time.After(500 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if done := <-frozen; !slices.Equal(done, []string{week44}) {
+		t.Fatalf("froze %v", done)
+	}
+	if got := results(t, pool, week44); !slices.Equal(got, []string{"lastsecond"}) {
+		t.Fatalf("standings %v: the last-second points are missing", got)
 	}
 }
