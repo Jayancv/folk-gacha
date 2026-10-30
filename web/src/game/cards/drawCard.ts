@@ -8,6 +8,7 @@ import { darken, lighten, luminance, mix } from './color';
 import { ELEMENT_STYLE, PALETTE, RARITY_STYLE, type CardData, type SeasonCardInfo } from './model';
 import { seededRandom } from './seededRandom';
 import { drawSpirit } from './spiritArt';
+import { spiritImage } from './spiritImages';
 import { ellipsize, wrap } from './textLayout';
 import {
     archPath,
@@ -240,7 +241,15 @@ export function drawCardGlint (card: CardData, scale: number): HTMLCanvasElement
     // Cut the creature out, so the light passes behind it instead of over it.
     const c = creatureBox(L.art);
     ctx.globalCompositeOperation = 'destination-out';
-    drawSpirit(ctx, card.templateId, c.x, c.y, c.w, '#000', '#000');
+    const painted = spiritImage(card.templateId);
+    if (painted)
+    {
+        ctx.drawImage(painted, c.x, c.y, c.w, c.h);
+    }
+    else
+    {
+        drawSpirit(ctx, card.templateId, c.x, c.y, c.w, '#000', '#000');
+    }
     ctx.restore();
 
     return canvas;
@@ -402,8 +411,10 @@ function drawSeasonArt (ctx: Ctx, card: CardData, season: SeasonCardInfo, b: Box
     ctx.globalAlpha = 1;
 
     // Creature, with a soft dark outline so it reads on light palettes too.
+    // Painted art (spiritImages.ts) when the spirit has it, else the placeholder silhouette.
     const creature = creatureBox(b);
     const size = creature.w;
+    const painted = spiritImage(card.templateId);
     // Light creature on dark palettes; on pale ones (ivory, temple gold) an element-coloured one.
     const badge = ELEMENT_STYLE[card.element].badge;
     const ink = light ? darken(badge, 0.2) : '#fff8ec';
@@ -412,7 +423,11 @@ function drawSeasonArt (ctx: Ctx, card: CardData, season: SeasonCardInfo, b: Box
     ctx.shadowColor = 'rgba(0,0,0,0.45)';
     ctx.shadowBlur = size * 0.035;
     ctx.shadowOffsetY = size * 0.012;
-    if (!drawSpirit(ctx, card.templateId, creature.x, creature.y, size, ink, detail))
+    if (painted)
+    {
+        ctx.drawImage(painted, creature.x, creature.y, size, size);
+    }
+    else if (!drawSpirit(ctx, card.templateId, creature.x, creature.y, size, ink, detail))
     {
         drawIcon(ctx, card, cx - size * 0.3, creature.y + size * 0.2, size * 0.6, ink);
     }
@@ -421,7 +436,11 @@ function drawSeasonArt (ctx: Ctx, card: CardData, season: SeasonCardInfo, b: Box
     drawTint(ctx, art.tint, art.intensity, b);
     drawTexture(ctx, art.texture, art.intensity, b, rand);
     drawEffect(ctx, art.effect, 'front', art.intensity, b, rand);
-    drawAccessory(ctx, art.accessory, b, creature);
+    // Vector accessories (hats, garlands) are sized for the silhouettes; painted art has its own.
+    if (!painted)
+    {
+        drawAccessory(ctx, art.accessory, b, creature);
+    }
     if (art.foil === 'holo')
     {
         drawHoloSheen(ctx, b, rand);

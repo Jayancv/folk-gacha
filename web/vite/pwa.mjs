@@ -11,7 +11,7 @@ export const pwa = () => VitePWA({
     manifest: false,
     injectRegister: false, // src/app/pwa/serviceWorker.ts registers it
     injectManifest: {
-        globPatterns: ['**/*.{js,css,html,png,ico,svg,webmanifest,woff2}'],
+        globPatterns: ['**/*.{js,css,html,png,webp,ico,svg,webmanifest,woff2}'],
         // The 1 MB season catalog is only for the dev ?showcase page.
         globIgnores: ['**/cards-*.json'],
         // Phaser's chunk is ~1.4 MB; it's the main thing worth caching.

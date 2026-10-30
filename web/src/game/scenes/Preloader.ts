@@ -1,3 +1,5 @@
+import { Scenes } from 'phaser';
+import { loadSpiritArt } from '../cards/spiritImages';
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../layout';
 import { ResponsiveScene } from '../ResponsiveScene';
 
@@ -32,8 +34,7 @@ export class Preloader extends ResponsiveScene
 
     preload ()
     {
-        //  Card art (WebP) and sounds load here once they exist (Phase 4).
-        //  Phase 1 placeholder art is drawn at runtime, see game/cards/drawCard.ts.
+        //  Card faces are drawn at runtime (game/cards/drawCard.ts); sounds are synthesized (src/audio).
     }
 
     protected build ()
@@ -42,7 +43,17 @@ export class Preloader extends ResponsiveScene
 
     create ()
     {
+        //  Creature art must be decoded before any card face is drawn (faces are cached as textures).
         //  React may have asked for a different table scene while we were loading (see router.ts).
-        this.scene.start(this.registry.get('startScene') ?? 'PackOpen');
+        //  The game can be destroyed while the art loads (React dev mode mounts it twice): then don't start.
+        let destroyed = false;
+        this.events.once(Scenes.Events.DESTROY, () => { destroyed = true; });
+        void loadSpiritArt().then(() =>
+        {
+            if (!destroyed)
+            {
+                this.scene.start(this.registry.get('startScene') ?? 'PackOpen');
+            }
+        });
     }
 }
