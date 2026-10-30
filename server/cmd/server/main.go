@@ -95,8 +95,18 @@ func run() error {
 	}
 
 	// Weekly leaderboard seasons: create the current week, freeze ended weeks.
-	// Stops with ctx on shutdown; safe if several servers run it.
-	go seasons.NewService(pool).Run(ctx, time.Minute)
+	// Safe if several servers run it. On the way out it is stopped and waited for
+	// before the pool closes (defers run last-in first-out), so it never sees a closed pool.
+	jobCtx, stopJob := context.WithCancel(ctx)
+	jobDone := make(chan struct{})
+	go func() {
+		defer close(jobDone)
+		seasons.NewService(pool).Run(jobCtx, time.Minute)
+	}()
+	defer func() {
+		stopJob()
+		<-jobDone
+	}()
 
 	errCh := make(chan error, 1)
 	go func() {
