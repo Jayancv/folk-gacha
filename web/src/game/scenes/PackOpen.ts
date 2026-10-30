@@ -1,4 +1,5 @@
 import { GameObjects, Geom, Math as PMath } from 'phaser';
+import * as sfx from '../../audio/sfx';
 import { CardInspector } from '../cards/CardInspector';
 import { CardView } from '../cards/CardView';
 import { CARD_H, CARD_W } from '../cards/drawCard';
@@ -142,6 +143,7 @@ export class PackOpen extends ResponsiveScene
                 delay: 120 + i * 90,
                 duration: 520,
                 ease: 'Cubic.easeOut',
+                onStart: () => sfx.play('deal'),
                 onComplete: () =>
                 {
                     if (i === dealt.length - 1)
@@ -266,6 +268,7 @@ export class PackOpen extends ResponsiveScene
         const fx = REVEAL_FX[card.rarity];
 
         this.bursts.play(card.rarity, view.x, view.y);
+        sfx.play('reveal', card.rarity);
         cameraFx(this, card.rarity);
         if (fx.linger)
         {
