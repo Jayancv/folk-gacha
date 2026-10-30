@@ -7,6 +7,7 @@ import { PhaserGame } from './PhaserGame';
 import { BoardLoadError } from './screens/board/BoardLoadError';
 import { useBoardTable } from './screens/board/useBoardTable';
 import { Collection } from './screens/collection/Collection';
+import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { usePackTable } from './screens/pack/usePackTable';
 import { UserChip } from './screens/UserChip';
@@ -37,6 +38,7 @@ export default function Game ({ me }: { me: Me })
                     <Collection />
                 </div>
             )}
+            {tab === 'Leaderboard' && <Leaderboard me={me} />}
             <ApiStatus />
             <UserChip me={me} />
 

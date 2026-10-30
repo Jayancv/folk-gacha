@@ -1,0 +1,13 @@
+type: object
+required:
+  - rank
+  - username
+  - points
+properties:
+  rank:
+    type: integer
+    minimum: 1
+  username:
+    type: string
+  points:
+    type: integer

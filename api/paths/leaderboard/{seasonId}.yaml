@@ -1,0 +1,28 @@
+# /leaderboard/{seasonId}
+get:
+  operationId: getLeaderboard
+  summary: A weekly season's leaderboard
+  description: |
+    Frozen final standings once the week is over and finalized (`final: true`), live standings
+    before that. Public; when signed in, `you` is the viewer's own standing.
+  security: []
+  parameters:
+    - name: seasonId
+      in: path
+      required: true
+      description: ISO week, e.g. 2026-W44 (see `previousId` of a board)
+      schema:
+        type: string
+  responses:
+    "200":
+      description: The season's standings
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Leaderboard.yaml
+    "404":
+      description: No such season (error not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

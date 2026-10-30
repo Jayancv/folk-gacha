@@ -8,6 +8,7 @@ import { useBridgeEvent } from '../../bridge/useBridgeEvent';
 import { SHOWCASE, useShowcase } from '../../dev/useShowcase';
 import type { CardData } from '../../game/cards/model';
 import { CARDS_KEY } from '../collection/useCollection';
+import { LEADERBOARD_KEY } from '../leaderboard/useLeaderboard';
 
 /** Today's opened pack, kept for this session so the Pack tab can show it again. */
 interface OpenedPack
@@ -50,6 +51,7 @@ export function usePackTable ()
             setPack({ cards: outcome.cards, expiresAt: Date.parse(outcome.nextResetAt) });
             deal(outcome.cards);
             void qc.invalidateQueries({ queryKey: CARDS_KEY });
+            void qc.invalidateQueries({ queryKey: LEADERBOARD_KEY }); // the pack earned season points
         }
         else
         {

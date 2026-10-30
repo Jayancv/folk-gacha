@@ -1,0 +1,26 @@
+type: object
+required:
+  - season
+  - final
+  - previousId
+  - top
+  - players
+properties:
+  season:
+    $ref: ./LeaderboardSeason.yaml
+  final:
+    type: boolean
+    description: True once the week is over and its standings are frozen; otherwise ranks are live
+  previousId:
+    type: string
+    description: Id of the week before (its board may be empty or not exist)
+  top:
+    type: array
+    description: Up to 100 players, best first
+    items:
+      $ref: ./LeaderboardEntry.yaml
+  players:
+    type: integer
+    description: How many players are ranked (have points) in total
+  you:
+    $ref: ./LeaderboardEntry.yaml
