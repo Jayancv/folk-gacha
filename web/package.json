@@ -26,8 +26,9 @@
     "dev-nolog": "vite --config vite/config.dev.mjs",
     "build-nolog": "vite build --config vite/config.prod.mjs",
     "bundle:api": "redocly bundle ../api/openapi.yaml -o ../api/openapi.bundled.yaml",
+    "art:import": "node scripts/import-spirit-art.mjs",
     "gen:api": "npm run bundle:api && openapi-typescript ../api/openapi.bundled.yaml -o src/api/schema.d.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sw.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -52,10 +53,16 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
     "openapi-typescript": "^7.13.0",
+    "sharp": "0.35.5",
     "terser": "^5.28.1",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.1",
-    "vitest": "^3.2.7"
+    "vite-plugin-pwa": "1.3.0",
+    "vitest": "^3.2.7",
+    "workbox-core": "7.4.1",
+    "workbox-precaching": "7.4.1",
+    "workbox-routing": "7.4.1",
+    "workbox-window": "7.4.1"
   }
 }

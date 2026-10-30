@@ -1,4 +1,5 @@
 import { GameObjects, Geom, Math as PMath, type Types } from 'phaser';
+import * as sfx from '../../audio/sfx';
 import { CardInspector } from '../cards/CardInspector';
 import { CardView } from '../cards/CardView';
 import { cameraFx, createBursts, floatText, shockwave, vibrate, type Bursts } from '../cards/effects';
@@ -59,6 +60,8 @@ interface Charging
     cy: number;
     start: number;
     emitter: GameObjects.Particles.ParticleEmitter;
+    /** Stops the charging hum. */
+    stopHum: () => void;
 }
 
 // Merge board: drag a card onto another to merge them.
@@ -308,6 +311,7 @@ export class MergeBoard extends ResponsiveScene
         drag.card.setDepth(DEPTH.dragging);
         this.tweens.add({ targets: drag.card, scale: LIFT_SCALE, duration: 110, ease: 'Quad.easeOut' });
         vibrate(6);
+        sfx.play('pickup');
 
         // Show which cards would level up. Recipe partners stay hidden.
         for (const other of this.slots)
@@ -467,7 +471,7 @@ export class MergeBoard extends ResponsiveScene
             emitZone: { type: 'edge', source: new Geom.Circle(0, 0, 210), quantity: 36 }
         }).setDepth(DEPTH.fx);
 
-        this.charging = { a, b, cx, cy, start: this.time.now, emitter };
+        this.charging = { a, b, cx, cy, start: this.time.now, emitter, stopHum: sfx.startCharge() };
     }
 
     // The two cards orbit each other, tightening and speeding up while waiting.
@@ -494,6 +498,7 @@ export class MergeBoard extends ResponsiveScene
             return;
         }
         this.charging.emitter.stop();
+        this.charging.stopHum();
         const emitter = this.charging.emitter;
         this.time.delayedCall(600, () => emitter.destroy());
         this.charging = null;
@@ -516,6 +521,7 @@ export class MergeBoard extends ResponsiveScene
         this.slots[bSlot] = null;
 
         shockwave(this, center.x, center.y, tint, DEPTH.fx, 640);
+        sfx.play(result.kind === 'level_up' ? 'levelUp' : discovered ? 'discover' : 'recipe');
         this.bursts.play(card.rarity, center.x, center.y, 1.2);
         cameraFx(this, card.rarity);
         if (!prefersReducedMotion())
@@ -547,6 +553,7 @@ export class MergeBoard extends ResponsiveScene
         a.setGlow(0);
         b.setGlow(0);
         vibrate(30);
+        sfx.play('mergeFail');
         floatText(this, SLOTS[bSlot].x, SLOTS[bSlot].y - CELL_H * 0.6, FAILURE_TEXT[error], PALETTE.muted, 32);
 
         // Push apart: the dragged card springs home, the target shakes its head.

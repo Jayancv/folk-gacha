@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { components } from '../api/schema';
+import { disablePush } from '../app/push/pushDevice';
 import { forgetGoogleAccount } from './googleIdentity';
 
 export type Me = components['schemas']['Me'];
@@ -98,6 +99,8 @@ export function useSignOut ()
     return useMutation({
         mutationFn: async () =>
         {
+            // Stop this device's pack notifications first, while still signed in to remove them on the server.
+            await disablePush();
             await api.POST('/auth/logout');
         },
         onSettled: () =>

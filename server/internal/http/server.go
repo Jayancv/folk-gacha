@@ -12,6 +12,8 @@ import (
 	"cardgame/server/internal/leaderboard"
 	"cardgame/server/internal/merges"
 	"cardgame/server/internal/packs"
+	"cardgame/server/internal/profile"
+	"cardgame/server/internal/push"
 )
 
 // Pinger is the slice of the database pool the health check needs.
@@ -21,14 +23,17 @@ type Pinger interface {
 
 // Server implements StrictServerInterface.
 type Server struct {
-	db          Pinger
-	auth        *auth.Service
-	authOpts    AuthOptions
-	packs       *packs.Service
-	merges      *merges.Service
-	collection  *collection.Service
-	leaderboard *leaderboard.Service
-	now         func() time.Time
+	db            Pinger
+	auth          *auth.Service
+	authOpts      AuthOptions
+	packs         *packs.Service
+	merges        *merges.Service
+	collection    *collection.Service
+	leaderboard   *leaderboard.Service
+	push          *push.Service
+	pushPublicKey string
+	profiles      *profile.Service
+	now           func() time.Time
 }
 
 var _ StrictServerInterface = (*Server)(nil)
@@ -41,11 +46,15 @@ type Services struct {
 	Merges      *merges.Service
 	Collection  *collection.Service
 	Leaderboard *leaderboard.Service
+	// Push and PushPublicKey enable notifications (both set, or both empty).
+	Push          *push.Service
+	PushPublicKey string
+	Profiles      *profile.Service
 }
 
 // NewServer wires the handlers.
 func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
-	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, authOpts: opts, now: time.Now}
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.

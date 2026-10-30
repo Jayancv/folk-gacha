@@ -1,0 +1,14 @@
+# /me/tutorial
+post:
+  operationId: completeTutorial
+  summary: Mark the first-time tutorial as finished (or skipped)
+  description: Recorded once per account, so no device shows the tutorial again.
+  responses:
+    "204":
+      description: Recorded
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

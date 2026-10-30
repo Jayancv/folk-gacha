@@ -7,7 +7,7 @@ import { WeekToggle, type Week } from './WeekToggle';
 
 // Weekly leaderboard: this week's live ranks, or last week's final standings.
 // Plain React over the sleeping table, like the collection.
-export function Leaderboard ({ me }: { me: Me })
+export function Leaderboard ({ me, onOpenProfile }: { me: Me; onOpenProfile: (username: string) => void })
 {
     const [week, setWeek] = useState<Week>('current');
     const current = useLeaderboard('current');
@@ -37,7 +37,7 @@ export function Leaderboard ({ me }: { me: Me })
                         {week === 'current' && <button className="text-[#e7b54a] underline" onClick={() => void board.refetch()}>Retry</button>}
                     </p>
                 ) : (
-                    <Standings board={board.data} me={me} />
+                    <Standings board={board.data} me={me} onOpenProfile={onOpenProfile} />
                 )}
             </div>
         </section>

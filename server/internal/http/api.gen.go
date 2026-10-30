@@ -358,13 +358,19 @@ type LeaderboardSeason struct {
 
 // Me defines model for Me.
 type Me struct {
-	CreatedAt time.Time          `json:"createdAt"`
-	DailyPack *DailyPackStatus   `json:"dailyPack,omitempty"`
-	Id        openapi_types.UUID `json:"id"`
+	CreatedAt time.Time        `json:"createdAt"`
+	DailyPack *DailyPackStatus `json:"dailyPack,omitempty"`
+
+	// DisplayName Your full name from Google (only ever shown to you); absent for dev logins
+	DisplayName *string            `json:"displayName,omitempty"`
+	Id          openapi_types.UUID `json:"id"`
 
 	// TradeUnlockedAt When this account may start trading (created + 7 days, UTC)
 	TradeUnlockedAt time.Time `json:"tradeUnlockedAt"`
-	Username        string    `json:"username"`
+
+	// TutorialDone The player finished or skipped the first-time tutorial (on any device)
+	TutorialDone bool   `json:"tutorialDone"`
+	Username     string `json:"username"`
 }
 
 // MergeResult defines model for MergeResult.
@@ -379,6 +385,43 @@ type MergeResult struct {
 
 // MergeResultKind defines model for MergeResult.Kind.
 type MergeResultKind string
+
+// Profile defines model for Profile.
+type Profile struct {
+	CardCount int `json:"cardCount"`
+
+	// CollectionPower Sum of the player's best 10 card scores (shown, never ranked)
+	CollectionPower int `json:"collectionPower"`
+
+	// DisplayName The player's full name; only included on your own profile (other players see the username)
+	DisplayName *string   `json:"displayName,omitempty"`
+	JoinedAt    time.Time `json:"joinedAt"`
+
+	// Podiums Weekly seasons finished in the top 3
+	Podiums           int    `json:"podiums"`
+	RecipesDiscovered int    `json:"recipesDiscovered"`
+	Showcase          []Card `json:"showcase"`
+
+	// ShowcaseChosen False while the showcase is just the player's best cards
+	ShowcaseChosen bool   `json:"showcaseChosen"`
+	Username       string `json:"username"`
+}
+
+// PushKey defines model for PushKey.
+type PushKey struct {
+	// PublicKey VAPID public key, base64url (the applicationServerKey)
+	PublicKey string `json:"publicKey"`
+}
+
+// PushSubscription A browser push subscription, as PushSubscription.toJSON() returns it
+type PushSubscription struct {
+	// Endpoint The push service URL for this browser
+	Endpoint string `json:"endpoint"`
+	Keys     struct {
+		Auth   string `json:"auth"`
+		P256dh string `json:"p256dh"`
+	} `json:"keys"`
+}
 
 // Rarity defines model for Rarity.
 type Rarity string
@@ -419,10 +462,20 @@ type ListCardsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// SetShowcaseJSONBody defines parameters for SetShowcase.
+type SetShowcaseJSONBody struct {
+	CardIds []openapi_types.UUID `json:"cardIds"`
+}
+
 // MergeCardsJSONBody defines parameters for MergeCards.
 type MergeCardsJSONBody struct {
 	// CardIds [dragged card, target card]
 	CardIds []openapi_types.UUID `json:"cardIds"`
+}
+
+// UnsubscribePushJSONBody defines parameters for UnsubscribePush.
+type UnsubscribePushJSONBody struct {
+	Endpoint string `json:"endpoint"`
 }
 
 // SignInDevJSONRequestBody defines body for SignInDev for application/json ContentType.
@@ -431,8 +484,17 @@ type SignInDevJSONRequestBody SignInDevJSONBody
 // SignInWithGoogleJSONRequestBody defines body for SignInWithGoogle for application/json ContentType.
 type SignInWithGoogleJSONRequestBody SignInWithGoogleJSONBody
 
+// SetShowcaseJSONRequestBody defines body for SetShowcase for application/json ContentType.
+type SetShowcaseJSONRequestBody SetShowcaseJSONBody
+
 // MergeCardsJSONRequestBody defines body for MergeCards for application/json ContentType.
 type MergeCardsJSONRequestBody MergeCardsJSONBody
+
+// UnsubscribePushJSONRequestBody defines body for UnsubscribePush for application/json ContentType.
+type UnsubscribePushJSONRequestBody UnsubscribePushJSONBody
+
+// SubscribePushJSONRequestBody defines body for SubscribePush for application/json ContentType.
+type SubscribePushJSONRequestBody = PushSubscription
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -463,15 +525,33 @@ type ServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// SetShowcase Choose the cards on your profile
+	// (PUT /me/showcase)
+	SetShowcase(w http.ResponseWriter, r *http.Request)
+	// CompleteTutorial Mark the first-time tutorial as finished (or skipped)
+	// (POST /me/tutorial)
+	CompleteTutorial(w http.ResponseWriter, r *http.Request)
 	// MergeCards Merge two of your cards
 	// (POST /merges)
 	MergeCards(w http.ResponseWriter, r *http.Request)
 	// ClaimDailyPack Open today's free pack (one per UTC day)
 	// (POST /packs/daily/claim)
 	ClaimDailyPack(w http.ResponseWriter, r *http.Request)
+	// GetPushKey The server's public VAPID key for web push subscriptions
+	// (GET /push/key)
+	GetPushKey(w http.ResponseWriter, r *http.Request)
+	// UnsubscribePush Stop notifications on this browser
+	// (DELETE /push/subscriptions)
+	UnsubscribePush(w http.ResponseWriter, r *http.Request)
+	// SubscribePush Get "your pack is ready" notifications on this browser
+	// (POST /push/subscriptions)
+	SubscribePush(w http.ResponseWriter, r *http.Request)
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(w http.ResponseWriter, r *http.Request)
+	// GetProfile A player's profile
+	// (GET /users/{username})
+	GetProfile(w http.ResponseWriter, r *http.Request, username string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -731,6 +811,34 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// SetShowcase operation middleware
+func (siw *ServerInterfaceWrapper) SetShowcase(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetShowcase(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteTutorial operation middleware
+func (siw *ServerInterfaceWrapper) CompleteTutorial(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteTutorial(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // MergeCards operation middleware
 func (siw *ServerInterfaceWrapper) MergeCards(w http.ResponseWriter, r *http.Request) {
 
@@ -759,11 +867,79 @@ func (siw *ServerInterfaceWrapper) ClaimDailyPack(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetPushKey operation middleware
+func (siw *ServerInterfaceWrapper) GetPushKey(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPushKey(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnsubscribePush operation middleware
+func (siw *ServerInterfaceWrapper) UnsubscribePush(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnsubscribePush(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubscribePush operation middleware
+func (siw *ServerInterfaceWrapper) SubscribePush(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubscribePush(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListRecipes operation middleware
 func (siw *ServerInterfaceWrapper) ListRecipes(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListRecipes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "username" -------------
+	var username string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", r.PathValue("username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetProfile(w, r, username)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -899,12 +1075,18 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/dev", wrapper.SignInDev)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/showcase", wrapper.SetShowcase)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/me/tutorial", wrapper.CompleteTutorial)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}", wrapper.GetProfile)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/packs/daily/claim", wrapper.ClaimDailyPack)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/merges", wrapper.MergeCards)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/recipes", wrapper.ListRecipes)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/current", wrapper.GetCurrentLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/{seasonId}", wrapper.GetLeaderboard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/push/key", wrapper.GetPushKey)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/push/subscriptions", wrapper.UnsubscribePush)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/push/subscriptions", wrapper.SubscribePush)
 
 	return m
 }
@@ -1250,6 +1432,85 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	return err
 }
 
+type SetShowcaseRequestObject struct {
+	Body *SetShowcaseJSONRequestBody
+}
+
+type SetShowcaseResponseObject interface {
+	VisitSetShowcaseResponse(w http.ResponseWriter) error
+}
+
+type SetShowcase200JSONResponse Profile
+
+func (response SetShowcase200JSONResponse) VisitSetShowcaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetShowcase400JSONResponse Error
+
+func (response SetShowcase400JSONResponse) VisitSetShowcaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetShowcase401JSONResponse Error
+
+func (response SetShowcase401JSONResponse) VisitSetShowcaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompleteTutorialRequestObject struct {
+}
+
+type CompleteTutorialResponseObject interface {
+	VisitCompleteTutorialResponse(w http.ResponseWriter) error
+}
+
+type CompleteTutorial204Response struct {
+}
+
+func (response CompleteTutorial204Response) VisitCompleteTutorialResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CompleteTutorial401JSONResponse Error
+
+func (response CompleteTutorial401JSONResponse) VisitCompleteTutorialResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type MergeCardsRequestObject struct {
 	Body *MergeCardsJSONRequestBody
 }
@@ -1391,6 +1652,129 @@ func (response ClaimDailyPack503JSONResponse) VisitClaimDailyPackResponse(w http
 	return err
 }
 
+type GetPushKeyRequestObject struct {
+}
+
+type GetPushKeyResponseObject interface {
+	VisitGetPushKeyResponse(w http.ResponseWriter) error
+}
+
+type GetPushKey200JSONResponse PushKey
+
+func (response GetPushKey200JSONResponse) VisitGetPushKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPushKey404JSONResponse Error
+
+func (response GetPushKey404JSONResponse) VisitGetPushKeyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnsubscribePushRequestObject struct {
+	Body *UnsubscribePushJSONRequestBody
+}
+
+type UnsubscribePushResponseObject interface {
+	VisitUnsubscribePushResponse(w http.ResponseWriter) error
+}
+
+type UnsubscribePush204Response struct {
+}
+
+func (response UnsubscribePush204Response) VisitUnsubscribePushResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnsubscribePush401JSONResponse Error
+
+func (response UnsubscribePush401JSONResponse) VisitUnsubscribePushResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubscribePushRequestObject struct {
+	Body *SubscribePushJSONRequestBody
+}
+
+type SubscribePushResponseObject interface {
+	VisitSubscribePushResponse(w http.ResponseWriter) error
+}
+
+type SubscribePush204Response struct {
+}
+
+func (response SubscribePush204Response) VisitSubscribePushResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SubscribePush400JSONResponse Error
+
+func (response SubscribePush400JSONResponse) VisitSubscribePushResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubscribePush401JSONResponse Error
+
+func (response SubscribePush401JSONResponse) VisitSubscribePushResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SubscribePush404JSONResponse Error
+
+func (response SubscribePush404JSONResponse) VisitSubscribePushResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListRecipesRequestObject struct {
 }
 
@@ -1428,6 +1812,56 @@ func (response ListRecipes401JSONResponse) VisitListRecipesResponse(w http.Respo
 	return err
 }
 
+type GetProfileRequestObject struct {
+	Username string `json:"username"`
+}
+
+type GetProfileResponseObject interface {
+	VisitGetProfileResponse(w http.ResponseWriter) error
+}
+
+type GetProfile200JSONResponse Profile
+
+func (response GetProfile200JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProfile401JSONResponse Error
+
+func (response GetProfile401JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetProfile404JSONResponse Error
+
+func (response GetProfile404JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// GetAuthConfig Which sign-in options this server offers
@@ -1457,15 +1891,33 @@ type StrictServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// SetShowcase Choose the cards on your profile
+	// (PUT /me/showcase)
+	SetShowcase(ctx context.Context, request SetShowcaseRequestObject) (SetShowcaseResponseObject, error)
+	// CompleteTutorial Mark the first-time tutorial as finished (or skipped)
+	// (POST /me/tutorial)
+	CompleteTutorial(ctx context.Context, request CompleteTutorialRequestObject) (CompleteTutorialResponseObject, error)
 	// MergeCards Merge two of your cards
 	// (POST /merges)
 	MergeCards(ctx context.Context, request MergeCardsRequestObject) (MergeCardsResponseObject, error)
 	// ClaimDailyPack Open today's free pack (one per UTC day)
 	// (POST /packs/daily/claim)
 	ClaimDailyPack(ctx context.Context, request ClaimDailyPackRequestObject) (ClaimDailyPackResponseObject, error)
+	// GetPushKey The server's public VAPID key for web push subscriptions
+	// (GET /push/key)
+	GetPushKey(ctx context.Context, request GetPushKeyRequestObject) (GetPushKeyResponseObject, error)
+	// UnsubscribePush Stop notifications on this browser
+	// (DELETE /push/subscriptions)
+	UnsubscribePush(ctx context.Context, request UnsubscribePushRequestObject) (UnsubscribePushResponseObject, error)
+	// SubscribePush Get "your pack is ready" notifications on this browser
+	// (POST /push/subscriptions)
+	SubscribePush(ctx context.Context, request SubscribePushRequestObject) (SubscribePushResponseObject, error)
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(ctx context.Context, request ListRecipesRequestObject) (ListRecipesResponseObject, error)
+	// GetProfile A player's profile
+	// (GET /users/{username})
+	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1741,6 +2193,61 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// SetShowcase operation middleware
+func (sh *strictHandler) SetShowcase(w http.ResponseWriter, r *http.Request) {
+	var request SetShowcaseRequestObject
+
+	var body SetShowcaseJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetShowcase(ctx, request.(SetShowcaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetShowcase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetShowcaseResponseObject); ok {
+		if err := validResponse.VisitSetShowcaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteTutorial operation middleware
+func (sh *strictHandler) CompleteTutorial(w http.ResponseWriter, r *http.Request) {
+	var request CompleteTutorialRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteTutorial(ctx, request.(CompleteTutorialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteTutorial")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteTutorialResponseObject); ok {
+		if err := validResponse.VisitCompleteTutorialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // MergeCards operation middleware
 func (sh *strictHandler) MergeCards(w http.ResponseWriter, r *http.Request) {
 	var request MergeCardsRequestObject
@@ -1796,6 +2303,92 @@ func (sh *strictHandler) ClaimDailyPack(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// GetPushKey operation middleware
+func (sh *strictHandler) GetPushKey(w http.ResponseWriter, r *http.Request) {
+	var request GetPushKeyRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPushKey(ctx, request.(GetPushKeyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPushKey")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPushKeyResponseObject); ok {
+		if err := validResponse.VisitGetPushKeyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnsubscribePush operation middleware
+func (sh *strictHandler) UnsubscribePush(w http.ResponseWriter, r *http.Request) {
+	var request UnsubscribePushRequestObject
+
+	var body UnsubscribePushJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnsubscribePush(ctx, request.(UnsubscribePushRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnsubscribePush")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnsubscribePushResponseObject); ok {
+		if err := validResponse.VisitUnsubscribePushResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubscribePush operation middleware
+func (sh *strictHandler) SubscribePush(w http.ResponseWriter, r *http.Request) {
+	var request SubscribePushRequestObject
+
+	var body SubscribePushJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubscribePush(ctx, request.(SubscribePushRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubscribePush")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubscribePushResponseObject); ok {
+		if err := validResponse.VisitSubscribePushResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListRecipes operation middleware
 func (sh *strictHandler) ListRecipes(w http.ResponseWriter, r *http.Request) {
 	var request ListRecipesRequestObject
@@ -1813,6 +2406,32 @@ func (sh *strictHandler) ListRecipes(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListRecipesResponseObject); ok {
 		if err := validResponse.VisitListRecipesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetProfile operation middleware
+func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, username string) {
+	var request GetProfileRequestObject
+
+	request.Username = username
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetProfile(ctx, request.(GetProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetProfileResponseObject); ok {
+		if err := validResponse.VisitGetProfileResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

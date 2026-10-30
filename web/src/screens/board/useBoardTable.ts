@@ -5,9 +5,11 @@ import { ME_KEY } from '../../auth/useAuth';
 import { EventBus } from '../../bridge/EventBus';
 import { MergeBoardEvents } from '../../bridge/events';
 import { useBridgeEvent } from '../../bridge/useBridgeEvent';
+import type { CardData } from '../../game/cards/model';
 import { BOARD_SIZE, RESULT_TIMEOUT_MS } from '../../game/merge/boardModel';
 import { CARDS_KEY } from '../collection/useCollection';
 import { LEADERBOARD_KEY } from '../leaderboard/useLeaderboard';
+import { PROFILE_KEY } from '../profile/useProfile';
 
 /** How long to wait before reloading a board that may be out of date: after the failure animation. */
 const RESYNC_DELAY_MS = 1200;
@@ -22,14 +24,17 @@ export function useBoardTable ()
 {
     const qc = useQueryClient();
     const [loadError, setLoadError] = useState(false);
+    // The cards the board last laid out (the tutorial looks for a pair in them).
+    const [cards, setCards] = useState<CardData[] | null>(null);
     // Only the newest board load may lay out cards (an older, slower one is dropped).
     const latestLoad = useRef(0);
 
-    // Merges change the cards and earn season points.
+    // Merges change the cards (and so profiles) and earn season points.
     const refreshCollection = () =>
     {
         void qc.invalidateQueries({ queryKey: CARDS_KEY });
         void qc.invalidateQueries({ queryKey: LEADERBOARD_KEY });
+        void qc.invalidateQueries({ queryKey: PROFILE_KEY });
     };
 
     const reload = async () =>
@@ -41,6 +46,7 @@ export function useBoardTable ()
             if (id === latestLoad.current)
             {
                 setLoadError(false);
+                setCards(board.cards);
                 EventBus.emit(MergeBoardEvents.Show, board);
             }
         }
@@ -78,5 +84,5 @@ export function useBoardTable ()
         }
     });
 
-    return { loadError, retry: () => void reload() };
+    return { loadError, cards, retry: () => void reload() };
 }

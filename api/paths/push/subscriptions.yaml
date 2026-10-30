@@ -1,0 +1,56 @@
+# /push/subscriptions
+post:
+  operationId: subscribePush
+  summary: Get "your pack is ready" notifications on this browser
+  description: |
+    Saves the browser's push subscription (PushSubscription.toJSON()) for the signed-in player.
+    Saving the same browser again replaces it (e.g. another player signed in on it).
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../../schemas/PushSubscription.yaml
+  responses:
+    "204":
+      description: Saved
+    "400":
+      description: Not a browser push subscription (error bad_subscription)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "404":
+      description: Push notifications are off on this server (error push_disabled)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+delete:
+  operationId: unsubscribePush
+  summary: Stop notifications on this browser
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required: [endpoint]
+          properties:
+            endpoint:
+              type: string
+  responses:
+    "204":
+      description: Removed (or wasn't yours / didn't exist)
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

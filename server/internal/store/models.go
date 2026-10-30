@@ -60,6 +60,22 @@ type MergeRecipe struct {
 	OutputTemplateID string
 }
 
+type PushRun struct {
+	Day        time.Time
+	StartedAt  time.Time
+	Sent       pgtype.Int4
+	FinishedAt pgtype.Timestamptz
+}
+
+type PushSubscription struct {
+	Endpoint  string
+	UserID    uuid.UUID
+	P256dh    string
+	Auth      string
+	CreatedAt time.Time
+	Failures  int32
+}
+
 type Season struct {
 	ID          string
 	StartsAt    time.Time
@@ -105,10 +121,18 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
+type ShowcaseCard struct {
+	UserID   uuid.UUID
+	Position int16
+	CardID   uuid.UUID
+}
+
 type User struct {
 	ID              uuid.UUID
 	AuthID          string
 	Username        string
 	CreatedAt       time.Time
 	TradeUnlockedAt time.Time
+	DisplayName     string
+	TutorialDoneAt  pgtype.Timestamptz
 }

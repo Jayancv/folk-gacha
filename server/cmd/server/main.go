@@ -20,6 +20,8 @@ import (
 	"cardgame/server/internal/leaderboard"
 	"cardgame/server/internal/merges"
 	"cardgame/server/internal/packs"
+	"cardgame/server/internal/profile"
+	"cardgame/server/internal/push"
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
 )
@@ -83,12 +85,25 @@ func run() error {
 	}
 	slog.Info("sign-in", "env", appEnv, "google", googleClientID != "", "devLogin", devLogin)
 
+	// Web push ("your pack is ready"): on when the VAPID keys are set (go run ./cmd/vapid).
+	var pushSvc *push.Service
+	vapidPublic, vapidPrivate, vapidSubject := os.Getenv("VAPID_PUBLIC_KEY"), os.Getenv("VAPID_PRIVATE_KEY"), os.Getenv("VAPID_SUBJECT")
+	if vapidPublic != "" && vapidPrivate != "" && vapidSubject != "" {
+		pushSvc = push.NewService(pool, push.NewWebPush(vapidPublic, vapidPrivate, vapidSubject))
+	} else {
+		vapidPublic = ""
+	}
+	slog.Info("push notifications", "enabled", pushSvc != nil)
+
 	api := httpapi.NewServer(pool, httpapi.Services{
-		Auth:        auth.NewService(store.New(pool)),
-		Packs:       packs.NewService(pool),
-		Merges:      merges.NewService(pool),
-		Collection:  collection.NewService(pool),
-		Leaderboard: leaderboard.NewService(pool),
+		Auth:          auth.NewService(store.New(pool)),
+		Packs:         packs.NewService(pool),
+		Merges:        merges.NewService(pool),
+		Collection:    collection.NewService(pool),
+		Leaderboard:   leaderboard.NewService(pool),
+		Push:          pushSvc,
+		PushPublicKey: vapidPublic,
+		Profiles:      profile.NewService(pool),
 	}, authOpts)
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -109,6 +124,20 @@ func run() error {
 		stopJob()
 		<-jobDone
 	}()
+
+	// The daily push: sent once per UTC day (across servers) to players who haven't claimed yet.
+	// Stopped and waited for before the pool closes, like the season job.
+	if pushSvc != nil {
+		pushDone := make(chan struct{})
+		go func() {
+			defer close(pushDone)
+			pushSvc.Run(jobCtx, time.Minute)
+		}()
+		defer func() {
+			stopJob()
+			<-pushDone
+		}()
+	}
 
 	errCh := make(chan error, 1)
 	go func() {

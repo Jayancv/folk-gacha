@@ -1,4 +1,5 @@
 import { BlendModes, GameObjects, Scene, Types } from 'phaser';
+import * as sfx from '../../audio/sfx';
 import { CardShine } from './CardShine';
 import { CARD_H, CARD_W } from './drawCard';
 import { RARITY_STYLE, type CardData } from './model';
@@ -131,10 +132,12 @@ export class CardView extends GameObjects.Container
 
         if (fx.anticipationMs > 0)
         {
+            sfx.playAnticipation(fx.anticipationMs / 1000, this.card.rarity);
             await this.anticipate(fx.anticipationMs, calm ? 0 : fx.tremble);
         }
 
         // Lift and squash to edge-on
+        sfx.play('flip');
         await this.tween({ y: baseY - 14, scaleX: 0, scaleY: 1.08, duration: 140, ease: 'Sine.easeIn' });
 
         this.image.setTexture(faceKey);

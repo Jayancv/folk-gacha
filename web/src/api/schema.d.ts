@@ -106,6 +106,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose the cards on your profile
+         * @description Up to 5 of your own cards, in display order. An empty list shows your best cards again.
+         */
+        put: operations["setShowcase"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tutorial": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark the first-time tutorial as finished (or skipped)
+         * @description Recorded once per account, so no device shows the tutorial again.
+         */
+        post: operations["completeTutorial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A player's profile
+         * @description Stats (collection power = sum of the best 10 card scores, never ranked), and up to 5 showcase
+         *     cards: the player's own pick, or their best cards until they pick (`showcaseChosen: false`).
+         */
+        get: operations["getProfile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/packs/daily/claim": {
         parameters: {
             query?: never;
@@ -227,6 +288,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/push/key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The server's public VAPID key for web push subscriptions
+         * @description Absent (404) when this server doesn't send push notifications; the app then hides the option.
+         */
+        get: operations["getPushKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get "your pack is ready" notifications on this browser
+         * @description Saves the browser's push subscription (PushSubscription.toJSON()) for the signed-in player.
+         *     Saving the same browser again replaces it (e.g. another player signed in on it).
+         */
+        post: operations["subscribePush"];
+        /** Stop notifications on this browser */
+        delete: operations["unsubscribePush"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -260,6 +363,10 @@ export interface components {
              */
             tradeUnlockedAt: string;
             dailyPack?: components["schemas"]["DailyPackStatus"];
+            /** @description Your full name from Google (only ever shown to you); absent for dev logins */
+            displayName?: string;
+            /** @description The player finished or skipped the first-time tutorial (on any device) */
+            tutorialDone: boolean;
         };
         DailyPackStatus: {
             /** @description Whether today's pack can be claimed */
@@ -409,6 +516,35 @@ export interface components {
             rank: number;
             username: string;
             points: number;
+        };
+        Profile: {
+            username: string;
+            /** Format: date-time */
+            joinedAt: string;
+            /** @description Sum of the player's best 10 card scores (shown, never ranked) */
+            collectionPower: number;
+            cardCount: number;
+            recipesDiscovered: number;
+            /** @description Weekly seasons finished in the top 3 */
+            podiums: number;
+            showcase: components["schemas"]["Card"][];
+            /** @description False while the showcase is just the player's best cards */
+            showcaseChosen: boolean;
+            /** @description The player's full name; only included on your own profile (other players see the username) */
+            displayName?: string;
+        };
+        PushKey: {
+            /** @description VAPID public key, base64url (the applicationServerKey) */
+            publicKey: string;
+        };
+        /** @description A browser push subscription, as PushSubscription.toJSON() returns it */
+        PushSubscription: {
+            /** @description The push service URL for this browser */
+            endpoint: string;
+            keys: {
+                p256dh: string;
+                auth: string;
+            };
         };
     };
     responses: never;
@@ -598,6 +734,118 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setShowcase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cardIds: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Your updated profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description More than 5 cards, the same card twice (bad_showcase), or a card that isn't yours (not_owned) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    completeTutorial: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recorded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Case-insensitive */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such player (error not_found) */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -848,6 +1096,117 @@ export interface operations {
             };
             /** @description No such season (error not_found) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getPushKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key to pass to PushManager.subscribe (applicationServerKey) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushKey"];
+                };
+            };
+            /** @description Push notifications are off on this server (error push_disabled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    subscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscription"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a browser push subscription (error bad_subscription) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Push notifications are off on this server (error push_disabled) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    unsubscribePush: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    endpoint: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Removed (or wasn't yours / didn't exist) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

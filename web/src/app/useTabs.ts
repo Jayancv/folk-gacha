@@ -6,7 +6,7 @@ import { GameEvents, type GameScene } from '../bridge/events';
 export type ReactScreen = 'Collection' | 'Leaderboard';
 export type Tab = GameScene | ReactScreen;
 
-const isReactScreen = (tab: Tab): tab is ReactScreen => tab === 'Collection' || tab === 'Leaderboard';
+export const isReactScreen = (tab: Tab): tab is ReactScreen => tab === 'Collection' || tab === 'Leaderboard';
 
 /** The open tab. Switching starts the Phaser scene, or sleeps the game loop under a React screen. */
 export function useTabs ()

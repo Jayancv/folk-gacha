@@ -11,11 +11,13 @@ interface Props
     onClaim: () => void;
     /** Called once when the countdown reaches the reset, to refresh the status. */
     onReset: () => void;
+    /** Shown under the countdown while waiting (the "notify me" line). */
+    waitingFooter?: React.ReactNode;
 }
 
 // Shown over the Pack table before today's pack is open: the claim button, or a
 // countdown to the next 00:00 UTC reset when today's pack is already open.
-export function DailyPackPanel ({ status, claiming, error, onClaim, onReset }: Props)
+export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, waitingFooter }: Props)
 {
     const [now, setNow] = useState(() => Date.now());
     const waiting = status !== undefined && !status.ready;
@@ -49,11 +51,13 @@ export function DailyPackPanel ({ status, claiming, error, onClaim, onReset }: P
                         <p className="font-serif text-lg font-bold text-[#f6eadc]">Today's pack is open</p>
                         <p className="text-sm text-[#bba595]" aria-live="polite">{nextPackText(status.nextResetAt, now)}</p>
                         <p className="text-xs text-[#bba595]/80">A new pack arrives every day at 00:00 UTC.</p>
+                        {waitingFooter}
                     </>
                 ) : (
                     <>
                         <p className="font-serif text-lg font-bold text-[#f6eadc]">Your daily pack is here</p>
                         <button
+                            data-tutorial="claim"
                             onClick={onClaim}
                             disabled={claiming}
                             className="rounded-full bg-[#e7b54a] px-7 py-3 text-base font-bold text-[#170e10] shadow-lg active:scale-95 disabled:opacity-60"

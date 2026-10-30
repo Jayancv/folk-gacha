@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CARD_W, drawCardFace } from '../../game/cards/drawCard';
 import type { CardData } from '../../game/cards/model';
+import { loadSpiritArt } from '../../game/cards/spiritImages';
 
 /**
  * A card face drawn with the same renderer as the game table, as an <img>.
@@ -22,8 +23,13 @@ export function CardImage ({ card, eager = false, className = '' }: { card: Card
         let url: string | null = null;
         let cancelled = false;
 
-        const draw = () =>
+        const draw = async () =>
         {
+            await loadSpiritArt(); // painted creatures, before the face is drawn
+            if (cancelled)
+            {
+                return;
+            }
             // Device pixels across the card, capped: thumbnails don't need print quality.
             const scale = Math.min(3, Math.max(0.5, (el.clientWidth * window.devicePixelRatio) / CARD_W));
             drawCardFace(card, scale).toBlob(blob =>
@@ -38,7 +44,7 @@ export function CardImage ({ card, eager = false, className = '' }: { card: Card
 
         if (eager)
         {
-            draw();
+            void draw();
             return () =>
             {
                 cancelled = true;
@@ -55,7 +61,7 @@ export function CardImage ({ card, eager = false, className = '' }: { card: Card
             if (entries.some(e => e.isIntersecting))
             {
                 seen.disconnect();
-                draw();
+                void draw();
             }
         }, { root: el.closest('[data-scroll-root]'), rootMargin: '600px 0px' });
         seen.observe(el);

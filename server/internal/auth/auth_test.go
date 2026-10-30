@@ -19,8 +19,8 @@ func TestBaseUsername(t *testing.T) {
 		{"  Kamal--Silva!! ", "kamal_silva"},
 		{"nimal.fernando@gmail.com", "nimal_fernando"},
 		{"ÉMILE", "mile"},
-		{"අසංක", "player"},           // Sinhala-only names fall back
-		{"Jo", "player"},             // too short
+		{"අසංක", "player"}, // Sinhala-only names fall back
+		{"Jo", "player"},   // too short
 		{"a_very_long_display_name_indeed", "a_very_long_dis"},
 		{"___x__y___z", "x_y_z"},
 	}
@@ -147,5 +147,31 @@ func TestDatabaseErrorsAreNotTreatedAsSignedOut(t *testing.T) {
 	_, err := svc.UserForToken(context.Background(), "some-token")
 	if err == nil || errors.Is(err, auth.ErrNoSession) {
 		t.Fatalf("err = %v; a database outage must not look like 'not signed in'", err)
+	}
+}
+
+func TestSignInKeepsTheDisplayNameUpToDate(t *testing.T) {
+	ctx := context.Background()
+	svc := auth.NewService(authtest.NewMemStore())
+
+	first, err := svc.SignInWithDisplayName(ctx, "google:42", "Jayan Vidanapathirana", "  Jayan   Vidanapathirana ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.User.DisplayName != "Jayan Vidanapathirana" || first.User.Username != "jayan_vidanapat" {
+		t.Fatalf("first sign-in: %q / %q", first.User.DisplayName, first.User.Username)
+	}
+	// The name changed in Google: updated on the next sign-in; the username stays.
+	again, err := svc.SignInWithDisplayName(ctx, "google:42", "J V", "Jayan C. Vidanapathirana")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.User.ID != first.User.ID || again.User.DisplayName != "Jayan C. Vidanapathirana" || again.User.Username != "jayan_vidanapat" {
+		t.Fatalf("second sign-in: %+v", again.User)
+	}
+	// No name from the provider (or a dev login) keeps the stored one.
+	dev, err := svc.SignIn(ctx, "google:42", "whatever")
+	if err != nil || dev.User.DisplayName != "Jayan C. Vidanapathirana" {
+		t.Fatalf("plain sign-in changed the name: %q (%v)", dev.User.DisplayName, err)
 	}
 }

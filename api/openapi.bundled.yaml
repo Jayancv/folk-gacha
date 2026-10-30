@@ -153,6 +153,92 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /me/showcase:
+    put:
+      operationId: setShowcase
+      summary: Choose the cards on your profile
+      description: Up to 5 of your own cards, in display order. An empty list shows your best cards again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cardIds
+              properties:
+                cardIds:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Your updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          description: More than 5 cards, the same card twice (bad_showcase), or a card that isn't yours (not_owned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /me/tutorial:
+    post:
+      operationId: completeTutorial
+      summary: Mark the first-time tutorial as finished (or skipped)
+      description: Recorded once per account, so no device shows the tutorial again.
+      responses:
+        '204':
+          description: Recorded
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /users/{username}:
+    get:
+      operationId: getProfile
+      summary: A player's profile
+      description: |
+        Stats (collection power = sum of the best 10 card scores, never ranked), and up to 5 showcase
+        cards: the player's own pick, or their best cards until they pick (`showcaseChosen: false`).
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: Case-insensitive
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such player (error not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /packs/daily/claim:
     post:
       operationId: claimDailyPack
@@ -384,6 +470,82 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /push/key:
+    get:
+      operationId: getPushKey
+      summary: The server's public VAPID key for web push subscriptions
+      description: Absent (404) when this server doesn't send push notifications; the app then hides the option.
+      security: []
+      responses:
+        '200':
+          description: The key to pass to PushManager.subscribe (applicationServerKey)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushKey'
+        '404':
+          description: Push notifications are off on this server (error push_disabled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /push/subscriptions:
+    post:
+      operationId: subscribePush
+      summary: Get "your pack is ready" notifications on this browser
+      description: |
+        Saves the browser's push subscription (PushSubscription.toJSON()) for the signed-in player.
+        Saving the same browser again replaces it (e.g. another player signed in on it).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushSubscription'
+      responses:
+        '204':
+          description: Saved
+        '400':
+          description: Not a browser push subscription (error bad_subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Push notifications are off on this server (error push_disabled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: unsubscribePush
+      summary: Stop notifications on this browser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - endpoint
+              properties:
+                endpoint:
+                  type: string
+      responses:
+        '204':
+          description: Removed (or wasn't yours / didn't exist)
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
     session:
@@ -431,6 +593,7 @@ components:
         - username
         - createdAt
         - tradeUnlockedAt
+        - tutorialDone
       properties:
         id:
           type: string
@@ -446,6 +609,12 @@ components:
           description: When this account may start trading (created + 7 days, UTC)
         dailyPack:
           $ref: '#/components/schemas/DailyPackStatus'
+        displayName:
+          type: string
+          description: Your full name from Google (only ever shown to you); absent for dev logins
+        tutorialDone:
+          type: boolean
+          description: The player finished or skipped the first-time tutorial (on any device)
     DailyPackStatus:
       type: object
       required:
@@ -756,3 +925,69 @@ components:
           type: string
         points:
           type: integer
+    Profile:
+      type: object
+      required:
+        - username
+        - joinedAt
+        - collectionPower
+        - cardCount
+        - recipesDiscovered
+        - podiums
+        - showcase
+        - showcaseChosen
+      properties:
+        username:
+          type: string
+        joinedAt:
+          type: string
+          format: date-time
+        collectionPower:
+          type: integer
+          description: Sum of the player's best 10 card scores (shown, never ranked)
+        cardCount:
+          type: integer
+        recipesDiscovered:
+          type: integer
+        podiums:
+          type: integer
+          description: Weekly seasons finished in the top 3
+        showcase:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/Card'
+        showcaseChosen:
+          type: boolean
+          description: False while the showcase is just the player's best cards
+        displayName:
+          type: string
+          description: The player's full name; only included on your own profile (other players see the username)
+    PushKey:
+      type: object
+      required:
+        - publicKey
+      properties:
+        publicKey:
+          type: string
+          description: VAPID public key, base64url (the applicationServerKey)
+    PushSubscription:
+      type: object
+      description: A browser push subscription, as PushSubscription.toJSON() returns it
+      required:
+        - endpoint
+        - keys
+      properties:
+        endpoint:
+          type: string
+          description: The push service URL for this browser
+        keys:
+          type: object
+          required:
+            - p256dh
+            - auth
+          properties:
+            p256dh:
+              type: string
+            auth:
+              type: string
