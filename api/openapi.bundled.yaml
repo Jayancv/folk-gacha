@@ -239,6 +239,91 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /users/{username}/cards:
+    get:
+      operationId: listPlayerCards
+      summary: Another player's cards (to pick what to ask for in a trade)
+      description: Same filters, sorting and paging as /cards. Cards in their open offers carry inTrade.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          description: Case-insensitive
+          schema:
+            type: string
+        - name: rarity
+          in: query
+          description: Only these rarities (repeat the parameter for several)
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rarity'
+        - name: element
+          in: query
+          description: Only these elements (repeat the parameter for several)
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/Element'
+        - name: level
+          in: query
+          description: Only cards at this level
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+        - name: spirit
+          in: query
+          description: Only this spirit (template id), e.g. gaja-calf
+          schema:
+            type: string
+        - name: set
+          in: query
+          description: Only this card season, e.g. s1
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            $ref: '#/components/schemas/CardSort'
+        - name: limit
+          in: query
+          description: Page size (default 60, at most 200)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+        - name: offset
+          in: query
+          description: Cards to skip (use nextOffset from the previous page)
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: One page of their cards
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardPage'
+        '400':
+          description: A filter value is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such player (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /packs/daily/claim:
     post:
       operationId: claimDailyPack
@@ -397,7 +482,8 @@ paths:
         '409':
           description: |
             The cards don't merge: no_recipe (different spirits without a recipe, or different levels),
-            max_level, or sold_out (the recipe's output has no copies left)
+            max_level, sold_out (the recipe's output has no copies left), or in_trade (a card is offered in
+            an open trade)
           content:
             application/json:
               schema:
@@ -422,6 +508,215 @@ paths:
                       $ref: '#/components/schemas/DiscoveredRecipe'
         '401':
           description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /trades:
+    get:
+      operationId: listTrades
+      summary: Your trade offers
+      description: Open offers you sent or received, plus offers resolved in the last 7 days. Offers past their time are expired first.
+      responses:
+        '200':
+          description: Your offers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TradeList'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createTrade
+      summary: Send a trade offer
+      description: |
+        Offer 1-5 of your cards for 1-5 of another player's cards. Your offered cards are locked in the
+        offer (no merging, no other offers) until it is accepted, declined, cancelled or expires after 48 hours.
+        Both accounts must be at least 7 days old; you can send 5 offers per UTC day.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to
+                - offer
+                - request
+              properties:
+                to:
+                  type: string
+                  description: Recipient's username (case-insensitive)
+                offer:
+                  type: array
+                  description: Your cards to give
+                  minItems: 1
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: uuid
+                request:
+                  type: array
+                  description: Their cards you want
+                  minItems: 1
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: The new offer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '400':
+          description: Invalid card lists (bad_offer) or an offer to yourself (self_trade)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Your account can't trade yet (trade_locked; 7 days after joining)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such player (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: That player can't trade yet (recipient_locked), a card isn't yours or theirs (not_owned), or a card is already in an open offer (in_trade)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: You sent today's 5 offers already (daily_limit; resets 00:00 UTC)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /trades/{tradeId}/accept:
+    post:
+      operationId: acceptTrade
+      summary: Accept an offer sent to you
+      description: Swaps all cards at once. If a card is gone the offer fails (unavailable) and nothing moves.
+      parameters:
+        - name: tradeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The offer, resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such offer for you (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Already resolved (not_open), expired (expired), a card is gone so the offer failed (unavailable), or one of your requested cards is in another open offer of yours (in_trade; cancel that first)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /trades/{tradeId}/decline:
+    post:
+      operationId: declineTrade
+      summary: Decline an offer sent to you
+      description: Unlocks the sender's cards. An offer already past its time is marked expired instead.
+      parameters:
+        - name: tradeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The offer, resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such offer for you (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Already resolved (not_open)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /trades/{tradeId}/cancel:
+    post:
+      operationId: cancelTrade
+      summary: Withdraw an offer you sent
+      description: Unlocks your cards. An offer already past its time is marked expired instead.
+      parameters:
+        - name: tradeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The offer, resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such offer for you (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Already resolved (not_open)
           content:
             application/json:
               schema:
@@ -749,6 +1044,7 @@ components:
         - artSeed
         - acquiredVia
         - acquiredAt
+        - inTrade
       properties:
         id:
           type: string
@@ -809,9 +1105,13 @@ components:
             - pack
             - merge
             - trade
+            - gift
         acquiredAt:
           type: string
           format: date-time
+        inTrade:
+          type: boolean
+          description: 'Offered in an open trade: locked, so it can''t be merged or offered again until the offer ends'
     CardTraits:
       type: object
       description: Trait ids from the season config (server/seasons/<id>/config.json)
@@ -991,3 +1291,90 @@ components:
               type: string
             auth:
               type: string
+    Trade:
+      type: object
+      description: An offer between two players
+      required:
+        - id
+        - direction
+        - from
+        - to
+        - status
+        - createdAt
+        - expiresAt
+        - offer
+        - request
+      properties:
+        id:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          description: incoming (sent to you) or outgoing (sent by you)
+          enum:
+            - incoming
+            - outgoing
+        from:
+          type: string
+          description: Sender's username
+        to:
+          type: string
+          description: Recipient's username
+        status:
+          $ref: '#/components/schemas/TradeStatus'
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        resolvedAt:
+          type: string
+          format: date-time
+          description: When the offer stopped being open; absent while open
+        offer:
+          type: array
+          description: Cards the sender gives. A card that no longer exists has no card field.
+          items:
+            $ref: '#/components/schemas/TradeItem'
+        request:
+          type: array
+          description: Cards the sender asks for (the recipient's). A card that no longer exists has no card field.
+          items:
+            $ref: '#/components/schemas/TradeItem'
+        gift:
+          $ref: '#/components/schemas/Card'
+          description: 'The card you got for this trade: the first accepted trade between two players gives each of them one Common or Uncommon card (at most 2 such gifts per player per week). Absent if you got none, or the card no longer exists.'
+    TradeItem:
+      type: object
+      description: One card of an offer
+      required:
+        - cardId
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        card:
+          $ref: '#/components/schemas/Card'
+    TradeList:
+      type: object
+      required:
+        - trades
+      properties:
+        trades:
+          type: array
+          description: Your open offers (sent and received) and those resolved in the last 7 days, newest first
+          items:
+            $ref: '#/components/schemas/Trade'
+    TradeStatus:
+      type: string
+      description: |
+        open (waiting for the recipient), accepted (cards swapped), declined (by the recipient),
+        cancelled (by the sender), expired (not answered in 48 hours), failed (a card was gone at accept)
+      enum:
+        - open
+        - accepted
+        - declined
+        - cancelled
+        - expired
+        - failed

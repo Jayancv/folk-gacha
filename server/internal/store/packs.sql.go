@@ -14,8 +14,8 @@ import (
 )
 
 const createCard = `-- name: CreateCard :one
-INSERT INTO cards (season_card_id, copy_no, owner_id, level, acquired_via)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO cards (season_card_id, copy_no, owner_id, level, acquired_via, traded)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id
 `
 
@@ -25,6 +25,7 @@ type CreateCardParams struct {
 	OwnerID      uuid.UUID
 	Level        int16
 	AcquiredVia  string
+	Traded       bool
 }
 
 func (q *Queries) CreateCard(ctx context.Context, arg CreateCardParams) (uuid.UUID, error) {
@@ -34,6 +35,7 @@ func (q *Queries) CreateCard(ctx context.Context, arg CreateCardParams) (uuid.UU
 		arg.OwnerID,
 		arg.Level,
 		arg.AcquiredVia,
+		arg.Traded,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -63,6 +65,7 @@ func (q *Queries) CurrentCardSeason(ctx context.Context, at time.Time) (CurrentC
 
 const getOwnedCards = `-- name: GetOwnedCards :many
 SELECT c.id, c.season_card_id, c.copy_no, c.owner_id, c.level, c.acquired_via, c.acquired_at,
+       (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
        sc.card_season_id, sc.set_no, sc.template_id, sc.rarity, sc.name, sc.title, sc.epithet,
        sc.traits, sc.score, sc.max_copies, sc.art_seed,
        cs.card_count AS set_size,
@@ -82,6 +85,7 @@ type GetOwnedCardsRow struct {
 	Level        int16
 	AcquiredVia  string
 	AcquiredAt   time.Time
+	InTrade      bool
 	CardSeasonID string
 	SetNo        int32
 	TemplateID   string
@@ -117,6 +121,7 @@ func (q *Queries) GetOwnedCards(ctx context.Context, ids []uuid.UUID) ([]GetOwne
 			&i.Level,
 			&i.AcquiredVia,
 			&i.AcquiredAt,
+			&i.InTrade,
 			&i.CardSeasonID,
 			&i.SetNo,
 			&i.TemplateID,

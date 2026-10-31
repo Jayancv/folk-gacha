@@ -1,0 +1,37 @@
+# /trades/{tradeId}/cancel
+post:
+  operationId: cancelTrade
+  summary: Withdraw an offer you sent
+  description: Unlocks your cards. An offer already past its time is marked expired instead.
+  parameters:
+    - name: tradeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    "200":
+      description: The offer, resolved
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Trade.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "404":
+      description: No such offer for you (not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "409":
+      description: Already resolved (not_open)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml

@@ -14,6 +14,7 @@ import (
 	"cardgame/server/internal/packs"
 	"cardgame/server/internal/profile"
 	"cardgame/server/internal/push"
+	"cardgame/server/internal/trades"
 )
 
 // Pinger is the slice of the database pool the health check needs.
@@ -33,6 +34,7 @@ type Server struct {
 	push          *push.Service
 	pushPublicKey string
 	profiles      *profile.Service
+	trades        *trades.Service
 	now           func() time.Time
 }
 
@@ -50,11 +52,12 @@ type Services struct {
 	Push          *push.Service
 	PushPublicKey string
 	Profiles      *profile.Service
+	Trades        *trades.Service
 }
 
 // NewServer wires the handlers.
 func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
-	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, authOpts: opts, now: time.Now}
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, trades: svc.Trades, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.

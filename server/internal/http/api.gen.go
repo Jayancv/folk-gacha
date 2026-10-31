@@ -20,19 +20,22 @@ import (
 
 // Defines values for CardAcquiredVia.
 const (
-	Merge CardAcquiredVia = "merge"
-	Pack  CardAcquiredVia = "pack"
-	Trade CardAcquiredVia = "trade"
+	CardAcquiredViaGift  CardAcquiredVia = "gift"
+	CardAcquiredViaMerge CardAcquiredVia = "merge"
+	CardAcquiredViaPack  CardAcquiredVia = "pack"
+	CardAcquiredViaTrade CardAcquiredVia = "trade"
 )
 
 // Valid indicates whether the value is a known member of the CardAcquiredVia enum.
 func (e CardAcquiredVia) Valid() bool {
 	switch e {
-	case Merge:
+	case CardAcquiredViaGift:
 		return true
-	case Pack:
+	case CardAcquiredViaMerge:
 		return true
-	case Trade:
+	case CardAcquiredViaPack:
+		return true
+	case CardAcquiredViaTrade:
 		return true
 	default:
 		return false
@@ -168,6 +171,54 @@ func (e Rarity) Valid() bool {
 	}
 }
 
+// Defines values for TradeDirection.
+const (
+	Incoming TradeDirection = "incoming"
+	Outgoing TradeDirection = "outgoing"
+)
+
+// Valid indicates whether the value is a known member of the TradeDirection enum.
+func (e TradeDirection) Valid() bool {
+	switch e {
+	case Incoming:
+		return true
+	case Outgoing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TradeStatus.
+const (
+	Accepted  TradeStatus = "accepted"
+	Cancelled TradeStatus = "cancelled"
+	Declined  TradeStatus = "declined"
+	Expired   TradeStatus = "expired"
+	Failed    TradeStatus = "failed"
+	Open      TradeStatus = "open"
+)
+
+// Valid indicates whether the value is a known member of the TradeStatus enum.
+func (e TradeStatus) Valid() bool {
+	switch e {
+	case Accepted:
+		return true
+	case Cancelled:
+		return true
+	case Declined:
+		return true
+	case Expired:
+		return true
+	case Failed:
+		return true
+	case Open:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuthConfig defines model for AuthConfig.
 type AuthConfig struct {
 	// DevLogin Whether POST /auth/dev is enabled (local development only)
@@ -193,8 +244,11 @@ type Card struct {
 	// Epithet Trait words, e.g. "Brightly Moonlit · of Kandy"; empty when plain
 	Epithet string             `json:"epithet"`
 	Id      openapi_types.UUID `json:"id"`
-	Level   int                `json:"level"`
-	Lore    string             `json:"lore"`
+
+	// InTrade Offered in an open trade: locked, so it can't be merged or offered again until the offer ends
+	InTrade bool   `json:"inTrade"`
+	Level   int    `json:"level"`
+	Lore    string `json:"lore"`
 
 	// MaxCopies Copy limit of the season card; absent when unlimited
 	MaxCopies *int `json:"maxCopies,omitempty"`
@@ -426,6 +480,58 @@ type PushSubscription struct {
 // Rarity defines model for Rarity.
 type Rarity string
 
+// Trade An offer between two players
+type Trade struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Direction incoming (sent to you) or outgoing (sent by you)
+	Direction TradeDirection `json:"direction"`
+	ExpiresAt time.Time      `json:"expiresAt"`
+
+	// From Sender's username
+	From string `json:"from"`
+
+	// Gift One owned copy of a season card, with what the client needs to draw it
+	Gift *Card              `json:"gift,omitempty"`
+	Id   openapi_types.UUID `json:"id"`
+
+	// Offer Cards the sender gives. A card that no longer exists has no card field.
+	Offer []TradeItem `json:"offer"`
+
+	// Request Cards the sender asks for (the recipient's). A card that no longer exists has no card field.
+	Request []TradeItem `json:"request"`
+
+	// ResolvedAt When the offer stopped being open; absent while open
+	ResolvedAt *time.Time `json:"resolvedAt,omitempty"`
+
+	// Status open (waiting for the recipient), accepted (cards swapped), declined (by the recipient),
+	// cancelled (by the sender), expired (not answered in 48 hours), failed (a card was gone at accept)
+	Status TradeStatus `json:"status"`
+
+	// To Recipient's username
+	To string `json:"to"`
+}
+
+// TradeDirection incoming (sent to you) or outgoing (sent by you)
+type TradeDirection string
+
+// TradeItem One card of an offer
+type TradeItem struct {
+	// Card One owned copy of a season card, with what the client needs to draw it
+	Card   *Card              `json:"card,omitempty"`
+	CardId openapi_types.UUID `json:"cardId"`
+}
+
+// TradeList defines model for TradeList.
+type TradeList struct {
+	// Trades Your open offers (sent and received) and those resolved in the last 7 days, newest first
+	Trades []Trade `json:"trades"`
+}
+
+// TradeStatus open (waiting for the recipient), accepted (cards swapped), declined (by the recipient),
+// cancelled (by the sender), expired (not answered in 48 hours), failed (a card was gone at accept)
+type TradeStatus string
+
 // SignInDevJSONBody defines parameters for SignInDev.
 type SignInDevJSONBody struct {
 	Name string `json:"name"`
@@ -478,6 +584,43 @@ type UnsubscribePushJSONBody struct {
 	Endpoint string `json:"endpoint"`
 }
 
+// CreateTradeJSONBody defines parameters for CreateTrade.
+type CreateTradeJSONBody struct {
+	// Offer Your cards to give
+	Offer []openapi_types.UUID `json:"offer"`
+
+	// Request Their cards you want
+	Request []openapi_types.UUID `json:"request"`
+
+	// To Recipient's username (case-insensitive)
+	To string `json:"to"`
+}
+
+// ListPlayerCardsParams defines parameters for ListPlayerCards.
+type ListPlayerCardsParams struct {
+	// Rarity Only these rarities (repeat the parameter for several)
+	Rarity *[]Rarity `form:"rarity,omitempty" json:"rarity,omitempty"`
+
+	// Element Only these elements (repeat the parameter for several)
+	Element *[]Element `form:"element,omitempty" json:"element,omitempty"`
+
+	// Level Only cards at this level
+	Level *int `form:"level,omitempty" json:"level,omitempty"`
+
+	// Spirit Only this spirit (template id), e.g. gaja-calf
+	Spirit *string `form:"spirit,omitempty" json:"spirit,omitempty"`
+
+	// Set Only this card season, e.g. s1
+	Set  *string   `form:"set,omitempty" json:"set,omitempty"`
+	Sort *CardSort `form:"sort,omitempty" json:"sort,omitempty"`
+
+	// Limit Page size (default 60, at most 200)
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset Cards to skip (use nextOffset from the previous page)
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // SignInDevJSONRequestBody defines body for SignInDev for application/json ContentType.
 type SignInDevJSONRequestBody SignInDevJSONBody
 
@@ -495,6 +638,9 @@ type UnsubscribePushJSONRequestBody UnsubscribePushJSONBody
 
 // SubscribePushJSONRequestBody defines body for SubscribePush for application/json ContentType.
 type SubscribePushJSONRequestBody = PushSubscription
+
+// CreateTradeJSONRequestBody defines body for CreateTrade for application/json ContentType.
+type CreateTradeJSONRequestBody CreateTradeJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -549,9 +695,27 @@ type ServerInterface interface {
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(w http.ResponseWriter, r *http.Request)
+	// ListTrades Your trade offers
+	// (GET /trades)
+	ListTrades(w http.ResponseWriter, r *http.Request)
+	// CreateTrade Send a trade offer
+	// (POST /trades)
+	CreateTrade(w http.ResponseWriter, r *http.Request)
+	// AcceptTrade Accept an offer sent to you
+	// (POST /trades/{tradeId}/accept)
+	AcceptTrade(w http.ResponseWriter, r *http.Request, tradeId openapi_types.UUID)
+	// CancelTrade Withdraw an offer you sent
+	// (POST /trades/{tradeId}/cancel)
+	CancelTrade(w http.ResponseWriter, r *http.Request, tradeId openapi_types.UUID)
+	// DeclineTrade Decline an offer sent to you
+	// (POST /trades/{tradeId}/decline)
+	DeclineTrade(w http.ResponseWriter, r *http.Request, tradeId openapi_types.UUID)
 	// GetProfile A player's profile
 	// (GET /users/{username})
 	GetProfile(w http.ResponseWriter, r *http.Request, username string)
+	// ListPlayerCards Another player's cards (to pick what to ask for in a trade)
+	// (GET /users/{username}/cards)
+	ListPlayerCards(w http.ResponseWriter, r *http.Request, username string, params ListPlayerCardsParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -923,6 +1087,112 @@ func (siw *ServerInterfaceWrapper) ListRecipes(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListTrades operation middleware
+func (siw *ServerInterfaceWrapper) ListTrades(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTrades(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTrade operation middleware
+func (siw *ServerInterfaceWrapper) CreateTrade(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTrade(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AcceptTrade operation middleware
+func (siw *ServerInterfaceWrapper) AcceptTrade(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tradeId" -------------
+	var tradeId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tradeId", r.PathValue("tradeId"), &tradeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tradeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AcceptTrade(w, r, tradeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelTrade operation middleware
+func (siw *ServerInterfaceWrapper) CancelTrade(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tradeId" -------------
+	var tradeId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tradeId", r.PathValue("tradeId"), &tradeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tradeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelTrade(w, r, tradeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeclineTrade operation middleware
+func (siw *ServerInterfaceWrapper) DeclineTrade(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tradeId" -------------
+	var tradeId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tradeId", r.PathValue("tradeId"), &tradeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tradeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeclineTrade(w, r, tradeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProfile operation middleware
 func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Request) {
 
@@ -940,6 +1210,139 @@ func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetProfile(w, r, username)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPlayerCards operation middleware
+func (siw *ServerInterfaceWrapper) ListPlayerCards(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "username" -------------
+	var username string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "username", r.PathValue("username"), &username, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "username", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPlayerCardsParams
+
+	// ------------- Optional query parameter "rarity" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "rarity", r.URL.Query(), &params.Rarity, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "rarity"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "rarity", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "element" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "element", r.URL.Query(), &params.Element, runtime.BindQueryParameterOptions{Type: "array", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "element"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "element", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "level" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "level", r.URL.Query(), &params.Level, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "level"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "level", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "spirit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "spirit", r.URL.Query(), &params.Spirit, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "spirit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spirit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "set" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "set", r.URL.Query(), &params.Set, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "set"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "set", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "sort" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "sort", r.URL.Query(), &params.Sort, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "sort"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sort", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "offset"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPlayerCards(w, r, username, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1078,10 +1481,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/showcase", wrapper.SetShowcase)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/me/tutorial", wrapper.CompleteTutorial)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}", wrapper.GetProfile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}/cards", wrapper.ListPlayerCards)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/packs/daily/claim", wrapper.ClaimDailyPack)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/merges", wrapper.MergeCards)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/recipes", wrapper.ListRecipes)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/trades", wrapper.ListTrades)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades", wrapper.CreateTrade)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/accept", wrapper.AcceptTrade)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/decline", wrapper.DeclineTrade)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/cancel", wrapper.CancelTrade)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/current", wrapper.GetCurrentLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/{seasonId}", wrapper.GetLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/push/key", wrapper.GetPushKey)
@@ -1812,6 +2221,339 @@ func (response ListRecipes401JSONResponse) VisitListRecipesResponse(w http.Respo
 	return err
 }
 
+type ListTradesRequestObject struct {
+}
+
+type ListTradesResponseObject interface {
+	VisitListTradesResponse(w http.ResponseWriter) error
+}
+
+type ListTrades200JSONResponse TradeList
+
+func (response ListTrades200JSONResponse) VisitListTradesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTrades401JSONResponse Error
+
+func (response ListTrades401JSONResponse) VisitListTradesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTradeRequestObject struct {
+	Body *CreateTradeJSONRequestBody
+}
+
+type CreateTradeResponseObject interface {
+	VisitCreateTradeResponse(w http.ResponseWriter) error
+}
+
+type CreateTrade201JSONResponse Trade
+
+func (response CreateTrade201JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTrade400JSONResponse Error
+
+func (response CreateTrade400JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTrade401JSONResponse Error
+
+func (response CreateTrade401JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTrade403JSONResponse Error
+
+func (response CreateTrade403JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTrade404JSONResponse Error
+
+func (response CreateTrade404JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTrade409JSONResponse Error
+
+func (response CreateTrade409JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTrade429JSONResponse Error
+
+func (response CreateTrade429JSONResponse) VisitCreateTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptTradeRequestObject struct {
+	TradeId openapi_types.UUID `json:"tradeId"`
+}
+
+type AcceptTradeResponseObject interface {
+	VisitAcceptTradeResponse(w http.ResponseWriter) error
+}
+
+type AcceptTrade200JSONResponse Trade
+
+func (response AcceptTrade200JSONResponse) VisitAcceptTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptTrade401JSONResponse Error
+
+func (response AcceptTrade401JSONResponse) VisitAcceptTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptTrade404JSONResponse Error
+
+func (response AcceptTrade404JSONResponse) VisitAcceptTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptTrade409JSONResponse Error
+
+func (response AcceptTrade409JSONResponse) VisitAcceptTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelTradeRequestObject struct {
+	TradeId openapi_types.UUID `json:"tradeId"`
+}
+
+type CancelTradeResponseObject interface {
+	VisitCancelTradeResponse(w http.ResponseWriter) error
+}
+
+type CancelTrade200JSONResponse Trade
+
+func (response CancelTrade200JSONResponse) VisitCancelTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelTrade401JSONResponse Error
+
+func (response CancelTrade401JSONResponse) VisitCancelTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelTrade404JSONResponse Error
+
+func (response CancelTrade404JSONResponse) VisitCancelTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelTrade409JSONResponse Error
+
+func (response CancelTrade409JSONResponse) VisitCancelTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeclineTradeRequestObject struct {
+	TradeId openapi_types.UUID `json:"tradeId"`
+}
+
+type DeclineTradeResponseObject interface {
+	VisitDeclineTradeResponse(w http.ResponseWriter) error
+}
+
+type DeclineTrade200JSONResponse Trade
+
+func (response DeclineTrade200JSONResponse) VisitDeclineTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeclineTrade401JSONResponse Error
+
+func (response DeclineTrade401JSONResponse) VisitDeclineTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeclineTrade404JSONResponse Error
+
+func (response DeclineTrade404JSONResponse) VisitDeclineTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeclineTrade409JSONResponse Error
+
+func (response DeclineTrade409JSONResponse) VisitDeclineTradeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProfileRequestObject struct {
 	Username string `json:"username"`
 }
@@ -1851,6 +2593,71 @@ func (response GetProfile401JSONResponse) VisitGetProfileResponse(w http.Respons
 type GetProfile404JSONResponse Error
 
 func (response GetProfile404JSONResponse) VisitGetProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlayerCardsRequestObject struct {
+	Username string `json:"username"`
+	Params   ListPlayerCardsParams
+}
+
+type ListPlayerCardsResponseObject interface {
+	VisitListPlayerCardsResponse(w http.ResponseWriter) error
+}
+
+type ListPlayerCards200JSONResponse CardPage
+
+func (response ListPlayerCards200JSONResponse) VisitListPlayerCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlayerCards400JSONResponse Error
+
+func (response ListPlayerCards400JSONResponse) VisitListPlayerCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlayerCards401JSONResponse Error
+
+func (response ListPlayerCards401JSONResponse) VisitListPlayerCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlayerCards404JSONResponse Error
+
+func (response ListPlayerCards404JSONResponse) VisitListPlayerCardsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1915,9 +2722,27 @@ type StrictServerInterface interface {
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(ctx context.Context, request ListRecipesRequestObject) (ListRecipesResponseObject, error)
+	// ListTrades Your trade offers
+	// (GET /trades)
+	ListTrades(ctx context.Context, request ListTradesRequestObject) (ListTradesResponseObject, error)
+	// CreateTrade Send a trade offer
+	// (POST /trades)
+	CreateTrade(ctx context.Context, request CreateTradeRequestObject) (CreateTradeResponseObject, error)
+	// AcceptTrade Accept an offer sent to you
+	// (POST /trades/{tradeId}/accept)
+	AcceptTrade(ctx context.Context, request AcceptTradeRequestObject) (AcceptTradeResponseObject, error)
+	// CancelTrade Withdraw an offer you sent
+	// (POST /trades/{tradeId}/cancel)
+	CancelTrade(ctx context.Context, request CancelTradeRequestObject) (CancelTradeResponseObject, error)
+	// DeclineTrade Decline an offer sent to you
+	// (POST /trades/{tradeId}/decline)
+	DeclineTrade(ctx context.Context, request DeclineTradeRequestObject) (DeclineTradeResponseObject, error)
 	// GetProfile A player's profile
 	// (GET /users/{username})
 	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
+	// ListPlayerCards Another player's cards (to pick what to ask for in a trade)
+	// (GET /users/{username}/cards)
+	ListPlayerCards(ctx context.Context, request ListPlayerCardsRequestObject) (ListPlayerCardsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -2413,6 +3238,139 @@ func (sh *strictHandler) ListRecipes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListTrades operation middleware
+func (sh *strictHandler) ListTrades(w http.ResponseWriter, r *http.Request) {
+	var request ListTradesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTrades(ctx, request.(ListTradesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTrades")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTradesResponseObject); ok {
+		if err := validResponse.VisitListTradesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateTrade operation middleware
+func (sh *strictHandler) CreateTrade(w http.ResponseWriter, r *http.Request) {
+	var request CreateTradeRequestObject
+
+	var body CreateTradeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTrade(ctx, request.(CreateTradeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTrade")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTradeResponseObject); ok {
+		if err := validResponse.VisitCreateTradeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AcceptTrade operation middleware
+func (sh *strictHandler) AcceptTrade(w http.ResponseWriter, r *http.Request, tradeId openapi_types.UUID) {
+	var request AcceptTradeRequestObject
+
+	request.TradeId = tradeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AcceptTrade(ctx, request.(AcceptTradeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AcceptTrade")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AcceptTradeResponseObject); ok {
+		if err := validResponse.VisitAcceptTradeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelTrade operation middleware
+func (sh *strictHandler) CancelTrade(w http.ResponseWriter, r *http.Request, tradeId openapi_types.UUID) {
+	var request CancelTradeRequestObject
+
+	request.TradeId = tradeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelTrade(ctx, request.(CancelTradeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelTrade")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelTradeResponseObject); ok {
+		if err := validResponse.VisitCancelTradeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeclineTrade operation middleware
+func (sh *strictHandler) DeclineTrade(w http.ResponseWriter, r *http.Request, tradeId openapi_types.UUID) {
+	var request DeclineTradeRequestObject
+
+	request.TradeId = tradeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeclineTrade(ctx, request.(DeclineTradeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeclineTrade")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeclineTradeResponseObject); ok {
+		if err := validResponse.VisitDeclineTradeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProfile operation middleware
 func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, username string) {
 	var request GetProfileRequestObject
@@ -2432,6 +3390,33 @@ func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, user
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetProfileResponseObject); ok {
 		if err := validResponse.VisitGetProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPlayerCards operation middleware
+func (sh *strictHandler) ListPlayerCards(w http.ResponseWriter, r *http.Request, username string, params ListPlayerCardsParams) {
+	var request ListPlayerCardsRequestObject
+
+	request.Username = username
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPlayerCards(ctx, request.(ListPlayerCardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPlayerCards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPlayerCardsResponseObject); ok {
+		if err := validResponse.VisitListPlayerCardsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

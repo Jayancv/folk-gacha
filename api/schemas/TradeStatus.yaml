@@ -1,0 +1,11 @@
+type: string
+description: |
+  open (waiting for the recipient), accepted (cards swapped), declined (by the recipient),
+  cancelled (by the sender), expired (not answered in 48 hours), failed (a card was gone at accept)
+enum:
+  - open
+  - accepted
+  - declined
+  - cancelled
+  - expired
+  - failed

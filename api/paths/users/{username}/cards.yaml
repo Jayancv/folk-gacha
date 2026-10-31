@@ -1,0 +1,85 @@
+# /users/{username}/cards
+get:
+  operationId: listPlayerCards
+  summary: Another player's cards (to pick what to ask for in a trade)
+  description: Same filters, sorting and paging as /cards. Cards in their open offers carry inTrade.
+  parameters:
+    - name: username
+      in: path
+      required: true
+      description: Case-insensitive
+      schema:
+        type: string
+    - name: rarity
+      in: query
+      description: Only these rarities (repeat the parameter for several)
+      schema:
+        type: array
+        items:
+          $ref: ../../../schemas/Rarity.yaml
+    - name: element
+      in: query
+      description: Only these elements (repeat the parameter for several)
+      schema:
+        type: array
+        items:
+          $ref: ../../../schemas/Element.yaml
+    - name: level
+      in: query
+      description: Only cards at this level
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5
+    - name: spirit
+      in: query
+      description: Only this spirit (template id), e.g. gaja-calf
+      schema:
+        type: string
+    - name: set
+      in: query
+      description: Only this card season, e.g. s1
+      schema:
+        type: string
+    - name: sort
+      in: query
+      schema:
+        $ref: ../../../schemas/CardSort.yaml
+    - name: limit
+      in: query
+      description: Page size (default 60, at most 200)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+    - name: offset
+      in: query
+      description: Cards to skip (use nextOffset from the previous page)
+      schema:
+        type: integer
+        minimum: 0
+  responses:
+    "200":
+      description: One page of their cards
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/CardPage.yaml
+    "400":
+      description: A filter value is invalid
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "404":
+      description: No such player (not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml

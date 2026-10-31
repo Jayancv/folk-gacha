@@ -37,13 +37,14 @@ WHERE id = @id AND (max_copies IS NULL OR minted + @count::integer <= max_copies
 RETURNING minted;
 
 -- name: CreateCard :one
-INSERT INTO cards (season_card_id, copy_no, owner_id, level, acquired_via)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO cards (season_card_id, copy_no, owner_id, level, acquired_via, traded)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id;
 
 -- name: GetOwnedCards :many
 -- Cards with everything the client needs to draw them.
 SELECT c.id, c.season_card_id, c.copy_no, c.owner_id, c.level, c.acquired_via, c.acquired_at,
+       (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
        sc.card_season_id, sc.set_no, sc.template_id, sc.rarity, sc.name, sc.title, sc.epithet,
        sc.traits, sc.score, sc.max_copies, sc.art_seed,
        cs.card_count AS set_size,

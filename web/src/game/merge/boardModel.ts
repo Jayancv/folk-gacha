@@ -56,6 +56,7 @@ export const FAILURE_TEXT: Record<MergeFailure, string> = {
     max_level: 'Already max level',
     not_owned: 'Card unavailable',
     sold_out: 'None left this season',
+    in_trade: 'Offered in a trade',
     network: 'No answer, try again'
 };
 

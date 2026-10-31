@@ -27,6 +27,8 @@ var (
 	ErrNotOwned = errors.New("merges: card not owned")
 	// ErrSoldOut: the recipe's output spirit has no copies left in the season.
 	ErrSoldOut = errors.New("merges: recipe output sold out")
+	// ErrInTrade: one of the cards is offered in an open trade (cancel the offer first).
+	ErrInTrade = errors.New("merges: card is in an open trade offer")
 )
 
 // game.ErrNoRecipe and game.ErrMaxLevel are returned as they are.
@@ -99,6 +101,9 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	if dragged.ID != draggedID {
 		dragged, target = target, dragged
 	}
+	if dragged.InTrade || target.InTrade {
+		return Result{}, uuid.Nil, ErrInTrade
+	}
 
 	var recipe store.GetRecipeRow
 	if dragged.TemplateID != target.TemplateID {
@@ -122,7 +127,8 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	}
 
 	res := Result{Kind: plan.Kind}
-	newCard := store.CreateCardParams{OwnerID: userID, Level: int16(plan.Level), AcquiredVia: "merge"}
+	traded := game.MergedTraded(dragged.Traded, target.Traded)
+	newCard := store.CreateCardParams{OwnerID: userID, Level: int16(plan.Level), AcquiredVia: "merge", Traded: traded}
 	var level1Score int32 // score of the new card's season card at level 1
 	switch plan.Kind {
 	case game.LevelUp:
@@ -164,7 +170,11 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	}
 
 	// Season points for the week of the merge, in the same transaction: the new card's score.
+	// None when a traded card went in (stops alt accounts feeding a main).
 	points := game.LevelScore(int(level1Score), plan.Level)
+	if traded {
+		points = 0
+	}
 	week, added, err := seasons.AddPoints(ctx, q, userID, now, points)
 	if err != nil {
 		return Result{}, uuid.Nil, err

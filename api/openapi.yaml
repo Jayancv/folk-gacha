@@ -32,6 +32,8 @@ paths:
     $ref: ./paths/me/tutorial.yaml
   /users/{username}:
     $ref: ./paths/users/{username}.yaml
+  /users/{username}/cards:
+    $ref: ./paths/users/{username}/cards.yaml
   /packs/daily/claim:
     $ref: ./paths/packs/daily/claim.yaml
   /cards:
@@ -40,6 +42,14 @@ paths:
     $ref: ./paths/merges.yaml
   /recipes:
     $ref: ./paths/recipes.yaml
+  /trades:
+    $ref: ./paths/trades.yaml
+  /trades/{tradeId}/accept:
+    $ref: ./paths/trades/{tradeId}/accept.yaml
+  /trades/{tradeId}/decline:
+    $ref: ./paths/trades/{tradeId}/decline.yaml
+  /trades/{tradeId}/cancel:
+    $ref: ./paths/trades/{tradeId}/cancel.yaml
   /leaderboard/current:
     $ref: ./paths/leaderboard/current.yaml
   /leaderboard/{seasonId}:
@@ -96,3 +106,11 @@ components:
       $ref: ./schemas/PushKey.yaml
     PushSubscription:
       $ref: ./schemas/PushSubscription.yaml
+    Trade:
+      $ref: ./schemas/Trade.yaml
+    TradeItem:
+      $ref: ./schemas/TradeItem.yaml
+    TradeList:
+      $ref: ./schemas/TradeList.yaml
+    TradeStatus:
+      $ref: ./schemas/TradeStatus.yaml

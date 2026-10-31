@@ -94,7 +94,7 @@ export function mergeFailure (status: number, code: string | undefined): MergeFa
         case 404:
             return 'not_owned';
         case 409:
-            return code === 'max_level' || code === 'sold_out' ? code : 'no_recipe';
+            return code === 'max_level' || code === 'sold_out' || code === 'in_trade' ? code : 'no_recipe';
         case 400:
             // same_card: dropping a card on itself; the board treats it as no merge.
             return 'no_recipe';

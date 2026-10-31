@@ -1,0 +1,98 @@
+# /trades
+get:
+  operationId: listTrades
+  summary: Your trade offers
+  description: Open offers you sent or received, plus offers resolved in the last 7 days. Offers past their time are expired first.
+  responses:
+    "200":
+      description: Your offers
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/TradeList.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+post:
+  operationId: createTrade
+  summary: Send a trade offer
+  description: |
+    Offer 1-5 of your cards for 1-5 of another player's cards. Your offered cards are locked in the
+    offer (no merging, no other offers) until it is accepted, declined, cancelled or expires after 48 hours.
+    Both accounts must be at least 7 days old; you can send 5 offers per UTC day.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - to
+            - offer
+            - request
+          properties:
+            to:
+              type: string
+              description: Recipient's username (case-insensitive)
+            offer:
+              type: array
+              description: Your cards to give
+              minItems: 1
+              maxItems: 5
+              items:
+                type: string
+                format: uuid
+            request:
+              type: array
+              description: Their cards you want
+              minItems: 1
+              maxItems: 5
+              items:
+                type: string
+                format: uuid
+  responses:
+    "201":
+      description: The new offer
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Trade.yaml
+    "400":
+      description: Invalid card lists (bad_offer) or an offer to yourself (self_trade)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "403":
+      description: Your account can't trade yet (trade_locked; 7 days after joining)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "404":
+      description: No such player (not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "409":
+      description: That player can't trade yet (recipient_locked), a card isn't yours or theirs (not_owned), or a card is already in an open offer (in_trade)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml
+    "429":
+      description: You sent today's 5 offers already (daily_limit; resets 00:00 UTC)
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml

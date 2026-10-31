@@ -1,0 +1,56 @@
+type: object
+description: An offer between two players
+required:
+  - id
+  - direction
+  - from
+  - to
+  - status
+  - createdAt
+  - expiresAt
+  - offer
+  - request
+properties:
+  id:
+    type: string
+    format: uuid
+  direction:
+    type: string
+    description: incoming (sent to you) or outgoing (sent by you)
+    enum:
+      - incoming
+      - outgoing
+  from:
+    type: string
+    description: Sender's username
+  to:
+    type: string
+    description: Recipient's username
+  status:
+    $ref: ./TradeStatus.yaml
+  createdAt:
+    type: string
+    format: date-time
+  expiresAt:
+    type: string
+    format: date-time
+  resolvedAt:
+    type: string
+    format: date-time
+    description: When the offer stopped being open; absent while open
+  offer:
+    type: array
+    description: Cards the sender gives. A card that no longer exists has no card field.
+    items:
+      $ref: ./TradeItem.yaml
+  request:
+    type: array
+    description: Cards the sender asks for (the recipient's). A card that no longer exists has no card field.
+    items:
+      $ref: ./TradeItem.yaml
+  gift:
+    $ref: ./Card.yaml
+    description: >-
+      The card you got for this trade: the first accepted trade between two players gives each of them
+      one Common or Uncommon card (at most 2 such gifts per player per week). Absent if you got none, or
+      the card no longer exists.

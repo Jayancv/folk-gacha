@@ -12,13 +12,15 @@ import (
 )
 
 type Card struct {
-	ID           uuid.UUID
-	SeasonCardID string
-	CopyNo       int32
-	OwnerID      uuid.UUID
-	Level        int16
-	AcquiredVia  string
-	AcquiredAt   time.Time
+	ID              uuid.UUID
+	SeasonCardID    string
+	CopyNo          int32
+	OwnerID         uuid.UUID
+	Level           int16
+	AcquiredVia     string
+	AcquiredAt      time.Time
+	LockedInTradeID pgtype.UUID
+	Traded          bool
 }
 
 type CardSeason struct {
@@ -125,6 +127,42 @@ type ShowcaseCard struct {
 	UserID   uuid.UUID
 	Position int16
 	CardID   uuid.UUID
+}
+
+type Trade struct {
+	ID         uuid.UUID
+	FromUser   uuid.UUID
+	ToUser     uuid.UUID
+	Status     string
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	ResolvedAt pgtype.Timestamptz
+}
+
+type TradeGift struct {
+	TradeID uuid.UUID
+	UserID  uuid.UUID
+	CardID  uuid.UUID
+}
+
+type TradeGiftWeek struct {
+	UserID uuid.UUID
+	Week   string
+	Gifts  int16
+}
+
+type TradeItem struct {
+	TradeID  uuid.UUID
+	CardID   uuid.UUID
+	Side     string
+	Position int16
+}
+
+type TradePartner struct {
+	UserA        uuid.UUID
+	UserB        uuid.UUID
+	FirstTradeID uuid.UUID
+	CreatedAt    time.Time
 }
 
 type User struct {

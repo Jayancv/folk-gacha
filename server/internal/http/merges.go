@@ -29,6 +29,8 @@ func (s *Server) MergeCards(ctx context.Context, req MergeCardsRequestObject) (M
 		return MergeCards409JSONResponse{Error: "no_recipe", Message: ptr("These cards don't merge.")}, nil
 	case errors.Is(err, game.ErrMaxLevel):
 		return MergeCards409JSONResponse{Error: "max_level", Message: ptr("These cards are already at the highest level.")}, nil
+	case errors.Is(err, merges.ErrInTrade):
+		return MergeCards409JSONResponse{Error: "in_trade", Message: ptr("This card is offered in a trade. Cancel the offer to merge it.")}, nil
 	case errors.Is(err, merges.ErrSoldOut):
 		return MergeCards409JSONResponse{Error: "sold_out", Message: ptr("This spirit has no copies left this season.")}, nil
 	case err != nil:
