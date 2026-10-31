@@ -587,7 +587,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '403':
-          description: Your account can't trade yet (trade_locked; 7 days after joining)
+          description: Your account can't trade yet (trade_locked; no wait by default)
           content:
             application/json:
               schema:
@@ -721,6 +721,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /live/ticket:
+    post:
+      operationId: getLiveTicket
+      summary: A ticket to open the live events socket
+      description: |
+        Single-use, valid for one minute. Open `GET /ws?ticket=…` with it (a WebSocket, not part of this
+        spec). The socket sends JSON events `{type, tradeId?, by?}`: trade.received, trade.accepted,
+        trade.declined, trade.cancelled, trade.expired, trade.failed. Events only say what changed;
+        refetch what you show. The ticket lets the socket go straight to the API server, where the
+        web app's session cookie isn't sent.
+      responses:
+        '200':
+          description: The ticket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveTicket'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /gifts/open:
+    post:
+      operationId: openGifts
+      summary: Open your waiting partner gifts
+      description: |
+        Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
+        current card season, rolled now. Gift cards count as traded, so they never earn season points.
+      responses:
+        '200':
+          description: The opened gifts, in reveal order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenedGifts'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No gifts waiting (no_gifts)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: No Common or Uncommon card has copies left (sold_out)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: No card season is open (no_season)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /rules:
+    get:
+      operationId: getRules
+      summary: The game rules players see
+      description: The tunable limits from server/rules/game.yaml that the app shows or enforces in its screens. Public.
+      security: []
+      responses:
+        '200':
+          description: The rules in use
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameRules'
   /leaderboard/current:
     get:
       operationId: getCurrentLeaderboard
@@ -889,6 +963,7 @@ components:
         - createdAt
         - tradeUnlockedAt
         - tutorialDone
+        - giftsWaiting
       properties:
         id:
           type: string
@@ -901,12 +976,15 @@ components:
         tradeUnlockedAt:
           type: string
           format: date-time
-          description: When this account may start trading (created + 7 days, UTC)
+          description: When this account may start trading (UTC; at sign-up, no wait)
         dailyPack:
           $ref: '#/components/schemas/DailyPackStatus'
         displayName:
           type: string
           description: Your full name from Google (only ever shown to you); absent for dev logins
+        giftsWaiting:
+          type: integer
+          description: Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open)
         tutorialDone:
           type: boolean
           description: The player finished or skipped the first-time tutorial (on any device)
@@ -1304,6 +1382,7 @@ components:
         - expiresAt
         - offer
         - request
+        - gifted
       properties:
         id:
           type: string
@@ -1342,9 +1421,9 @@ components:
           description: Cards the sender asks for (the recipient's). A card that no longer exists has no card field.
           items:
             $ref: '#/components/schemas/TradeItem'
-        gift:
-          $ref: '#/components/schemas/Card'
-          description: 'The card you got for this trade: the first accepted trade between two players gives each of them one Common or Uncommon card (at most 2 such gifts per player per week). Absent if you got none, or the card no longer exists.'
+        gifted:
+          type: boolean
+          description: 'This trade gave you a partner gift: the first accepted trade between two players gives each of them one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open).'
     TradeItem:
       type: object
       description: One card of an offer
@@ -1378,3 +1457,62 @@ components:
         - cancelled
         - expired
         - failed
+    LiveTicket:
+      type: object
+      description: A single-use ticket for the live events socket
+      required:
+        - ticket
+        - expiresAt
+      properties:
+        ticket:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    OpenedGifts:
+      type: object
+      required:
+        - gifts
+        - giftsWaiting
+      properties:
+        gifts:
+          type: array
+          items:
+            type: object
+            required:
+              - partner
+              - card
+            properties:
+              partner:
+                type: string
+                description: Username of the player the trade was with
+              card:
+                $ref: '#/components/schemas/Card'
+        giftsWaiting:
+          type: integer
+          description: Gifts still waiting (more than 5 open over several opens)
+    GameRules:
+      type: object
+      description: Game limits from server/rules/game.yaml
+      required:
+        - maxTradeCards
+        - dailyOfferLimit
+        - offerExpiryHours
+        - newAccountWaitDays
+        - partnerGiftsPerWeek
+      properties:
+        maxTradeCards:
+          type: integer
+          description: Most cards on each side of a trade offer
+        dailyOfferLimit:
+          type: integer
+          description: Offers a player can send per UTC day
+        offerExpiryHours:
+          type: integer
+          description: How long an offer stays open
+        newAccountWaitDays:
+          type: integer
+          description: Days after sign-up before an account can trade (0 = none)
+        partnerGiftsPerWeek:
+          type: integer
+          description: Partner gifts a player can get per leaderboard week (0 = gifts off)

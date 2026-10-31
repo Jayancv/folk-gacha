@@ -359,6 +359,24 @@ type Error struct {
 	Message *string `json:"message,omitempty"`
 }
 
+// GameRules Game limits from server/rules/game.yaml
+type GameRules struct {
+	// DailyOfferLimit Offers a player can send per UTC day
+	DailyOfferLimit int `json:"dailyOfferLimit"`
+
+	// MaxTradeCards Most cards on each side of a trade offer
+	MaxTradeCards int `json:"maxTradeCards"`
+
+	// NewAccountWaitDays Days after sign-up before an account can trade (0 = none)
+	NewAccountWaitDays int `json:"newAccountWaitDays"`
+
+	// OfferExpiryHours How long an offer stays open
+	OfferExpiryHours int `json:"offerExpiryHours"`
+
+	// PartnerGiftsPerWeek Partner gifts a player can get per leaderboard week (0 = gifts off)
+	PartnerGiftsPerWeek int `json:"partnerGiftsPerWeek"`
+}
+
 // Health defines model for Health.
 type Health struct {
 	Database HealthDatabase `json:"database"`
@@ -410,16 +428,25 @@ type LeaderboardSeason struct {
 	StartsAt time.Time `json:"startsAt"`
 }
 
+// LiveTicket A single-use ticket for the live events socket
+type LiveTicket struct {
+	ExpiresAt time.Time `json:"expiresAt"`
+	Ticket    string    `json:"ticket"`
+}
+
 // Me defines model for Me.
 type Me struct {
 	CreatedAt time.Time        `json:"createdAt"`
 	DailyPack *DailyPackStatus `json:"dailyPack,omitempty"`
 
 	// DisplayName Your full name from Google (only ever shown to you); absent for dev logins
-	DisplayName *string            `json:"displayName,omitempty"`
-	Id          openapi_types.UUID `json:"id"`
+	DisplayName *string `json:"displayName,omitempty"`
 
-	// TradeUnlockedAt When this account may start trading (created + 7 days, UTC)
+	// GiftsWaiting Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open)
+	GiftsWaiting int                `json:"giftsWaiting"`
+	Id           openapi_types.UUID `json:"id"`
+
+	// TradeUnlockedAt When this account may start trading (UTC; at sign-up, no wait)
 	TradeUnlockedAt time.Time `json:"tradeUnlockedAt"`
 
 	// TutorialDone The player finished or skipped the first-time tutorial (on any device)
@@ -439,6 +466,20 @@ type MergeResult struct {
 
 // MergeResultKind defines model for MergeResult.Kind.
 type MergeResultKind string
+
+// OpenedGifts defines model for OpenedGifts.
+type OpenedGifts struct {
+	Gifts []struct {
+		// Card One owned copy of a season card, with what the client needs to draw it
+		Card Card `json:"card"`
+
+		// Partner Username of the player the trade was with
+		Partner string `json:"partner"`
+	} `json:"gifts"`
+
+	// GiftsWaiting Gifts still waiting (more than 5 open over several opens)
+	GiftsWaiting int `json:"giftsWaiting"`
+}
 
 // Profile defines model for Profile.
 type Profile struct {
@@ -491,9 +532,9 @@ type Trade struct {
 	// From Sender's username
 	From string `json:"from"`
 
-	// Gift One owned copy of a season card, with what the client needs to draw it
-	Gift *Card              `json:"gift,omitempty"`
-	Id   openapi_types.UUID `json:"id"`
+	// Gifted This trade gave you a partner gift: the first accepted trade between two players gives each of them one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open).
+	Gifted bool               `json:"gifted"`
+	Id     openapi_types.UUID `json:"id"`
 
 	// Offer Cards the sender gives. A card that no longer exists has no card field.
 	Offer []TradeItem `json:"offer"`
@@ -659,6 +700,9 @@ type ServerInterface interface {
 	// ListCards The signed-in player's collection (paged, filterable)
 	// (GET /cards)
 	ListCards(w http.ResponseWriter, r *http.Request, params ListCardsParams)
+	// OpenGifts Open your waiting partner gifts
+	// (POST /gifts/open)
+	OpenGifts(w http.ResponseWriter, r *http.Request)
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
@@ -668,6 +712,9 @@ type ServerInterface interface {
 	// GetLeaderboard A weekly season's leaderboard
 	// (GET /leaderboard/{seasonId})
 	GetLeaderboard(w http.ResponseWriter, r *http.Request, seasonId string)
+	// GetLiveTicket A ticket to open the live events socket
+	// (POST /live/ticket)
+	GetLiveTicket(w http.ResponseWriter, r *http.Request)
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -695,6 +742,9 @@ type ServerInterface interface {
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(w http.ResponseWriter, r *http.Request)
+	// GetRules The game rules players see
+	// (GET /rules)
+	GetRules(w http.ResponseWriter, r *http.Request)
 	// ListTrades Your trade offers
 	// (GET /trades)
 	ListTrades(w http.ResponseWriter, r *http.Request)
@@ -907,6 +957,20 @@ func (siw *ServerInterfaceWrapper) ListCards(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// OpenGifts operation middleware
+func (siw *ServerInterfaceWrapper) OpenGifts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpenGifts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
@@ -952,6 +1016,20 @@ func (siw *ServerInterfaceWrapper) GetLeaderboard(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetLeaderboard(w, r, seasonId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLiveTicket operation middleware
+func (siw *ServerInterfaceWrapper) GetLiveTicket(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLiveTicket(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1078,6 +1156,20 @@ func (siw *ServerInterfaceWrapper) ListRecipes(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListRecipes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRules operation middleware
+func (siw *ServerInterfaceWrapper) GetRules(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRules(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1491,6 +1583,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/accept", wrapper.AcceptTrade)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/decline", wrapper.DeclineTrade)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/cancel", wrapper.CancelTrade)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/live/ticket", wrapper.GetLiveTicket)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/gifts/open", wrapper.OpenGifts)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rules", wrapper.GetRules)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/current", wrapper.GetCurrentLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/{seasonId}", wrapper.GetLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/push/key", wrapper.GetPushKey)
@@ -1714,6 +1809,83 @@ func (response ListCards401JSONResponse) VisitListCardsResponse(w http.ResponseW
 	return err
 }
 
+type OpenGiftsRequestObject struct {
+}
+
+type OpenGiftsResponseObject interface {
+	VisitOpenGiftsResponse(w http.ResponseWriter) error
+}
+
+type OpenGifts200JSONResponse OpenedGifts
+
+func (response OpenGifts200JSONResponse) VisitOpenGiftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGifts401JSONResponse Error
+
+func (response OpenGifts401JSONResponse) VisitOpenGiftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGifts404JSONResponse Error
+
+func (response OpenGifts404JSONResponse) VisitOpenGiftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGifts409JSONResponse Error
+
+func (response OpenGifts409JSONResponse) VisitOpenGiftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenGifts503JSONResponse Error
+
+func (response OpenGifts503JSONResponse) VisitOpenGiftsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHealthRequestObject struct {
 }
 
@@ -1802,6 +1974,41 @@ func (response GetLeaderboard404JSONResponse) VisitGetLeaderboardResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLiveTicketRequestObject struct {
+}
+
+type GetLiveTicketResponseObject interface {
+	VisitGetLiveTicketResponse(w http.ResponseWriter) error
+}
+
+type GetLiveTicket200JSONResponse LiveTicket
+
+func (response GetLiveTicket200JSONResponse) VisitGetLiveTicketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetLiveTicket401JSONResponse Error
+
+func (response GetLiveTicket401JSONResponse) VisitGetLiveTicketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2217,6 +2424,27 @@ func (response ListRecipes401JSONResponse) VisitListRecipesResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRulesRequestObject struct {
+}
+
+type GetRulesResponseObject interface {
+	VisitGetRulesResponse(w http.ResponseWriter) error
+}
+
+type GetRules200JSONResponse GameRules
+
+func (response GetRules200JSONResponse) VisitGetRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2686,6 +2914,9 @@ type StrictServerInterface interface {
 	// ListCards The signed-in player's collection (paged, filterable)
 	// (GET /cards)
 	ListCards(ctx context.Context, request ListCardsRequestObject) (ListCardsResponseObject, error)
+	// OpenGifts Open your waiting partner gifts
+	// (POST /gifts/open)
+	OpenGifts(ctx context.Context, request OpenGiftsRequestObject) (OpenGiftsResponseObject, error)
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
@@ -2695,6 +2926,9 @@ type StrictServerInterface interface {
 	// GetLeaderboard A weekly season's leaderboard
 	// (GET /leaderboard/{seasonId})
 	GetLeaderboard(ctx context.Context, request GetLeaderboardRequestObject) (GetLeaderboardResponseObject, error)
+	// GetLiveTicket A ticket to open the live events socket
+	// (POST /live/ticket)
+	GetLiveTicket(ctx context.Context, request GetLiveTicketRequestObject) (GetLiveTicketResponseObject, error)
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -2722,6 +2956,9 @@ type StrictServerInterface interface {
 	// ListRecipes Recipes the signed-in player has discovered
 	// (GET /recipes)
 	ListRecipes(ctx context.Context, request ListRecipesRequestObject) (ListRecipesResponseObject, error)
+	// GetRules The game rules players see
+	// (GET /rules)
+	GetRules(ctx context.Context, request GetRulesRequestObject) (GetRulesResponseObject, error)
 	// ListTrades Your trade offers
 	// (GET /trades)
 	ListTrades(ctx context.Context, request ListTradesRequestObject) (ListTradesResponseObject, error)
@@ -2920,6 +3157,30 @@ func (sh *strictHandler) ListCards(w http.ResponseWriter, r *http.Request, param
 	}
 }
 
+// OpenGifts operation middleware
+func (sh *strictHandler) OpenGifts(w http.ResponseWriter, r *http.Request) {
+	var request OpenGiftsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OpenGifts(ctx, request.(OpenGiftsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OpenGifts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OpenGiftsResponseObject); ok {
+		if err := validResponse.VisitOpenGiftsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealth operation middleware
 func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthRequestObject
@@ -2987,6 +3248,30 @@ func (sh *strictHandler) GetLeaderboard(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetLeaderboardResponseObject); ok {
 		if err := validResponse.VisitGetLeaderboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLiveTicket operation middleware
+func (sh *strictHandler) GetLiveTicket(w http.ResponseWriter, r *http.Request) {
+	var request GetLiveTicketRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLiveTicket(ctx, request.(GetLiveTicketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLiveTicket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLiveTicketResponseObject); ok {
+		if err := validResponse.VisitGetLiveTicketResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3231,6 +3516,30 @@ func (sh *strictHandler) ListRecipes(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListRecipesResponseObject); ok {
 		if err := validResponse.VisitListRecipesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRules operation middleware
+func (sh *strictHandler) GetRules(w http.ResponseWriter, r *http.Request) {
+	var request GetRulesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRules(ctx, request.(GetRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRulesResponseObject); ok {
+		if err := validResponse.VisitGetRulesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -3,18 +3,23 @@ import type { OwnedCard } from '../../api/cards';
 import { ApiRequestError, type Me } from '../../auth/useAuth';
 import { CardImage } from '../collection/CardImage';
 import { CardSheet } from '../collection/CardSheet';
+import { TradeComposer } from '../trades/TradeComposer';
+import { tradeUnlockText } from '../trades/tradeModel';
 import { joinedText, MAX_SHOWCASE } from './profileModel';
 import { ShowcasePicker } from './ShowcasePicker';
 import { useProfile, useSetShowcase } from './useProfile';
 
-// A player's profile over the table: stats and showcase cards. Your own has "Edit showcase".
-export function Profile ({ username, me, onClose }: { username: string; me: Me; onClose: () => void })
+// A player's profile over the table: stats and showcase cards. Your own has "Edit showcase";
+// others' have "Propose trade".
+export function Profile ({ username, me, onClose, onTradeSent }: { username: string; me: Me; onClose: () => void; onTradeSent: () => void })
 {
     const profile = useProfile(username);
     const mine = username.toLowerCase() === me.username.toLowerCase();
     const save = useSetShowcase(username);
     const [editing, setEditing] = useState(false);
     const [open, setOpen] = useState<OwnedCard | null>(null);
+    const [trading, setTrading] = useState(false);
+    const locked = tradeUnlockText(me.tradeUnlockedAt);
     const p = profile.data;
 
     return (
@@ -52,6 +57,19 @@ export function Profile ({ username, me, onClose }: { username: string; me: Me; 
                             <Stat label="Top 3 weeks" value={p.podiums} />
                         </dl>
 
+                        {!mine && (
+                            <div className="mt-4">
+                                <button
+                                    onClick={() => setTrading(true)}
+                                    disabled={locked !== null}
+                                    className="w-full rounded-xl bg-[#e7b54a] py-3 text-sm font-bold text-[#170e10] active:scale-[0.98] disabled:opacity-50"
+                                >
+                                    Propose trade
+                                </button>
+                                {locked && <p className="mt-1.5 text-center text-xs text-[#bba595]">{locked}</p>}
+                            </div>
+                        )}
+
                         <div className="mt-6 flex items-end justify-between gap-3">
                             <div>
                                 <h2 className="font-serif text-lg font-bold">Showcase</h2>
@@ -85,6 +103,9 @@ export function Profile ({ username, me, onClose }: { username: string; me: Me; 
             </div>
 
             {open && <CardSheet card={open} onClose={() => setOpen(null)} />}
+            {trading && p && (
+                <TradeComposer username={p.username} onClose={() => setTrading(false)} onSent={() => { setTrading(false); onTradeSent(); }} />
+            )}
             {editing && p && (
                 <ShowcasePicker
                     initial={p.showcaseChosen ? p.showcase.map(c => c.id) : []}

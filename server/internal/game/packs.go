@@ -20,14 +20,17 @@ const (
 // Rarities in order, most common first.
 var Rarities = []Rarity{Common, Uncommon, Rare, Epic, Legendary}
 
-// DropChance per card, in percent (CLAUDE.md "Rarities"). Sums to 100.
-var DropChance = map[Rarity]float64{Common: 70, Uncommon: 20, Rare: 8, Epic: 1.8, Legendary: 0.2}
+// From server/rules/game.yaml (see rules.go).
+var (
+	// DropChance per card, in percent. Sums to 100.
+	DropChance map[Rarity]float64
+	// PityPacks: at least one Rare or better every PityPacks daily packs.
+	PityPacks int
+)
 
 const (
 	// PackSize is the number of cards in a daily pack.
 	PackSize = 5
-	// PityPacks: at least one Rare or better every PityPacks daily packs.
-	PityPacks = 7
 	// MaxLevel is the highest card level.
 	MaxLevel = 5
 	// LevelMultiplier: each level up multiplies a card's score by about this much.

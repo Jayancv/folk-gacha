@@ -25,6 +25,7 @@ import (
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
 	"cardgame/server/internal/trades"
+	"cardgame/server/internal/ws"
 )
 
 const defaultDatabaseURL = "postgres://cardgame:cardgame@localhost:55432/cardgame?sslmode=disable"
@@ -96,7 +97,12 @@ func run() error {
 	}
 	slog.Info("push notifications", "enabled", pushSvc != nil)
 
+	// Live events (GET /ws): trade changes go to both players' open sockets.
+	hub := ws.NewHub(ws.OriginHosts(origins))
 	tradesSvc := trades.NewService(pool)
+	tradesSvc.OnEvent = func(e trades.Event) {
+		hub.Send(e.To, ws.Event{Type: e.Type, TradeID: e.TradeID, By: e.By})
+	}
 	api := httpapi.NewServer(pool, httpapi.Services{
 		Auth:          auth.NewService(store.New(pool)),
 		Packs:         packs.NewService(pool),
@@ -107,6 +113,7 @@ func run() error {
 		PushPublicKey: vapidPublic,
 		Profiles:      profile.NewService(pool),
 		Trades:        tradesSvc,
+		Live:          hub,
 	}, authOpts)
 	srv := &http.Server{
 		Addr:              ":" + port,

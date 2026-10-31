@@ -17,6 +17,10 @@ export const PackOpenEvents = {
 export interface PackShowPayload
 {
     cards: CardData[];
+    /** Shown instead of the pack value once revealed (trade gifts: "Gift from asha"). */
+    title?: string;
+    /** Indexes of cards already revealed: dealt face up (coming back to opened gifts). */
+    faceUp?: number[];
 }
 
 export interface CardRevealedPayload

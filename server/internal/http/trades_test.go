@@ -30,6 +30,7 @@ func TestTradesNeedSignIn(t *testing.T) {
 		{"POST", "/trades/" + id.String() + "/decline", ""},
 		{"POST", "/trades/" + id.String() + "/cancel", ""},
 		{"GET", "/users/ben/cards", ""},
+		{"POST", "/gifts/open", ""},
 	} {
 		if rec := ts.do(t, r.method, r.path, r.body, nil); rec.Code != 401 {
 			t.Errorf("%s %s signed out: %d %s", r.method, r.path, rec.Code, rec.Body)
@@ -79,14 +80,6 @@ func TestTradeOverHTTP(t *testing.T) {
 	}
 	a1, a2, b1 := give(asha, "gaja-calf"), give(asha, "gaja-calf"), give(ben, "simha")
 	body := fmt.Sprintf(`{"to":"Ben","offer":["%s"],"request":["%s"]}`, a1, b1)
-
-	// Brand-new accounts can't trade yet.
-	if rec := ts.do(t, "POST", "/trades", body, ashaCookie); rec.Code != 403 || decode[Error](t, rec).Error != "trade_locked" {
-		t.Fatalf("new account: %d %s", rec.Code, rec.Body)
-	}
-	if _, err := pool.Exec(ctx, "UPDATE users SET trade_unlocked_at = now() - interval '1 hour'"); err != nil {
-		t.Fatal(err)
-	}
 
 	// Asha browses Ben's cards to pick what to ask for.
 	rec := ts.do(t, "GET", "/users/BEN/cards", "", ashaCookie)
@@ -149,21 +142,35 @@ func TestTradeOverHTTP(t *testing.T) {
 	if done.Status != "accepted" || done.ResolvedAt == nil || done.Offer[0].Card.AcquiredVia != "trade" || done.Offer[0].Card.InTrade {
 		t.Fatalf("accepted %+v", done)
 	}
-	// Their first trade together: each gets a gift card, and sees only their own.
-	if done.Gift == nil || done.Gift.AcquiredVia != "gift" || done.Gift.Rarity != "common" && done.Gift.Rarity != "uncommon" {
-		t.Fatalf("ben's gift %+v", done.Gift)
+	// Their first trade together: each gets a gift, waiting on the Pack tab.
+	if !done.Gifted {
+		t.Fatalf("ben's gift %+v", done)
 	}
-	ashaList := decode[TradeList](t, ts.do(t, "GET", "/trades", "", ashaCookie))
-	if g := ashaList.Trades[0].Gift; g == nil || g.Id == done.Gift.Id {
-		t.Fatalf("asha's gift %+v", g)
+	if me := decode[Me](t, ts.do(t, "GET", "/me", "", benCookie)); me.GiftsWaiting != 1 {
+		t.Fatalf("ben's gifts waiting %d", me.GiftsWaiting)
 	}
 	rec = ts.do(t, "POST", "/trades/"+tr.Id.String()+"/accept", "", benCookie)
 	if rec.Code != 409 || decode[Error](t, rec).Error != "not_open" {
 		t.Fatalf("accept twice: %d %s", rec.Code, rec.Body)
 	}
-	page := decode[CardPage](t, ts.do(t, "GET", "/cards", "", benCookie))
-	if page.Total != 2 || !slices.ContainsFunc(page.Cards, func(c Card) bool { return c.Id == a1 }) ||
-		!slices.ContainsFunc(page.Cards, func(c Card) bool { return c.Id == done.Gift.Id }) {
-		t.Fatalf("ben's cards after the trade (a1 and his gift) %+v", page)
+	if page := decode[CardPage](t, ts.do(t, "GET", "/cards", "", benCookie)); page.Total != 1 || page.Cards[0].Id != a1 {
+		t.Fatalf("ben's cards after the trade %+v", page)
+	}
+
+	// Opening it on the Pack tab makes the card.
+	rec = ts.do(t, "POST", "/gifts/open", "", benCookie)
+	if rec.Code != 200 {
+		t.Fatalf("open gifts: %d %s", rec.Code, rec.Body)
+	}
+	opened := decode[OpenedGifts](t, rec)
+	if len(opened.Gifts) != 1 || opened.Gifts[0].Partner != "asha" || opened.Gifts[0].Card.AcquiredVia != "gift" || opened.GiftsWaiting != 0 {
+		t.Fatalf("opened %+v", opened)
+	}
+	if page := decode[CardPage](t, ts.do(t, "GET", "/cards", "", benCookie)); page.Total != 2 ||
+		!slices.ContainsFunc(page.Cards, func(c Card) bool { return c.Id == opened.Gifts[0].Card.Id }) {
+		t.Fatalf("ben's cards with his gift %+v", page)
+	}
+	if rec := ts.do(t, "POST", "/gifts/open", "", benCookie); rec.Code != 404 || decode[Error](t, rec).Error != "no_gifts" {
+		t.Fatalf("open again: %d %s", rec.Code, rec.Body)
 	}
 }

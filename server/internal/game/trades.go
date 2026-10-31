@@ -6,14 +6,24 @@ import (
 	"time"
 )
 
-// Trading rules (starting values; tune in playtesting).
-const (
+// Trading rules, from server/rules/game.yaml (see rules.go).
+var (
 	// MaxTradeCards is the most cards on each side of an offer.
-	MaxTradeCards = 5
+	MaxTradeCards int
 	// DailyTradeLimit is how many offers a player can send per UTC day.
-	DailyTradeLimit = 5
+	DailyTradeLimit int
 	// TradeExpiry is how long an offer stays open.
-	TradeExpiry = 48 * time.Hour
+	TradeExpiry time.Duration
+	// NewAccountWait is how long after sign-up an account can start trading.
+	NewAccountWait time.Duration
+	// TradeHistory is how long finished offers keep showing in a player's list.
+	TradeHistory time.Duration
+	// PartnerGiftsPerWeek is how many partner gifts a player can get per weekly season:
+	// the first accepted trade between two players gives each of them one, so a main
+	// account can't farm a stream of alt accounts. 0 turns gifts off.
+	PartnerGiftsPerWeek int
+	// GiftRarities are what a partner gift can be.
+	GiftRarities []Rarity
 )
 
 // ErrBadOffer wraps every reason an offer's card lists are invalid.
@@ -40,9 +50,14 @@ func CheckOffer[ID comparable](offer, request []ID) error {
 	return nil
 }
 
-// CanTrade reports whether an account may trade at `now` (new accounts wait 7 days).
-func CanTrade(unlockedAt, now time.Time) bool {
-	return !now.Before(unlockedAt)
+// TradeUnlocksAt is when an account created at `created` can start trading.
+func TradeUnlocksAt(created time.Time) time.Time {
+	return created.Add(NewAccountWait)
+}
+
+// CanTrade reports whether an account created at `created` may trade at `now`.
+func CanTrade(created, now time.Time) bool {
+	return !now.Before(TradeUnlocksAt(created))
 }
 
 // TradeExpiresAt is when an offer made at `created` expires.
@@ -61,15 +76,7 @@ func MergedTraded(a, b bool) bool {
 	return a || b
 }
 
-// PartnerGiftsPerWeek is how many partner gifts a player can get per weekly season:
-// the first accepted trade between two players gives each of them one card, so a
-// main account can't farm a stream of alt accounts.
-const PartnerGiftsPerWeek = 2
-
-// GiftRarities are what a partner gift can be.
-var GiftRarities = []Rarity{Common, Uncommon}
-
-// GiftRarity rolls a partner gift's rarity: Common or Uncommon, in their pack odds (70:20).
+// GiftRarity rolls a partner gift's rarity among GiftRarities, in their pack odds.
 func GiftRarity(rng Rand) Rarity {
 	total := 0.0
 	for _, r := range GiftRarities {
@@ -81,7 +88,7 @@ func GiftRarity(rng Rand) Rarity {
 			return r
 		}
 	}
-	return Common // float rounding at t ≈ total
+	return GiftRarities[len(GiftRarities)-1] // float rounding at t ≈ total
 }
 
 // GiftWeek is the weekly season a gift given at t counts toward for PartnerGiftsPerWeek.

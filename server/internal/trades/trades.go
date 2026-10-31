@@ -2,7 +2,8 @@
 // transaction with row locks: creating an offer locks the offered cards in it,
 // accepting swaps all cards at once (or fails the offer if a card is gone), and
 // declining, cancelling or expiring unlocks them. The first accepted trade between
-// two players also gives each of them a gift card. Rules live in internal/game.
+// two players also gives each of them a gift, opened on the Pack tab (gifts.go).
+// Rules live in internal/game.
 package trades
 
 import (
@@ -30,7 +31,7 @@ var (
 	ErrNoSuchPlayer = errors.New("trades: no such player")
 	// ErrSelf: players can't trade with themselves.
 	ErrSelf = errors.New("trades: can't trade with yourself")
-	// ErrTradeLocked: the player's account is too new to trade (game.CanTrade).
+	// ErrTradeLocked: the player's account can't trade yet (game.CanTrade; no wait by default).
 	ErrTradeLocked = errors.New("trades: your account can't trade yet")
 	// ErrRecipientLocked: the other player's account is too new to trade.
 	ErrRecipientLocked = errors.New("trades: that player can't trade yet")
@@ -69,9 +70,6 @@ const (
 	SideRequest = "request" // the sender asks for these
 )
 
-// HistoryWindow is how long resolved offers keep showing in a player's list.
-const HistoryWindow = 7 * 24 * time.Hour
-
 // Service runs trades.
 type Service struct {
 	pool *pgxpool.Pool
@@ -79,6 +77,26 @@ type Service struct {
 	Now func() time.Time
 	// Rand picks partner gifts; replaceable in tests.
 	Rand game.Rand
+	// OnEvent, if set, is told about every change to an offer after it is committed
+	// (cmd/server sends them to the players' sockets). It must not block.
+	OnEvent func(Event)
+}
+
+// Event tells a player that one of their offers changed.
+type Event struct {
+	To      uuid.UUID
+	Type    string // EventReceived, or "trade." + the new status
+	TradeID uuid.UUID
+	By      string // the other player's username; empty for expiry
+}
+
+// EventReceived: a new offer was sent to the player.
+const EventReceived = "trade.received"
+
+func (s *Service) emit(e Event) {
+	if s.OnEvent != nil {
+		s.OnEvent(e)
+	}
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -98,14 +116,6 @@ type Item struct {
 	Card   *store.GetOwnedCardsRow
 }
 
-// Gift is the card a player got for trading with a new partner. Card is nil once
-// the card no longer exists (merged away).
-type Gift struct {
-	UserID uuid.UUID
-	CardID uuid.UUID
-	Card   *store.GetOwnedCardsRow
-}
-
 // Trade is an offer with its cards.
 type Trade struct {
 	ID         uuid.UUID
@@ -116,18 +126,13 @@ type Trade struct {
 	ResolvedAt *time.Time
 	// Offer: what From gives. Request: what From asks for (To's cards).
 	Offer, Request []Item
-	// Gifts: partner gifts this trade gave (0 to 2, one per player at most).
-	Gifts []Gift
+	// GiftedTo: players this trade gave a partner gift (0 to 2; see OpenGifts).
+	GiftedTo []uuid.UUID
 }
 
-// GiftFor is the gift `user` got for this trade, if any.
-func (t Trade) GiftFor(user uuid.UUID) (Gift, bool) {
-	for _, g := range t.Gifts {
-		if g.UserID == user {
-			return g, true
-		}
-	}
-	return Gift{}, false
+// Gifted reports whether `user` got a partner gift for this trade.
+func (t Trade) Gifted(user uuid.UUID) bool {
+	return slices.Contains(t.GiftedTo, user)
 }
 
 // NewOffer is an offer to make.
@@ -152,7 +157,11 @@ func (s *Service) Create(ctx context.Context, from uuid.UUID, o NewOffer) (Trade
 	if err != nil {
 		return Trade{}, err
 	}
-	return s.get(ctx, store.New(s.pool), id)
+	t, err := s.get(ctx, store.New(s.pool), id)
+	if err == nil {
+		s.emit(Event{To: t.To.ID, Type: EventReceived, TradeID: t.ID, By: t.From.Username})
+	}
+	return t, err
 }
 
 func createTx(ctx context.Context, q *store.Queries, from uuid.UUID, o NewOffer, now time.Time) (uuid.UUID, error) {
@@ -171,17 +180,17 @@ func createTx(ctx context.Context, q *store.Queries, from uuid.UUID, o NewOffer,
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if !game.CanTrade(sender.TradeUnlockedAt, now) {
+	if !game.CanTrade(sender.CreatedAt, now) {
 		return uuid.Nil, ErrTradeLocked
 	}
-	if !game.CanTrade(to.TradeUnlockedAt, now) {
+	if !game.CanTrade(to.CreatedAt, now) {
 		return uuid.Nil, ErrRecipientLocked
 	}
 	sent, err := q.CountTradesSince(ctx, store.CountTradesSinceParams{FromUser: from, Since: game.TradeDay(now)})
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if sent >= game.DailyTradeLimit {
+	if sent >= int64(game.DailyTradeLimit) {
 		return uuid.Nil, ErrDailyLimit
 	}
 
@@ -288,10 +297,10 @@ func (s *Service) Accept(ctx context.Context, user, id uuid.UUID) (Trade, error)
 	})
 }
 
-// givePartnerGifts gives both players one card (game.GiftRarity) the first time they
-// trade with each other, unless a player already got game.PartnerGiftsPerWeek this
-// week (the other still gets theirs). Gifts count as traded: no season points, even
-// when merged. With no card season or nothing left to give, there's no gift.
+// givePartnerGifts gives both players a gift the first time they trade with each
+// other, unless a player already got game.PartnerGiftsPerWeek this week (the other
+// still gets theirs). The gift waits on the Pack tab; its card is rolled when it is
+// opened (OpenGifts).
 func (s *Service) givePartnerGifts(ctx context.Context, q *store.Queries, t store.Trade, now time.Time) error {
 	a, b := t.FromUser, t.ToUser
 	if bytes.Compare(a[:], b[:]) > 0 {
@@ -301,59 +310,17 @@ func (s *Service) givePartnerGifts(ctx context.Context, q *store.Queries, t stor
 	if err != nil || !first {
 		return err
 	}
-	season, err := q.CurrentCardSeason(ctx, now)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	pullable, err := q.ListPullableCards(ctx, store.ListPullableCardsParams{CardSeasonID: season.ID})
-	if err != nil {
-		return err
-	}
-	var giftable []mint.Card
-	for _, c := range pullable {
-		if slices.Contains(game.GiftRarities, game.Rarity(c.Rarity)) {
-			giftable = append(giftable, c)
-		}
-	}
-	picks, err := mint.Pick(s.Rand, []game.Rarity{game.GiftRarity(s.Rand), game.GiftRarity(s.Rand)}, giftable)
-	if errors.Is(err, mint.ErrSoldOut) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
 	// Count the gifts in user id order, so trades accepted at once lock the week rows in the same order.
 	week := game.GiftWeek(now)
-	var to []uuid.UUID
 	for _, u := range []uuid.UUID{a, b} {
-		ok, err := q.CountGift(ctx, store.CountGiftParams{UserID: u, Week: week, MaxGifts: game.PartnerGiftsPerWeek})
+		ok, err := q.CountGift(ctx, store.CountGiftParams{UserID: u, Week: week, MaxGifts: int16(game.PartnerGiftsPerWeek)})
 		if err != nil {
 			return err
 		}
-		if ok {
-			to = append(to, u)
+		if !ok {
+			continue
 		}
-	}
-	if len(to) == 0 {
-		return nil
-	}
-	picks = picks[:len(to)]
-	copyNos, err := mint.Take(ctx, q, picks)
-	if err != nil {
-		return err
-	}
-	for i, u := range to {
-		id, err := q.CreateCard(ctx, store.CreateCardParams{
-			SeasonCardID: picks[i].ID, CopyNo: copyNos[i], OwnerID: u, Level: 1, AcquiredVia: "gift", Traded: true,
-		})
-		if err != nil {
-			return err
-		}
-		if err := q.AddTradeGift(ctx, store.AddTradeGiftParams{TradeID: t.ID, UserID: u, CardID: id}); err != nil {
+		if err := q.AddTradeGift(ctx, store.AddTradeGiftParams{TradeID: t.ID, UserID: u, CreatedAt: now}); err != nil {
 			return err
 		}
 	}
@@ -392,8 +359,9 @@ func (s *Service) Cancel(ctx context.Context, user, id uuid.UUID) (Trade, error)
 func (s *Service) resolve(ctx context.Context, user, id uuid.UUID, decide func(*store.Queries, store.Trade, time.Time) (string, error)) (Trade, error) {
 	now := s.Now()
 	var outcome error
+	var status string
 	err := mint.InTx(ctx, s.pool, func(q *store.Queries) error {
-		outcome = nil
+		outcome, status = nil, ""
 		t, err := q.LockTrade(ctx, id)
 		if errors.Is(err, pgx.ErrNoRows) || (err == nil && t.FromUser != user && t.ToUser != user) {
 			return ErrNotFound
@@ -404,7 +372,7 @@ func (s *Service) resolve(ctx context.Context, user, id uuid.UUID, decide func(*
 		if t.Status != StatusOpen {
 			return &NotOpenError{Status: t.Status}
 		}
-		status, err := decide(q, t, now)
+		status, err = decide(q, t, now)
 		if status == "" {
 			if err == nil {
 				err = fmt.Errorf("trades: no status decided for %s", id)
@@ -425,18 +393,27 @@ func (s *Service) resolve(ctx context.Context, user, id uuid.UUID, decide func(*
 	if err != nil {
 		return Trade{}, err
 	}
+	// Tell the other player (the one who didn't act).
+	other, by := t.From.ID, t.To.Username
+	if user == t.From.ID {
+		other, by = t.To.ID, t.From.Username
+	}
+	if status == StatusExpired {
+		by = ""
+	}
+	s.emit(Event{To: other, Type: "trade." + status, TradeID: t.ID, By: by})
 	return t, outcome
 }
 
 // List returns the player's open offers (sent and received) and those resolved in
-// the last HistoryWindow, newest first. Offers past their time are expired first.
+// the last game.TradeHistory, newest first. Offers past their time are expired first.
 func (s *Service) List(ctx context.Context, user uuid.UUID) ([]Trade, error) {
 	now := s.Now()
 	q := store.New(s.pool)
-	if _, err := q.ExpireDueTrades(ctx, now); err != nil {
+	if _, err := s.expire(ctx, q, now); err != nil {
 		return nil, err
 	}
-	rows, err := q.ListTrades(ctx, store.ListTradesParams{UserID: user, Since: now.Add(-HistoryWindow)})
+	rows, err := q.ListTrades(ctx, store.ListTradesParams{UserID: user, Since: now.Add(-game.TradeHistory)})
 	if err != nil {
 		return nil, err
 	}
@@ -452,8 +429,18 @@ func (s *Service) List(ctx context.Context, user uuid.UUID) ([]Trade, error) {
 
 // Expire resolves every open offer past its time and unlocks its cards.
 func (s *Service) Expire(ctx context.Context) (int, error) {
-	n, err := store.New(s.pool).ExpireDueTrades(ctx, s.Now())
-	return int(n), err
+	return s.expire(ctx, store.New(s.pool), s.Now())
+}
+
+// expire expires due offers and tells both players of each.
+func (s *Service) expire(ctx context.Context, q *store.Queries, now time.Time) (int, error) {
+	due, err := q.ExpireDueTrades(ctx, now)
+	for _, t := range due {
+		for _, u := range []uuid.UUID{t.FromUser, t.ToUser} {
+			s.emit(Event{To: u, Type: "trade." + StatusExpired, TradeID: t.ID})
+		}
+	}
+	return len(due), err
 }
 
 // Run expires offers now and then every `every` until ctx is done (offers also
@@ -522,12 +509,9 @@ func (s *Service) fillItems(ctx context.Context, q *store.Queries, trades []Trad
 	if err != nil {
 		return err
 	}
-	cardIDs := make([]uuid.UUID, 0, len(items)+len(gifts))
-	for _, it := range items {
-		cardIDs = append(cardIDs, it.CardID)
-	}
-	for _, g := range gifts {
-		cardIDs = append(cardIDs, g.CardID)
+	cardIDs := make([]uuid.UUID, len(items))
+	for i, it := range items {
+		cardIDs[i] = it.CardID
 	}
 	cards, err := q.GetOwnedCards(ctx, cardIDs)
 	if err != nil {
@@ -548,7 +532,7 @@ func (s *Service) fillItems(ctx context.Context, q *store.Queries, trades []Trad
 	}
 	for _, g := range gifts {
 		t := &trades[index[g.TradeID]]
-		t.Gifts = append(t.Gifts, Gift{UserID: g.UserID, CardID: g.CardID, Card: byID[g.CardID]})
+		t.GiftedTo = append(t.GiftedTo, g.UserID)
 	}
 	return nil
 }

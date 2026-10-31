@@ -50,6 +50,12 @@ paths:
     $ref: ./paths/trades/{tradeId}/decline.yaml
   /trades/{tradeId}/cancel:
     $ref: ./paths/trades/{tradeId}/cancel.yaml
+  /live/ticket:
+    $ref: ./paths/live/ticket.yaml
+  /gifts/open:
+    $ref: ./paths/gifts/open.yaml
+  /rules:
+    $ref: ./paths/rules.yaml
   /leaderboard/current:
     $ref: ./paths/leaderboard/current.yaml
   /leaderboard/{seasonId}:
@@ -114,3 +120,9 @@ components:
       $ref: ./schemas/TradeList.yaml
     TradeStatus:
       $ref: ./schemas/TradeStatus.yaml
+    LiveTicket:
+      $ref: ./schemas/LiveTicket.yaml
+    OpenedGifts:
+      $ref: ./schemas/OpenedGifts.yaml
+    GameRules:
+      $ref: ./schemas/GameRules.yaml

@@ -10,23 +10,13 @@ import { ensureFxTextures, ensureTableBackground, FX, releaseFaceTextures, textu
 import { EventBus } from '../../bridge/EventBus';
 import { PackOpenEvents, type CardRevealedPayload, type PackShowPayload } from '../../bridge/events';
 import { DESIGN_WIDTH, type Viewport } from '../layout';
-import { revealHint, summaryText } from '../pack/packModel';
+import { MAX_PACK_CARDS, packSlots, revealHint, summaryText } from '../pack/packModel';
 import { coverVisible, ResponsiveScene } from '../ResponsiveScene';
 
-// Grid: 3 cards on top, 2 below, centred in the safe area.
+// Grid: a daily pack is 3 cards on top and 2 below; fewer (trade gifts) sit centred (packSlots).
 const GAP = 18;
 const GRID_CENTER_Y = 650;
-const SLOTS: { x: number; y: number }[] = (() =>
-{
-    const cx = DESIGN_WIDTH / 2;
-    const dx = CARD_W + GAP;
-    const top = GRID_CENTER_Y - (CARD_H + GAP) / 2;
-    const bottom = GRID_CENTER_Y + (CARD_H + GAP) / 2;
-    return [
-        { x: cx - dx, y: top }, { x: cx, y: top }, { x: cx + dx, y: top },
-        { x: cx - dx / 2, y: bottom }, { x: cx + dx / 2, y: bottom }
-    ];
-})();
+const STEP = { x: CARD_W + GAP, y: CARD_H + GAP };
 
 const TAP_SLOP = 14;
 const DEPTH = { cards: 10, fx: 1000, inspect: 2000 };
@@ -56,6 +46,8 @@ export class PackOpen extends ResponsiveScene
     private dealing = false;
     private flipsInFlight = 0;
     private completed = false;
+    // Replaces the pack value in the summary (trade gifts).
+    private title?: string;
     private topDepth = DEPTH.cards;
     private gesture: Gesture | null = null;
 
@@ -118,8 +110,9 @@ export class PackOpen extends ResponsiveScene
 
     // ---------- Dealing ----------
 
-    private onShow ({ cards }: PackShowPayload)
+    private onShow ({ cards, title, faceUp = [] }: PackShowPayload)
     {
+        this.title = title;
         this.clearPack();
         this.completed = false;
         this.dealing = true;
@@ -128,17 +121,23 @@ export class PackOpen extends ResponsiveScene
 
         const scale = textureScaleFor(this.viewport.zoom);
         const fromY = this.viewport.visible.y + this.viewport.visible.height + CARD_H;
-        const dealt = cards.slice(0, SLOTS.length);
+        const dealt = cards.slice(0, MAX_PACK_CARDS);
+        const slots = packSlots(dealt.length, DESIGN_WIDTH / 2, GRID_CENTER_Y, STEP);
+        if (dealt.length === 0)
+        {
+            this.dealing = false; // an empty deal just clears the table
+            return;
+        }
 
         this.cards = dealt.map((card, i) =>
         {
-            const view = new CardView(this, card, DESIGN_WIDTH / 2, fromY, scale)
+            const view = new CardView(this, card, DESIGN_WIDTH / 2, fromY, scale, faceUp.includes(i))
                 .setDepth(++this.topDepth)
                 .setAngle(PMath.Between(-12, 12));
             this.tweens.add({
                 targets: view,
-                x: SLOTS[i].x,
-                y: SLOTS[i].y,
+                x: slots[i].x,
+                y: slots[i].y,
                 angle: 0,
                 delay: 120 + i * 90,
                 duration: 520,
@@ -151,6 +150,7 @@ export class PackOpen extends ResponsiveScene
                         this.dealing = false;
                         this.updateHint();
                         this.revealAllButton.setVisible(true);
+                        this.checkComplete(); // all dealt face up: already revealed
                     }
                 }
             });
@@ -291,12 +291,12 @@ export class PackOpen extends ResponsiveScene
         this.revealAllButton.setVisible(false);
 
         const cards = this.cards.map(c => c.card);
-        this.summary.setText(summaryText(cards));
+        this.summary.setText(summaryText(cards, this.title));
         this.summary.setAlpha(0).setY(1080);
         this.tweens.add({ targets: this.summary, alpha: 1, y: 1060, duration: 400, ease: 'Cubic.easeOut' });
         this.hint.setText('Tap a card to see it up close');
 
-        const payload: PackShowPayload = { cards };
+        const payload: PackShowPayload = { cards, title: this.title };
         EventBus.emit(PackOpenEvents.Complete, payload);
     }
 

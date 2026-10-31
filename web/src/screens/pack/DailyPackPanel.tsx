@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ClaimError } from '../../api/game';
 import type { Me } from '../../auth/useAuth';
 import { claimErrorText, nextPackText } from './dailyPack';
+import { GiftButton, type GiftsWaiting } from './GiftButton';
 
 interface Props
 {
@@ -13,11 +14,13 @@ interface Props
     onReset: () => void;
     /** Shown under the countdown while waiting (the "notify me" line). */
     waitingFooter?: React.ReactNode;
+    /** Trade gifts to open, if any are waiting. */
+    gifts?: GiftsWaiting;
 }
 
 // Shown over the Pack table before today's pack is open: the claim button, or a
 // countdown to the next 00:00 UTC reset when today's pack is already open.
-export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, waitingFooter }: Props)
+export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, waitingFooter, gifts }: Props)
 {
     const [now, setNow] = useState(() => Date.now());
     const waiting = status !== undefined && !status.ready;
@@ -68,6 +71,11 @@ export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, wai
                 )}
                 {error && error !== 'already_claimed' && (
                     <p role="alert" className="text-xs text-rose-300">{claimErrorText(error)}</p>
+                )}
+                {gifts && gifts.waiting > 0 && (
+                    <div className="mt-1 border-t border-[#3b2529] pt-3">
+                        <GiftButton gifts={gifts} subtle={!waiting} />
+                    </div>
                 )}
             </div>
         </div>

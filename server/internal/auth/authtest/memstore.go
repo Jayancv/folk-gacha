@@ -66,7 +66,7 @@ func (m *MemStore) CreateUser(_ context.Context, arg store.CreateUserParams) (st
 		return store.User{}, &pgconn.PgError{Code: "23514", ConstraintName: "users_username_check"}
 	}
 	now := m.Now().UTC()
-	u := store.User{ID: uuid.New(), AuthID: arg.AuthID, Username: arg.Username, CreatedAt: now, TradeUnlockedAt: now.Add(7 * 24 * time.Hour)}
+	u := store.User{ID: uuid.New(), AuthID: arg.AuthID, Username: arg.Username, CreatedAt: now, TradeUnlockedAt: now}
 	m.users = append(m.users, u)
 	return u, nil
 }

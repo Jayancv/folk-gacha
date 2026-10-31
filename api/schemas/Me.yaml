@@ -5,6 +5,7 @@ required:
   - createdAt
   - tradeUnlockedAt
   - tutorialDone
+  - giftsWaiting
 properties:
   id:
     type: string
@@ -17,12 +18,15 @@ properties:
   tradeUnlockedAt:
     type: string
     format: date-time
-    description: When this account may start trading (created + 7 days, UTC)
+    description: When this account may start trading (UTC; at sign-up, no wait)
   dailyPack:
     $ref: ./DailyPackStatus.yaml
   displayName:
     type: string
     description: Your full name from Google (only ever shown to you); absent for dev logins
+  giftsWaiting:
+    type: integer
+    description: Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open)
   tutorialDone:
     type: boolean
     description: The player finished or skipped the first-time tutorial (on any device)

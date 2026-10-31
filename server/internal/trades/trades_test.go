@@ -45,7 +45,7 @@ func setup(t *testing.T) (*pgxpool.Pool, *trades.Service, *time.Time) {
 	return pool, svc, &clock
 }
 
-// newUser makes a player whose 7-day trade lock is over.
+// newUser makes a player who joined well before t0 (past any new-account wait).
 func newUser(t *testing.T, pool *pgxpool.Pool, name string) uuid.UUID {
 	t.Helper()
 	ctx := context.Background()
@@ -53,7 +53,7 @@ func newUser(t *testing.T, pool *pgxpool.Pool, name string) uuid.UUID {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, "UPDATE users SET trade_unlocked_at = $2 WHERE id = $1", u.ID, t0.Add(-time.Hour)); err != nil {
+	if _, err := pool.Exec(ctx, "UPDATE users SET created_at = $2 WHERE id = $1", u.ID, t0.AddDate(0, 0, -30)); err != nil {
 		t.Fatal(err)
 	}
 	return u.ID
@@ -227,10 +227,15 @@ func TestCreateChecks(t *testing.T) {
 		t.Errorf("asked for a card locked in another offer: %v", err)
 	}
 
-	// New accounts wait 7 days, on both sides.
+	// With a new-account wait (rules: trading.newAccountWaitDays), it holds on both sides.
+	r := game.CurrentRules()
+	t.Cleanup(func() { game.UseRules(r) })
+	wait := r
+	wait.Trading.NewAccountWaitDays = 7
+	game.UseRules(wait)
 	dan := newUser(t, pool, "dan")
 	d1 := give(t, pool, dan, "malu", 0, 1)
-	if _, err := pool.Exec(ctx, "UPDATE users SET trade_unlocked_at = $2 WHERE id = $1", dan, t0.Add(time.Hour)); err != nil {
+	if _, err := pool.Exec(ctx, "UPDATE users SET created_at = $2 WHERE id = $1", dan, t0.Add(time.Hour).AddDate(0, 0, -7)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.Create(ctx, dan, offer("asha", ids(d1), ids(a1))); !errors.Is(err, trades.ErrTradeLocked) {

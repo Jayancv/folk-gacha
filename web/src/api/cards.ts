@@ -16,6 +16,8 @@ export interface OwnedCard extends CardData
     maxCopies?: number;
     acquiredVia: ApiCard['acquiredVia'];
     acquiredAt: string;
+    /** Offered in an open trade: locked (no merging, no other offers) until the offer ends. */
+    inTrade: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export function toCardData (c: ApiCard, configs: Record<string, SeasonArtConfig>
         copyNo: c.copyNo,
         maxCopies: c.maxCopies,
         acquiredVia: c.acquiredVia,
-        acquiredAt: c.acquiredAt
+        acquiredAt: c.acquiredAt,
+        inTrade: c.inTrade
     };
 }

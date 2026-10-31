@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { OwnedCard } from '../../api/cards';
 import { ELEMENT_STYLE, RARITIES, RARITY_STYLE } from '../../game/cards/model';
+import { InTradeBadge } from '../trades/InTradeBadge';
 import { CardImage } from './CardImage';
 import { CardSheet } from './CardSheet';
 import {
@@ -131,10 +132,11 @@ export function Collection ()
                             <li key={card.id}>
                                 <button
                                     onClick={() => setOpen(card)}
-                                    className="block w-full rounded-[6%] transition-transform active:scale-95"
-                                    aria-label={`${card.name}, level ${card.level}`}
+                                    className="relative block w-full rounded-[6%] transition-transform active:scale-95"
+                                    aria-label={`${card.name}, level ${card.level}${card.inTrade ? ', in an open trade' : ''}`}
                                 >
                                     <CardImage card={card} />
+                                    {card.inTrade && <InTradeBadge />}
                                 </button>
                             </li>
                         ))}

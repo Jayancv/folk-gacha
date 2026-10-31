@@ -38,12 +38,25 @@ func TestCheckOffer(t *testing.T) {
 	}
 }
 
-func TestCanTradeAfterTheLock(t *testing.T) {
-	unlock := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
-	if CanTrade(unlock, unlock.Add(-time.Second)) {
+func TestCanTradeAfterTheWait(t *testing.T) {
+	r := CurrentRules()
+	t.Cleanup(func() { UseRules(r) })
+	joined := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
+	if !CanTrade(joined, joined) {
+		t.Error("game.yaml has no wait: an account trades from sign-up")
+	}
+
+	wait := r
+	wait.Trading.NewAccountWaitDays = 7
+	UseRules(wait)
+	unlock := joined.AddDate(0, 0, 7)
+	if !TradeUnlocksAt(joined).Equal(unlock) {
+		t.Errorf("unlocks %v", TradeUnlocksAt(joined))
+	}
+	if CanTrade(joined, unlock.Add(-time.Second)) {
 		t.Error("traded a second before the unlock")
 	}
-	if !CanTrade(unlock, unlock) || !CanTrade(unlock, unlock.Add(time.Hour)) {
+	if !CanTrade(joined, unlock) || !CanTrade(joined, unlock.Add(time.Hour)) {
 		t.Error("can't trade at or after the unlock")
 	}
 }

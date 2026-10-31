@@ -351,6 +351,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/live/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A ticket to open the live events socket
+         * @description Single-use, valid for one minute. Open `GET /ws?ticket=…` with it (a WebSocket, not part of this
+         *     spec). The socket sends JSON events `{type, tradeId?, by?}`: trade.received, trade.accepted,
+         *     trade.declined, trade.cancelled, trade.expired, trade.failed. Events only say what changed;
+         *     refetch what you show. The ticket lets the socket go straight to the API server, where the
+         *     web app's session cookie isn't sent.
+         */
+        post: operations["getLiveTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifts/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open your waiting partner gifts
+         * @description Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
+         *     current card season, rolled now. Gift cards count as traded, so they never earn season points.
+         */
+        post: operations["openGifts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The game rules players see
+         * @description The tunable limits from server/rules/game.yaml that the app shows or enforces in its screens. Public.
+         */
+        get: operations["getRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leaderboard/current": {
         parameters: {
             query?: never;
@@ -465,12 +530,14 @@ export interface components {
             createdAt: string;
             /**
              * Format: date-time
-             * @description When this account may start trading (created + 7 days, UTC)
+             * @description When this account may start trading (UTC; at sign-up, no wait)
              */
             tradeUnlockedAt: string;
             dailyPack?: components["schemas"]["DailyPackStatus"];
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
             displayName?: string;
+            /** @description Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open) */
+            giftsWaiting: number;
             /** @description The player finished or skipped the first-time tutorial (on any device) */
             tutorialDone: boolean;
         };
@@ -681,8 +748,8 @@ export interface components {
             offer: components["schemas"]["TradeItem"][];
             /** @description Cards the sender asks for (the recipient's). A card that no longer exists has no card field. */
             request: components["schemas"]["TradeItem"][];
-            /** @description The card you got for this trade: the first accepted trade between two players gives each of them one Common or Uncommon card (at most 2 such gifts per player per week). Absent if you got none, or the card no longer exists. */
-            gift?: components["schemas"]["Card"];
+            /** @description This trade gave you a partner gift: the first accepted trade between two players gives each of them one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open). */
+            gifted: boolean;
         };
         /** @description One card of an offer */
         TradeItem: {
@@ -700,6 +767,34 @@ export interface components {
          * @enum {string}
          */
         TradeStatus: "open" | "accepted" | "declined" | "cancelled" | "expired" | "failed";
+        /** @description A single-use ticket for the live events socket */
+        LiveTicket: {
+            ticket: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        OpenedGifts: {
+            gifts: {
+                /** @description Username of the player the trade was with */
+                partner: string;
+                card: components["schemas"]["Card"];
+            }[];
+            /** @description Gifts still waiting (more than 5 open over several opens) */
+            giftsWaiting: number;
+        };
+        /** @description Game limits from server/rules/game.yaml */
+        GameRules: {
+            /** @description Most cards on each side of a trade offer */
+            maxTradeCards: number;
+            /** @description Offers a player can send per UTC day */
+            dailyOfferLimit: number;
+            /** @description How long an offer stays open */
+            offerExpiryHours: number;
+            /** @description Days after sign-up before an account can trade (0 = none) */
+            newAccountWaitDays: number;
+            /** @description Partner gifts a player can get per leaderboard week (0 = gifts off) */
+            partnerGiftsPerWeek: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -1350,7 +1445,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Your account can't trade yet (trade_locked; 7 days after joining) */
+            /** @description Your account can't trade yet (trade_locked; no wait by default) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -1531,6 +1626,111 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getLiveTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ticket */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveTicket"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    openGifts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The opened gifts, in reveal order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenedGifts"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No gifts waiting (no_gifts) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No Common or Uncommon card has copies left (sold_out) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No card season is open (no_season) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rules in use */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameRules"];
                 };
             };
         };

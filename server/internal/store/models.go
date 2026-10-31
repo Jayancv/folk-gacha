@@ -140,9 +140,11 @@ type Trade struct {
 }
 
 type TradeGift struct {
-	TradeID uuid.UUID
-	UserID  uuid.UUID
-	CardID  uuid.UUID
+	TradeID   uuid.UUID
+	UserID    uuid.UUID
+	CardID    pgtype.UUID
+	CreatedAt time.Time
+	OpenedAt  pgtype.Timestamptz
 }
 
 type TradeGiftWeek struct {

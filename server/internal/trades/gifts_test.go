@@ -2,6 +2,7 @@ package trades_test
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -13,10 +14,10 @@ import (
 	"cardgame/server/internal/trades"
 )
 
-// gifts counts each player's gift cards.
-func gifts(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]int {
+// waiting counts each player's unopened gifts.
+func waiting(t *testing.T, pool *pgxpool.Pool) map[uuid.UUID]int {
 	t.Helper()
-	rows, err := pool.Query(context.Background(), "SELECT owner_id, count(*) FROM cards WHERE acquired_via = 'gift' GROUP BY owner_id")
+	rows, err := pool.Query(context.Background(), "SELECT user_id, count(*) FROM trade_gifts WHERE opened_at IS NULL GROUP BY user_id")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,49 +49,60 @@ func trade(t *testing.T, pool *pgxpool.Pool, svc *trades.Service, from, to uuid.
 	return done
 }
 
-func TestFirstTradeGivesBothPlayersAGift(t *testing.T) {
+func TestFirstTradeGivesBothPlayersAGiftToOpen(t *testing.T) {
 	pool, svc, _ := setup(t)
+	ctx := context.Background()
 	asha, ben := newUser(t, pool, "asha"), newUser(t, pool, "ben")
 
 	done := trade(t, pool, svc, asha, ben, "ben")
-	if len(done.Gifts) != 2 {
-		t.Fatalf("gifts %+v", done.Gifts)
+	if !done.Gifted(asha) || !done.Gifted(ben) {
+		t.Fatalf("gifted %v", done.GiftedTo)
 	}
-	for _, u := range []uuid.UUID{asha, ben} {
-		g, ok := done.GiftFor(u)
-		if !ok || g.Card == nil {
-			t.Fatalf("no gift for %s: %+v", u, done.Gifts)
-		}
-		if g.Card.OwnerID != u || g.Card.Level != 1 || g.Card.AcquiredVia != "gift" || g.Card.InTrade {
-			t.Errorf("gift %+v", g.Card)
-		}
-		if r := game.Rarity(g.Card.Rarity); r != game.Common && r != game.Uncommon {
-			t.Errorf("gift rarity %s", r)
-		}
-		// Gifts count as traded, so they never turn into season points.
-		if s := state(t, pool, g.CardID); !s.traded {
-			t.Errorf("gift not marked traded: %+v", s)
-		}
+	// The gift waits on the Pack tab: no card until it is opened.
+	var giftCards int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM cards WHERE acquired_via = 'gift'").Scan(&giftCards); err != nil || giftCards != 0 {
+		t.Fatalf("gift cards before opening: %d (%v)", giftCards, err)
 	}
-	var points int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM season_points").Scan(&points); err != nil || points != 0 {
-		t.Errorf("season points rows %d (%v)", points, err)
+	if n, err := svc.WaitingGifts(ctx, asha); err != nil || n != 1 {
+		t.Fatalf("asha waiting %d (%v)", n, err)
 	}
 
-	// Trading again with the same partner (either direction) gives nothing.
-	if again := trade(t, pool, svc, ben, asha, "asha"); len(again.Gifts) != 0 {
-		t.Errorf("second trade gifts %+v", again.Gifts)
-	}
-	if g := gifts(t, pool); g[asha] != 1 || g[ben] != 1 {
-		t.Errorf("gifts %v", g)
-	}
-	// A list shows each trade's gifts too.
-	list, err := svc.List(context.Background(), asha)
+	opened, err := svc.OpenGifts(ctx, asha)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 2 || len(list[0].Gifts)+len(list[1].Gifts) != 2 {
-		t.Errorf("listed gifts %+v", list)
+	if len(opened) != 1 || opened[0].Partner != "ben" || opened[0].TradeID != done.ID {
+		t.Fatalf("opened %+v", opened)
+	}
+	c := opened[0].Card
+	if c.OwnerID != asha || c.Level != 1 || c.AcquiredVia != "gift" || c.InTrade {
+		t.Errorf("gift %+v", c)
+	}
+	if r := game.Rarity(c.Rarity); r != game.Common && r != game.Uncommon {
+		t.Errorf("gift rarity %s", r)
+	}
+	// Gifts count as traded, so they never turn into season points.
+	if s := state(t, pool, c.ID); !s.traded {
+		t.Errorf("gift not marked traded: %+v", s)
+	}
+	var points int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM season_points").Scan(&points); err != nil || points != 0 {
+		t.Errorf("season points rows %d (%v)", points, err)
+	}
+	// Opened once; Ben's is still his to open.
+	if _, err := svc.OpenGifts(ctx, asha); !errors.Is(err, trades.ErrNoGifts) {
+		t.Errorf("open again: %v", err)
+	}
+	if w := waiting(t, pool); w[asha] != 0 || w[ben] != 1 {
+		t.Errorf("waiting %v", w)
+	}
+
+	// Trading again with the same partner (either direction) gives nothing.
+	if again := trade(t, pool, svc, ben, asha, "asha"); len(again.GiftedTo) != 0 {
+		t.Errorf("second trade gifts %v", again.GiftedTo)
+	}
+	if w := waiting(t, pool); w[asha] != 0 || w[ben] != 1 {
+		t.Errorf("waiting after a second trade %v", w)
 	}
 }
 
@@ -106,14 +118,22 @@ func TestPartnerGiftsAreCappedPerWeek(t *testing.T) {
 		trade(t, pool, svc, others[n], asha, "asha")
 	}
 	// Asha's third new partner this week still gets their gift; Asha doesn't.
-	g := gifts(t, pool)
-	if g[asha] != game.PartnerGiftsPerWeek || g[others["ben"]] != 1 || g[others["cara"]] != 1 || g[others["dev"]] != 1 {
-		t.Fatalf("gifts %v", g)
+	w := waiting(t, pool)
+	if w[asha] != game.PartnerGiftsPerWeek || w[others["ben"]] != 1 || w[others["cara"]] != 1 || w[others["dev"]] != 1 {
+		t.Fatalf("waiting %v", w)
 	}
 	// Next Monday the cap starts over.
 	*clock = time.Date(2026, 11, 9, 0, 1, 0, 0, time.UTC)
-	if done := trade(t, pool, svc, others["eli"], asha, "asha"); len(done.Gifts) != 2 {
-		t.Errorf("next week gifts %+v", done.Gifts)
+	if done := trade(t, pool, svc, others["eli"], asha, "asha"); len(done.GiftedTo) != 2 {
+		t.Errorf("next week gifts %v", done.GiftedTo)
+	}
+	// All waiting gifts open together, oldest first (last week's two, then this week's).
+	opened, err := svc.OpenGifts(context.Background(), asha)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 3 || opened[2].Partner != "eli" {
+		t.Errorf("opened %+v", opened)
 	}
 }
 
@@ -131,7 +151,8 @@ func TestGiftCapHoldsForTradesAcceptedAtOnce(t *testing.T) {
 		offers = append(offers, tr.ID)
 	}
 	// The same two players twice at once: one pair of gifts.
-	ben2, err := svc.Create(ctx, asha, offer("ben", ids(give(t, pool, asha, "simha", 0, 1)), ids(give(t, pool, others(t, pool, "ben"), "ura", 0, 1))))
+	ben := others(t, pool, "ben")
+	ben2, err := svc.Create(ctx, asha, offer("ben", ids(give(t, pool, asha, "simha", 0, 1)), ids(give(t, pool, ben, "ura", 0, 1))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,16 +164,45 @@ func TestGiftCapHoldsForTradesAcceptedAtOnce(t *testing.T) {
 		go func() { defer wg.Done(); _, errs[i] = svc.Accept(ctx, asha, id) }()
 	}
 	wg.Add(1)
-	go func() { defer wg.Done(); _, errs[len(offers)] = svc.Accept(ctx, others(t, pool, "ben"), ben2.ID) }()
+	go func() { defer wg.Done(); _, errs[len(offers)] = svc.Accept(ctx, ben, ben2.ID) }()
 	wg.Wait()
 	for i, err := range errs {
 		if err != nil {
 			t.Fatalf("accept %d: %v", i, err)
 		}
 	}
-	g := gifts(t, pool)
-	if g[asha] != game.PartnerGiftsPerWeek || g[others(t, pool, "ben")] != 1 {
-		t.Errorf("gifts %v", g)
+	if w := waiting(t, pool); w[asha] != game.PartnerGiftsPerWeek || w[ben] != 1 {
+		t.Errorf("waiting %v", w)
+	}
+}
+
+func TestOpeningAtOnceOpensEachGiftOnce(t *testing.T) {
+	pool, svc, _ := setup(t)
+	ctx := context.Background()
+	asha, ben := newUser(t, pool, "asha"), newUser(t, pool, "ben")
+	trade(t, pool, svc, asha, ben, "ben")
+
+	var wg sync.WaitGroup
+	results := make([][]trades.OpenedGift, 4)
+	errs := make([]error, 4)
+	for i := range results {
+		wg.Add(1)
+		go func() { defer wg.Done(); results[i], errs[i] = svc.OpenGifts(ctx, ben) }()
+	}
+	wg.Wait()
+	cards := 0
+	for i := range results {
+		if errs[i] != nil && !errors.Is(errs[i], trades.ErrNoGifts) {
+			t.Fatalf("open %d: %v", i, errs[i])
+		}
+		cards += len(results[i])
+	}
+	var minted int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM cards WHERE owner_id = $1 AND acquired_via = 'gift'", ben).Scan(&minted); err != nil {
+		t.Fatal(err)
+	}
+	if cards != 1 || minted != 1 {
+		t.Errorf("opened %d gifts, %d gift cards; want 1", cards, minted)
 	}
 }
 

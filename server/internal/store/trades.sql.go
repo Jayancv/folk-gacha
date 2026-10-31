@@ -14,17 +14,18 @@ import (
 )
 
 const addTradeGift = `-- name: AddTradeGift :exec
-INSERT INTO trade_gifts (trade_id, user_id, card_id) VALUES ($1, $2, $3)
+INSERT INTO trade_gifts (trade_id, user_id, created_at) VALUES ($1, $2, $3)
 `
 
 type AddTradeGiftParams struct {
-	TradeID uuid.UUID
-	UserID  uuid.UUID
-	CardID  uuid.UUID
+	TradeID   uuid.UUID
+	UserID    uuid.UUID
+	CreatedAt time.Time
 }
 
+// A gift waiting on the player's Pack tab; its card is made when they open it.
 func (q *Queries) AddTradeGift(ctx context.Context, arg AddTradeGiftParams) error {
-	_, err := q.db.Exec(ctx, addTradeGift, arg.TradeID, arg.UserID, arg.CardID)
+	_, err := q.db.Exec(ctx, addTradeGift, arg.TradeID, arg.UserID, arg.CreatedAt)
 	return err
 }
 
@@ -118,6 +119,17 @@ func (q *Queries) CountTradesSince(ctx context.Context, arg CountTradesSincePara
 	return count, err
 }
 
+const countWaitingGifts = `-- name: CountWaitingGifts :one
+SELECT count(*) FROM trade_gifts WHERE user_id = $1 AND opened_at IS NULL
+`
+
+func (q *Queries) CountWaitingGifts(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countWaitingGifts, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createTrade = `-- name: CreateTrade :one
 INSERT INTO trades (from_user, to_user, created_at, expires_at)
 VALUES ($1, $2, $3, $4)
@@ -143,26 +155,46 @@ func (q *Queries) CreateTrade(ctx context.Context, arg CreateTradeParams) (uuid.
 	return id, err
 }
 
-const expireDueTrades = `-- name: ExpireDueTrades :one
+const expireDueTrades = `-- name: ExpireDueTrades :many
 WITH due AS (
     UPDATE trades SET status = 'expired', resolved_at = $1::timestamptz
     WHERE status = 'open' AND expires_at <= $1::timestamptz
-    RETURNING id
+    RETURNING id, from_user, to_user
 ), unlocked AS (
     UPDATE cards SET locked_in_trade_id = NULL
     WHERE locked_in_trade_id IN (SELECT id FROM due)
     RETURNING 1
 )
-SELECT count(*) FROM due
+SELECT id, from_user, to_user FROM due
 `
 
-// Expires open offers past their time and unlocks their cards. Waits for (and then
-// skips) a trade that an accept is finishing, since that takes the same row lock.
-func (q *Queries) ExpireDueTrades(ctx context.Context, now time.Time) (int64, error) {
-	row := q.db.QueryRow(ctx, expireDueTrades, now)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type ExpireDueTradesRow struct {
+	ID       uuid.UUID
+	FromUser uuid.UUID
+	ToUser   uuid.UUID
+}
+
+// Expires open offers past their time and unlocks their cards; returns them so both
+// players can be told. Waits for (and then skips) a trade that an accept is
+// finishing, since that takes the same row lock.
+func (q *Queries) ExpireDueTrades(ctx context.Context, now time.Time) ([]ExpireDueTradesRow, error) {
+	rows, err := q.db.Query(ctx, expireDueTrades, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExpireDueTradesRow
+	for rows.Next() {
+		var i ExpireDueTradesRow
+		if err := rows.Scan(&i.ID, &i.FromUser, &i.ToUser); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTrade = `-- name: GetTrade :one
@@ -203,19 +235,24 @@ func (q *Queries) GetTrade(ctx context.Context, id uuid.UUID) (GetTradeRow, erro
 }
 
 const listTradeGifts = `-- name: ListTradeGifts :many
-SELECT trade_id, user_id, card_id FROM trade_gifts WHERE trade_id = ANY($1::uuid[])
+SELECT trade_id, user_id FROM trade_gifts WHERE trade_id = ANY($1::uuid[])
 `
 
-func (q *Queries) ListTradeGifts(ctx context.Context, tradeIds []uuid.UUID) ([]TradeGift, error) {
+type ListTradeGiftsRow struct {
+	TradeID uuid.UUID
+	UserID  uuid.UUID
+}
+
+func (q *Queries) ListTradeGifts(ctx context.Context, tradeIds []uuid.UUID) ([]ListTradeGiftsRow, error) {
 	rows, err := q.db.Query(ctx, listTradeGifts, tradeIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TradeGift
+	var items []ListTradeGiftsRow
 	for rows.Next() {
-		var i TradeGift
-		if err := rows.Scan(&i.TradeID, &i.UserID, &i.CardID); err != nil {
+		var i ListTradeGiftsRow
+		if err := rows.Scan(&i.TradeID, &i.UserID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -387,13 +424,13 @@ func (q *Queries) LockTradeCards(ctx context.Context, ids []uuid.UUID) ([]LockTr
 }
 
 const lockTrader = `-- name: LockTrader :one
-SELECT id, username, trade_unlocked_at FROM users WHERE id = $1 FOR UPDATE
+SELECT id, username, created_at FROM users WHERE id = $1 FOR UPDATE
 `
 
 type LockTraderRow struct {
-	ID              uuid.UUID
-	Username        string
-	TradeUnlockedAt time.Time
+	ID        uuid.UUID
+	Username  string
+	CreatedAt time.Time
 }
 
 // A player taking part in a trade, row-locked so their offers per day are counted
@@ -401,8 +438,51 @@ type LockTraderRow struct {
 func (q *Queries) LockTrader(ctx context.Context, id uuid.UUID) (LockTraderRow, error) {
 	row := q.db.QueryRow(ctx, lockTrader, id)
 	var i LockTraderRow
-	err := row.Scan(&i.ID, &i.Username, &i.TradeUnlockedAt)
+	err := row.Scan(&i.ID, &i.Username, &i.CreatedAt)
 	return i, err
+}
+
+const lockWaitingGifts = `-- name: LockWaitingGifts :many
+SELECT g.trade_id, u.username AS partner
+FROM trade_gifts g
+JOIN trades t ON t.id = g.trade_id
+JOIN users u ON u.id = CASE WHEN t.from_user = g.user_id THEN t.to_user ELSE t.from_user END
+WHERE g.user_id = $1 AND g.opened_at IS NULL
+ORDER BY g.created_at, g.trade_id
+LIMIT $2
+FOR UPDATE OF g
+`
+
+type LockWaitingGiftsParams struct {
+	UserID   uuid.UUID
+	MaxGifts int32
+}
+
+type LockWaitingGiftsRow struct {
+	TradeID uuid.UUID
+	Partner string
+}
+
+// The player's unopened gifts, oldest first, row-locked: two opens at once can't
+// open the same gift (the second sees it opened and skips it).
+func (q *Queries) LockWaitingGifts(ctx context.Context, arg LockWaitingGiftsParams) ([]LockWaitingGiftsRow, error) {
+	rows, err := q.db.Query(ctx, lockWaitingGifts, arg.UserID, arg.MaxGifts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockWaitingGiftsRow
+	for rows.Next() {
+		var i LockWaitingGiftsRow
+		if err := rows.Scan(&i.TradeID, &i.Partner); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const moveCards = `-- name: MoveCards :exec
@@ -421,6 +501,28 @@ type MoveCardsParams struct {
 // Hands cards to their new owner. They count as traded from now on (no season points).
 func (q *Queries) MoveCards(ctx context.Context, arg MoveCardsParams) error {
 	_, err := q.db.Exec(ctx, moveCards, arg.OwnerID, arg.AcquiredAt, arg.Ids)
+	return err
+}
+
+const openTradeGift = `-- name: OpenTradeGift :exec
+UPDATE trade_gifts SET card_id = $1::uuid, opened_at = $2::timestamptz
+WHERE trade_id = $3 AND user_id = $4
+`
+
+type OpenTradeGiftParams struct {
+	CardID   uuid.UUID
+	OpenedAt time.Time
+	TradeID  uuid.UUID
+	UserID   uuid.UUID
+}
+
+func (q *Queries) OpenTradeGift(ctx context.Context, arg OpenTradeGiftParams) error {
+	_, err := q.db.Exec(ctx, openTradeGift,
+		arg.CardID,
+		arg.OpenedAt,
+		arg.TradeID,
+		arg.UserID,
+	)
 	return err
 }
 

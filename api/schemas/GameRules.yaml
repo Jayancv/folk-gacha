@@ -1,0 +1,24 @@
+type: object
+description: Game limits from server/rules/game.yaml
+required:
+  - maxTradeCards
+  - dailyOfferLimit
+  - offerExpiryHours
+  - newAccountWaitDays
+  - partnerGiftsPerWeek
+properties:
+  maxTradeCards:
+    type: integer
+    description: Most cards on each side of a trade offer
+  dailyOfferLimit:
+    type: integer
+    description: Offers a player can send per UTC day
+  offerExpiryHours:
+    type: integer
+    description: How long an offer stays open
+  newAccountWaitDays:
+    type: integer
+    description: Days after sign-up before an account can trade (0 = none)
+  partnerGiftsPerWeek:
+    type: integer
+    description: Partner gifts a player can get per leaderboard week (0 = gifts off)

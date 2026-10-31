@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 
@@ -45,15 +46,15 @@ func (s *Server) CreateTrade(ctx context.Context, req CreateTradeRequestObject) 
 	t, err := s.trades.Create(ctx, user.ID, trades.NewOffer{To: req.Body.To, Offer: req.Body.Offer, Request: req.Body.Request})
 	switch {
 	case errors.Is(err, game.ErrBadOffer):
-		return CreateTrade400JSONResponse{Error: "bad_offer", Message: ptr("Pick 1 to 5 different cards on each side.")}, nil
+		return CreateTrade400JSONResponse{Error: "bad_offer", Message: ptr(fmt.Sprintf("Pick 1 to %d different cards on each side.", game.MaxTradeCards))}, nil
 	case errors.Is(err, trades.ErrSelf):
 		return CreateTrade400JSONResponse{Error: "self_trade", Message: ptr("You can't trade with yourself.")}, nil
 	case errors.Is(err, trades.ErrTradeLocked):
-		return CreateTrade403JSONResponse{Error: "trade_locked", Message: ptr("Trading unlocks 7 days after you join.")}, nil
+		return CreateTrade403JSONResponse{Error: "trade_locked", Message: ptr("Your account can't trade yet.")}, nil
 	case errors.Is(err, trades.ErrNoSuchPlayer):
 		return CreateTrade404JSONResponse{Error: "not_found", Message: ptr("No player by that name.")}, nil
 	case errors.Is(err, trades.ErrRecipientLocked):
-		return CreateTrade409JSONResponse{Error: "recipient_locked", Message: ptr("This player can't trade yet (accounts trade 7 days after joining).")}, nil
+		return CreateTrade409JSONResponse{Error: "recipient_locked", Message: ptr("This player can't trade yet.")}, nil
 	case errors.Is(err, trades.ErrNotOwned):
 		return CreateTrade409JSONResponse{Error: "not_owned", Message: ptr("One of these cards changed hands. Pick again.")}, nil
 	case errors.Is(err, trades.ErrInTrade):
@@ -176,6 +177,8 @@ func toTrade(t trades.Trade, viewer uuid.UUID) (Trade, error) {
 		Offer:      []TradeItem{},
 		Request:    []TradeItem{},
 		ResolvedAt: t.ResolvedAt,
+		// Only the viewer's own gift: what the other player got is theirs to know.
+		Gifted: t.Gifted(viewer),
 	}
 	if t.To.ID == viewer {
 		out.Direction = TradeDirection("incoming")
@@ -198,14 +201,6 @@ func toTrade(t trades.Trade, viewer uuid.UUID) (Trade, error) {
 			}
 			*side.out = append(*side.out, item)
 		}
-	}
-	// Only the viewer's own gift: what the other player got is theirs to show.
-	if g, ok := t.GiftFor(viewer); ok && g.Card != nil {
-		card, err := toCard(*g.Card)
-		if err != nil {
-			return Trade{}, err
-		}
-		out.Gift = &card
 	}
 	return out, nil
 }

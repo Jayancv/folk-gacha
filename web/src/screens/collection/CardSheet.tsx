@@ -62,6 +62,9 @@ export function CardSheet ({ card, onClose }: { card: OwnedCard; onClose: () => 
 
                 {card.lore && <p className="mt-3 text-sm text-[#bba595] italic">{card.lore}</p>}
                 <p className="mt-2 text-xs text-[#bba595]">{acquiredText(card)}</p>
+                {card.inTrade && (
+                    <p className="mt-1 text-xs text-[#e7b54a]">Offered in an open trade: locked until the offer ends (withdraw it on Trades).</p>
+                )}
 
                 <button
                     ref={close}

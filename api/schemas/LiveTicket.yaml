@@ -1,0 +1,11 @@
+type: object
+description: A single-use ticket for the live events socket
+required:
+  - ticket
+  - expiresAt
+properties:
+  ticket:
+    type: string
+  expiresAt:
+    type: string
+    format: date-time

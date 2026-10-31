@@ -1,0 +1,13 @@
+# /rules
+get:
+  operationId: getRules
+  summary: The game rules players see
+  description: The tunable limits from server/rules/game.yaml that the app shows or enforces in its screens. Public.
+  security: []
+  responses:
+    "200":
+      description: The rules in use
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/GameRules.yaml

@@ -10,6 +10,7 @@ required:
   - expiresAt
   - offer
   - request
+  - gifted
 properties:
   id:
     type: string
@@ -48,9 +49,8 @@ properties:
     description: Cards the sender asks for (the recipient's). A card that no longer exists has no card field.
     items:
       $ref: ./TradeItem.yaml
-  gift:
-    $ref: ./Card.yaml
+  gifted:
+    type: boolean
     description: >-
-      The card you got for this trade: the first accepted trade between two players gives each of them
-      one Common or Uncommon card (at most 2 such gifts per player per week). Absent if you got none, or
-      the card no longer exists.
+      This trade gave you a partner gift: the first accepted trade between two players gives each of them
+      one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open).

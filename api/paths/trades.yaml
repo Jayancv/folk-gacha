@@ -73,7 +73,7 @@ post:
           schema:
             $ref: ../schemas/Error.yaml
     "403":
-      description: Your account can't trade yet (trade_locked; 7 days after joining)
+      description: Your account can't trade yet (trade_locked; no wait by default)
       content:
         application/json:
           schema:
