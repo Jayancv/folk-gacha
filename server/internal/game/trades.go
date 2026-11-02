@@ -56,8 +56,11 @@ func TradeUnlocksAt(created time.Time) time.Time {
 }
 
 // CanTrade reports whether an account created at `created` may trade at `now`.
+// Without a wait it's always true: `created` comes from the database clock and `now`
+// from the server's, which can be a moment apart, so a brand-new account must not
+// look "created in the future".
 func CanTrade(created, now time.Time) bool {
-	return !now.Before(TradeUnlocksAt(created))
+	return NewAccountWait <= 0 || !now.Before(TradeUnlocksAt(created))
 }
 
 // TradeExpiresAt is when an offer made at `created` expires.

@@ -1,0 +1,16 @@
+# /leaderboard/all-time
+get:
+  operationId: getAllTimeLeaderboard
+  summary: All-time standings
+  description: >-
+    Every week's season points added up, top 100 (ties go to who reached their total first).
+    Traded and gift cards earn no points, so they don't count here either. Public; a signed-in
+    viewer also gets their own standing.
+  security: []
+  responses:
+    "200":
+      description: The all-time board
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/AllTimeLeaderboard.yaml

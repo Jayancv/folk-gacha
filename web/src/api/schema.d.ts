@@ -416,6 +416,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/leaderboard/all-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All-time standings
+         * @description Every week's season points added up, top 100 (ties go to who reached their total first). Traded and gift cards earn no points, so they don't count here either. Public; a signed-in viewer also gets their own standing.
+         */
+        get: operations["getAllTimeLeaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/leaderboard/current": {
         parameters: {
             query?: never;
@@ -794,6 +814,14 @@ export interface components {
             newAccountWaitDays: number;
             /** @description Partner gifts a player can get per leaderboard week (0 = gifts off) */
             partnerGiftsPerWeek: number;
+        };
+        /** @description All-time standings (every week's season points added up) */
+        AllTimeLeaderboard: {
+            /** @description Up to 100 players, best first */
+            top: components["schemas"]["LeaderboardEntry"][];
+            /** @description How many players have any points */
+            players: number;
+            you?: components["schemas"]["LeaderboardEntry"];
         };
     };
     responses: never;
@@ -1731,6 +1759,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GameRules"];
+                };
+            };
+        };
+    };
+    getAllTimeLeaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The all-time board */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllTimeLeaderboard"];
                 };
             };
         };

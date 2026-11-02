@@ -44,3 +44,39 @@ SELECT r.rank, r.points,
        (SELECT count(*) FROM season_results c WHERE c.season_id = r.season_id) AS players
 FROM season_results r
 WHERE r.season_id = @season_id AND r.user_id = @user_id;
+
+-- All-time ranks: every week's season points added up (traded and gift cards earn none,
+-- so alt accounts can't feed it). Ties go to who reached their total first.
+
+-- name: ListAllTimeTop :many
+WITH totals AS (
+    SELECT user_id, sum(points)::bigint AS points, max(updated_at) AS reached_at
+    FROM season_points
+    GROUP BY user_id
+    HAVING sum(points) > 0
+), ranked AS (
+    SELECT user_id, points,
+           row_number() OVER (ORDER BY points DESC, reached_at, user_id) AS rank,
+           count(*) OVER () AS players
+    FROM totals
+)
+SELECT ranked.rank, ranked.points, ranked.user_id, u.username, ranked.players
+FROM ranked
+JOIN users u ON u.id = ranked.user_id
+WHERE ranked.rank <= @top_n::bigint
+ORDER BY ranked.rank;
+
+-- name: GetAllTimeRank :one
+-- One player's all-time rank (no row: no points yet).
+WITH totals AS (
+    SELECT user_id, sum(points)::bigint AS points, max(updated_at) AS reached_at
+    FROM season_points
+    GROUP BY user_id
+    HAVING sum(points) > 0
+), ranked AS (
+    SELECT user_id, points,
+           row_number() OVER (ORDER BY points DESC, reached_at, user_id) AS rank,
+           count(*) OVER () AS players
+    FROM totals
+)
+SELECT rank, points, players FROM ranked WHERE user_id = @user_id;

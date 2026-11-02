@@ -4,6 +4,7 @@ import type { components } from '../../api/schema';
 import { ApiRequestError } from '../../auth/useAuth';
 
 export type Leaderboard = components['schemas']['Leaderboard'];
+export type AllTimeLeaderboard = components['schemas']['AllTimeLeaderboard'];
 
 /** Query key prefix for leaderboards; invalidate it after claims and merges (points change). */
 export const LEADERBOARD_KEY = ['leaderboard'] as const;
@@ -29,5 +30,24 @@ export function useLeaderboard (seasonId: 'current' | string, enabled = true)
         staleTime: 15_000,
         // A week without a board (404) won't appear by retrying; server errors might.
         retry: (count, err) => !(err instanceof ApiRequestError && err.status < 500) && count < 2
+    });
+}
+
+/** The all-time board (GET /leaderboard/all-time): every week's points added up. Loads only while `enabled`. */
+export function useAllTimeLeaderboard (enabled = true)
+{
+    return useQuery({
+        enabled,
+        queryKey: [...LEADERBOARD_KEY, 'all-time'],
+        queryFn: async ({ signal }): Promise<AllTimeLeaderboard> =>
+        {
+            const { data, response } = await api.GET('/leaderboard/all-time', { signal });
+            if (!data)
+            {
+                throw new ApiRequestError(response.status, 'unknown');
+            }
+            return data;
+        },
+        staleTime: 15_000
     });
 }
