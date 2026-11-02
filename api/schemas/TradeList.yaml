@@ -1,0 +1,9 @@
+type: object
+required:
+  - trades
+properties:
+  trades:
+    type: array
+    description: Your open offers (sent and received) and those resolved in the last 7 days, newest first
+    items:
+      $ref: ./Trade.yaml

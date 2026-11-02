@@ -26,7 +26,9 @@ export default defineConfig({
             '/api': {
                 // API_PROXY_TARGET overrides the Go server address (default :8081).
                 target: process.env.API_PROXY_TARGET ?? 'http://localhost:8081',
-                rewrite: (path) => path.replace(/^\/api/, '')
+                rewrite: (path) => path.replace(/^\/api/, ''),
+                // The live events socket (/api/ws) goes through too.
+                ws: true
             }
         }
     }

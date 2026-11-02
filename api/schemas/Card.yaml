@@ -21,6 +21,7 @@ required:
   - artSeed
   - acquiredVia
   - acquiredAt
+  - inTrade
 properties:
   id:
     type: string
@@ -81,6 +82,10 @@ properties:
       - pack
       - merge
       - trade
+      - gift
   acquiredAt:
     type: string
     format: date-time
+  inTrade:
+    type: boolean
+    description: "Offered in an open trade: locked, so it can't be merged or offered again until the offer ends"

@@ -25,6 +25,7 @@ describe('mergeFailure', () =>
         expect(mergeFailure(404, 'not_owned')).toBe('not_owned');
         expect(mergeFailure(409, 'no_recipe')).toBe('no_recipe');
         expect(mergeFailure(409, 'max_level')).toBe('max_level');
+        expect(mergeFailure(409, 'in_trade')).toBe('in_trade');
         expect(mergeFailure(409, 'sold_out')).toBe('sold_out');
         expect(mergeFailure(400, 'same_card')).toBe('no_recipe');
     });

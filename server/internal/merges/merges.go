@@ -17,6 +17,7 @@ import (
 	"cardgame/server/internal/mint"
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
+	"cardgame/server/internal/trades"
 )
 
 var (
@@ -27,6 +28,8 @@ var (
 	ErrNotOwned = errors.New("merges: card not owned")
 	// ErrSoldOut: the recipe's output spirit has no copies left in the season.
 	ErrSoldOut = errors.New("merges: recipe output sold out")
+	// ErrInTrade: one of the cards is offered in an open trade (cancel the offer first).
+	ErrInTrade = errors.New("merges: card is in an open trade offer")
 )
 
 // game.ErrNoRecipe and game.ErrMaxLevel are returned as they are.
@@ -38,6 +41,9 @@ type Service struct {
 	Rand game.Rand
 	// Now is replaceable in tests (season points go to the week of the merge).
 	Now func() time.Time
+	// OnTradeEvent, if set, is told about trade offers a merge failed (it used a card
+	// they asked for), after the commit. It must not block.
+	OnTradeEvent func(trades.Event)
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -66,9 +72,14 @@ func (s *Service) Merge(ctx context.Context, userID, dragged, target uuid.UUID) 
 	now := s.Now()
 	var res Result
 	var id uuid.UUID
+	var failed []trades.Event
 	err := mint.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
-		res, id, err = s.mergeTx(ctx, q, userID, dragged, target, now)
+		if res, id, err = s.mergeTx(ctx, q, userID, dragged, target, now); err != nil {
+			return err
+		}
+		// Offers asking for either card can't succeed now: fail them (unlocking their senders' cards).
+		failed, err = trades.FailOffersRequesting(ctx, q, []uuid.UUID{dragged, target}, uuid.Nil, now)
 		return err
 	})
 	if errors.Is(err, mint.ErrSoldOut) {
@@ -76,6 +87,11 @@ func (s *Service) Merge(ctx context.Context, userID, dragged, target uuid.UUID) 
 	}
 	if err != nil {
 		return Result{}, err
+	}
+	if s.OnTradeEvent != nil {
+		for _, e := range failed {
+			s.OnTradeEvent(e)
+		}
 	}
 	cards, err := mint.LoadCards(ctx, store.New(s.pool), []uuid.UUID{id})
 	if err != nil {
@@ -98,6 +114,9 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	dragged, target := rows[0], rows[1]
 	if dragged.ID != draggedID {
 		dragged, target = target, dragged
+	}
+	if dragged.InTrade || target.InTrade {
+		return Result{}, uuid.Nil, ErrInTrade
 	}
 
 	var recipe store.GetRecipeRow
@@ -122,7 +141,8 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	}
 
 	res := Result{Kind: plan.Kind}
-	newCard := store.CreateCardParams{OwnerID: userID, Level: int16(plan.Level), AcquiredVia: "merge"}
+	traded := game.MergedTraded(dragged.Traded, target.Traded)
+	newCard := store.CreateCardParams{OwnerID: userID, Level: int16(plan.Level), AcquiredVia: "merge", Traded: traded}
 	var level1Score int32 // score of the new card's season card at level 1
 	switch plan.Kind {
 	case game.LevelUp:
@@ -164,7 +184,11 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	}
 
 	// Season points for the week of the merge, in the same transaction: the new card's score.
+	// None when a traded card went in (stops alt accounts feeding a main).
 	points := game.LevelScore(int(level1Score), plan.Level)
+	if traded {
+		points = 0
+	}
 	week, added, err := seasons.AddPoints(ctx, q, userID, now, points)
 	if err != nil {
 		return Result{}, uuid.Nil, err

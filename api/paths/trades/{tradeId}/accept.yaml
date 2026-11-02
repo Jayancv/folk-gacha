@@ -1,0 +1,37 @@
+# /trades/{tradeId}/accept
+post:
+  operationId: acceptTrade
+  summary: Accept an offer sent to you
+  description: Swaps all cards at once. If a card is gone the offer fails (unavailable) and nothing moves.
+  parameters:
+    - name: tradeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    "200":
+      description: The offer, resolved
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Trade.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "404":
+      description: No such offer for you (not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "409":
+      description: Already resolved (not_open), expired (expired), a card is gone so the offer failed (unavailable), or one of your requested cards is in another open offer of yours (in_trade; cancel that first)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml

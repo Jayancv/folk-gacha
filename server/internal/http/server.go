@@ -14,6 +14,8 @@ import (
 	"cardgame/server/internal/packs"
 	"cardgame/server/internal/profile"
 	"cardgame/server/internal/push"
+	"cardgame/server/internal/trades"
+	"cardgame/server/internal/ws"
 )
 
 // Pinger is the slice of the database pool the health check needs.
@@ -33,6 +35,8 @@ type Server struct {
 	push          *push.Service
 	pushPublicKey string
 	profiles      *profile.Service
+	trades        *trades.Service
+	live          *ws.Hub
 	now           func() time.Time
 }
 
@@ -50,11 +54,14 @@ type Services struct {
 	Push          *push.Service
 	PushPublicKey string
 	Profiles      *profile.Service
+	Trades        *trades.Service
+	// Live serves GET /ws and its tickets.
+	Live *ws.Hub
 }
 
 // NewServer wires the handlers.
 func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
-	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, authOpts: opts, now: time.Now}
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, trades: svc.Trades, live: svc.Live, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.
@@ -69,7 +76,15 @@ func (s *Server) Handler(allowedOrigins []string) http.Handler {
 			writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
 		},
 	}))
-	return withCORS(allowedOrigins, s.withSession(h))
+	api := withCORS(allowedOrigins, s.withSession(h))
+	if s.live == nil {
+		return api
+	}
+	// The socket authenticates with its ticket, not the cookie (see package ws).
+	mux := http.NewServeMux()
+	mux.Handle("GET /ws", s.live)
+	mux.Handle("/", api)
+	return mux
 }
 
 func writeError(w http.ResponseWriter, code int, errCode, message string) {

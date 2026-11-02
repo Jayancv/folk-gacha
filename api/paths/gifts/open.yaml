@@ -1,0 +1,38 @@
+# /gifts/open
+post:
+  operationId: openGifts
+  summary: Open your waiting partner gifts
+  description: |
+    Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
+    current card season, rolled now. Gift cards count as traded, so they never earn season points.
+  responses:
+    "200":
+      description: The opened gifts, in reveal order
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/OpenedGifts.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "404":
+      description: No gifts waiting (no_gifts)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "409":
+      description: No Common or Uncommon card has copies left (sold_out)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "503":
+      description: No card season is open (no_season)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

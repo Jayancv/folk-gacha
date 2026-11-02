@@ -52,7 +52,8 @@ post:
     "409":
       description: |
         The cards don't merge: no_recipe (different spirits without a recipe, or different levels),
-        max_level, or sold_out (the recipe's output has no copies left)
+        max_level, sold_out (the recipe's output has no copies left), or in_trade (a card is offered in
+        an open trade)
       content:
         application/json:
           schema:

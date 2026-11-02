@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useCardsVersion } from '../../app/cardsChanged';
 import { loadBoard, mergeCards } from '../../api/game';
 import { ME_KEY } from '../../auth/useAuth';
 import { EventBus } from '../../bridge/EventBus';
@@ -18,9 +19,10 @@ const RESYNC_DELAY_MS = 1200;
  * Drives the MergeBoard scene: lays out the newest cards (GET /cards) when the scene is
  * ready and sends merges to the server (POST /merges). When the board may no longer
  * match the server (an answer came too late, never came, or a card was used elsewhere)
- * it reloads the board.
+ * it reloads the board. Cards changed elsewhere (trades, gifts: `cardsChanged`) reload
+ * it while it's on screen and no merge is waiting, or as soon as it's back on screen.
  */
-export function useBoardTable ()
+export function useBoardTable (visible: boolean)
 {
     const qc = useQueryClient();
     const [loadError, setLoadError] = useState(false);
@@ -28,6 +30,12 @@ export function useBoardTable ()
     const [cards, setCards] = useState<CardData[] | null>(null);
     // Only the newest board load may lay out cards (an older, slower one is dropped).
     const latestLoad = useRef(0);
+    // Cards changed elsewhere since the board was laid out; merges waiting for an answer.
+    const stale = useRef(false);
+    const merging = useRef(0);
+    const shown = useRef(visible);
+    const version = useCardsVersion();
+    const seenVersion = useRef(version);
 
     // Merges change the cards (and so profiles) and earn season points.
     const refreshCollection = () =>
@@ -60,12 +68,41 @@ export function useBoardTable ()
         }
     };
 
-    useBridgeEvent(MergeBoardEvents.Ready, () => void reload());
+    // Reload a stale board once it's on screen and no merge answer is pending
+    // (a reload clears the table, which would drop the merge animation).
+    const reloadIfStale = () =>
+    {
+        if (stale.current && shown.current && merging.current === 0)
+        {
+            stale.current = false;
+            void reload();
+        }
+    };
+    useEffect(() =>
+    {
+        shown.current = visible;
+        if (version !== seenVersion.current)
+        {
+            seenVersion.current = version;
+            stale.current = true;
+        }
+        reloadIfStale();
+    });
+
+    useBridgeEvent(MergeBoardEvents.Ready, () =>
+    {
+        stale.current = false;
+        void reload();
+    });
     useBridgeEvent(MergeBoardEvents.MergeRequested, async ({ requestId, cardIds }) =>
     {
         const started = performance.now();
+        merging.current++;
         const { result, status } = await mergeCards(requestId, cardIds);
+        merging.current--;
         EventBus.emit(MergeBoardEvents.MergeResult, result);
+        // Wait for the result animation before laying out a fresh board.
+        setTimeout(reloadIfStale, RESYNC_DELAY_MS);
 
         if (status === 401)
         {

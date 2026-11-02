@@ -1,0 +1,23 @@
+# /live/ticket
+post:
+  operationId: getLiveTicket
+  summary: A ticket to open the live events socket
+  description: |
+    Single-use, valid for one minute. Open `GET /ws?ticket=…` with it (a WebSocket, not part of this
+    spec). The socket sends JSON events `{type, tradeId?, by?}`: trade.received, trade.accepted,
+    trade.declined, trade.cancelled, trade.expired, trade.failed. Events only say what changed;
+    refetch what you show. The ticket lets the socket go straight to the API server, where the
+    web app's session cookie isn't sent.
+  responses:
+    "200":
+      description: The ticket
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/LiveTicket.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

@@ -89,8 +89,8 @@ func TestSignInCreatesThenReusesTheAccount(t *testing.T) {
 	if first.Token == second.Token {
 		t.Fatal("each sign-in gets its own session token")
 	}
-	if got := first.User.TradeUnlockedAt.Sub(first.User.CreatedAt); got != 7*24*time.Hour {
-		t.Fatalf("trade unlock = created + %v, want 7 days", got)
+	if !first.User.TradeUnlockedAt.Equal(first.User.CreatedAt) {
+		t.Fatalf("trade unlock %v, want at sign-up %v (no wait)", first.User.TradeUnlockedAt, first.User.CreatedAt)
 	}
 }
 

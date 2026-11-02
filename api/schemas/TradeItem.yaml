@@ -1,0 +1,10 @@
+type: object
+description: One card of an offer
+required:
+  - cardId
+properties:
+  cardId:
+    type: string
+    format: uuid
+  card:
+    $ref: ./Card.yaml

@@ -167,6 +167,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/{username}/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Another player's cards (to pick what to ask for in a trade)
+         * @description Same filters, sorting and paging as /cards. Cards in their open offers carry inTrade.
+         */
+        get: operations["listPlayerCards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/packs/daily/claim": {
         parameters: {
             query?: never;
@@ -237,6 +257,157 @@ export interface paths {
         };
         /** Recipes the signed-in player has discovered */
         get: operations["listRecipes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Your trade offers
+         * @description Open offers you sent or received, plus offers resolved in the last 7 days. Offers past their time are expired first.
+         */
+        get: operations["listTrades"];
+        put?: never;
+        /**
+         * Send a trade offer
+         * @description Offer 1-5 of your cards for 1-5 of another player's cards. Your offered cards are locked in the
+         *     offer (no merging, no other offers) until it is accepted, declined, cancelled or expires after 48 hours.
+         *     Both accounts must be at least 7 days old; you can send 5 offers per UTC day.
+         */
+        post: operations["createTrade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trades/{tradeId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept an offer sent to you
+         * @description Swaps all cards at once. If a card is gone the offer fails (unavailable) and nothing moves.
+         */
+        post: operations["acceptTrade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trades/{tradeId}/decline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline an offer sent to you
+         * @description Unlocks the sender's cards. An offer already past its time is marked expired instead.
+         */
+        post: operations["declineTrade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trades/{tradeId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Withdraw an offer you sent
+         * @description Unlocks your cards. An offer already past its time is marked expired instead.
+         */
+        post: operations["cancelTrade"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/live/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A ticket to open the live events socket
+         * @description Single-use, valid for one minute. Open `GET /ws?ticket=…` with it (a WebSocket, not part of this
+         *     spec). The socket sends JSON events `{type, tradeId?, by?}`: trade.received, trade.accepted,
+         *     trade.declined, trade.cancelled, trade.expired, trade.failed. Events only say what changed;
+         *     refetch what you show. The ticket lets the socket go straight to the API server, where the
+         *     web app's session cookie isn't sent.
+         */
+        post: operations["getLiveTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gifts/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open your waiting partner gifts
+         * @description Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
+         *     current card season, rolled now. Gift cards count as traded, so they never earn season points.
+         */
+        post: operations["openGifts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The game rules players see
+         * @description The tunable limits from server/rules/game.yaml that the app shows or enforces in its screens. Public.
+         */
+        get: operations["getRules"];
         put?: never;
         post?: never;
         delete?: never;
@@ -359,12 +530,14 @@ export interface components {
             createdAt: string;
             /**
              * Format: date-time
-             * @description When this account may start trading (created + 7 days, UTC)
+             * @description When this account may start trading (UTC; at sign-up, no wait)
              */
             tradeUnlockedAt: string;
             dailyPack?: components["schemas"]["DailyPackStatus"];
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
             displayName?: string;
+            /** @description Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open) */
+            giftsWaiting: number;
             /** @description The player finished or skipped the first-time tutorial (on any device) */
             tutorialDone: boolean;
         };
@@ -459,9 +632,11 @@ export interface components {
              */
             artSeed: number;
             /** @enum {string} */
-            acquiredVia: "pack" | "merge" | "trade";
+            acquiredVia: "pack" | "merge" | "trade" | "gift";
             /** Format: date-time */
             acquiredAt: string;
+            /** @description Offered in an open trade: locked, so it can't be merged or offered again until the offer ends */
+            inTrade: boolean;
         };
         /** @description Trait ids from the season config (server/seasons/<id>/config.json) */
         CardTraits: {
@@ -545,6 +720,80 @@ export interface components {
                 p256dh: string;
                 auth: string;
             };
+        };
+        /** @description An offer between two players */
+        Trade: {
+            /** Format: uuid */
+            id: string;
+            /**
+             * @description incoming (sent to you) or outgoing (sent by you)
+             * @enum {string}
+             */
+            direction: "incoming" | "outgoing";
+            /** @description Sender's username */
+            from: string;
+            /** @description Recipient's username */
+            to: string;
+            status: components["schemas"]["TradeStatus"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /**
+             * Format: date-time
+             * @description When the offer stopped being open; absent while open
+             */
+            resolvedAt?: string;
+            /** @description Cards the sender gives. A card that no longer exists has no card field. */
+            offer: components["schemas"]["TradeItem"][];
+            /** @description Cards the sender asks for (the recipient's). A card that no longer exists has no card field. */
+            request: components["schemas"]["TradeItem"][];
+            /** @description This trade gave you a partner gift: the first accepted trade between two players gives each of them one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open). */
+            gifted: boolean;
+        };
+        /** @description One card of an offer */
+        TradeItem: {
+            /** Format: uuid */
+            cardId: string;
+            card?: components["schemas"]["Card"];
+        };
+        TradeList: {
+            /** @description Your open offers (sent and received) and those resolved in the last 7 days, newest first */
+            trades: components["schemas"]["Trade"][];
+        };
+        /**
+         * @description open (waiting for the recipient), accepted (cards swapped), declined (by the recipient),
+         *     cancelled (by the sender), expired (not answered in 48 hours), failed (a card was gone at accept)
+         * @enum {string}
+         */
+        TradeStatus: "open" | "accepted" | "declined" | "cancelled" | "expired" | "failed";
+        /** @description A single-use ticket for the live events socket */
+        LiveTicket: {
+            ticket: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        OpenedGifts: {
+            gifts: {
+                /** @description Username of the player the trade was with */
+                partner: string;
+                card: components["schemas"]["Card"];
+            }[];
+            /** @description Gifts still waiting (more than 5 open over several opens) */
+            giftsWaiting: number;
+        };
+        /** @description Game limits from server/rules/game.yaml */
+        GameRules: {
+            /** @description Most cards on each side of a trade offer */
+            maxTradeCards: number;
+            /** @description Offers a player can send per UTC day */
+            dailyOfferLimit: number;
+            /** @description How long an offer stays open */
+            offerExpiryHours: number;
+            /** @description Days after sign-up before an account can trade (0 = none) */
+            newAccountWaitDays: number;
+            /** @description Partner gifts a player can get per leaderboard week (0 = gifts off) */
+            partnerGiftsPerWeek: number;
         };
     };
     responses: never;
@@ -855,6 +1104,72 @@ export interface operations {
             };
         };
     };
+    listPlayerCards: {
+        parameters: {
+            query?: {
+                /** @description Only these rarities (repeat the parameter for several) */
+                rarity?: components["schemas"]["Rarity"][];
+                /** @description Only these elements (repeat the parameter for several) */
+                element?: components["schemas"]["Element"][];
+                /** @description Only cards at this level */
+                level?: number;
+                /** @description Only this spirit (template id), e.g. gaja-calf */
+                spirit?: string;
+                /** @description Only this card season, e.g. s1 */
+                set?: string;
+                sort?: components["schemas"]["CardSort"];
+                /** @description Page size (default 60, at most 200) */
+                limit?: number;
+                /** @description Cards to skip (use nextOffset from the previous page) */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Case-insensitive */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of their cards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardPage"];
+                };
+            };
+            /** @description A filter value is invalid */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such player (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     claimDailyPack: {
         parameters: {
             query?: never;
@@ -1010,7 +1325,8 @@ export interface operations {
             };
             /**
              * @description The cards don't merge: no_recipe (different spirits without a recipe, or different levels),
-             *     max_level, or sold_out (the recipe's output has no copies left)
+             *     max_level, sold_out (the recipe's output has no copies left), or in_trade (a card is offered in
+             *     an open trade)
              */
             409: {
                 headers: {
@@ -1049,6 +1365,372 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTrades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Your offers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradeList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    createTrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Recipient's username (case-insensitive) */
+                    to: string;
+                    /** @description Your cards to give */
+                    offer: string[];
+                    /** @description Their cards you want */
+                    request: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The new offer */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trade"];
+                };
+            };
+            /** @description Invalid card lists (bad_offer) or an offer to yourself (self_trade) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Your account can't trade yet (trade_locked; no wait by default) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such player (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description That player can't trade yet (recipient_locked), a card isn't yours or theirs (not_owned), or a card is already in an open offer (in_trade) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description You sent today's 5 offers already (daily_limit; resets 00:00 UTC) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    acceptTrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tradeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer, resolved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trade"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such offer for you (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Already resolved (not_open), expired (expired), a card is gone so the offer failed (unavailable), or one of your requested cards is in another open offer of yours (in_trade; cancel that first) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    declineTrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tradeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer, resolved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trade"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such offer for you (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Already resolved (not_open) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    cancelTrade: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                tradeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The offer, resolved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trade"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such offer for you (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Already resolved (not_open) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getLiveTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ticket */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveTicket"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    openGifts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The opened gifts, in reveal order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenedGifts"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No gifts waiting (no_gifts) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No Common or Uncommon card has copies left (sold_out) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No card season is open (no_season) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rules in use */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameRules"];
                 };
             };
         };

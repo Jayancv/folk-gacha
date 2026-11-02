@@ -17,6 +17,10 @@ export const PackOpenEvents = {
 export interface PackShowPayload
 {
     cards: CardData[];
+    /** Shown instead of the pack value once revealed (trade gifts: "Gift from asha"). */
+    title?: string;
+    /** Indexes of cards already revealed: dealt face up (coming back to opened gifts). */
+    faceUp?: number[];
 }
 
 export interface CardRevealedPayload
@@ -41,6 +45,8 @@ export interface BoardShowPayload
     cards: CardData[];
     /** Total cards owned, when more than fit on the board. */
     total: number;
+    /** Ids of cards offered in an open trade: shown with a lock badge (merging them is refused). */
+    locked?: string[];
 }
 
 export interface MergeRequestedPayload
@@ -50,7 +56,7 @@ export interface MergeRequestedPayload
     cardIds: [string, string];
 }
 
-export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'sold_out' | 'network';
+export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'sold_out' | 'in_trade' | 'network';
 
 export type MergeResultPayload =
     | {

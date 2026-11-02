@@ -24,6 +24,8 @@ import (
 	"cardgame/server/internal/push"
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
+	"cardgame/server/internal/trades"
+	"cardgame/server/internal/ws"
 )
 
 const defaultDatabaseURL = "postgres://cardgame:cardgame@localhost:55432/cardgame?sslmode=disable"
@@ -95,15 +97,25 @@ func run() error {
 	}
 	slog.Info("push notifications", "enabled", pushSvc != nil)
 
+	// Live events (GET /ws): trade changes go to both players' open sockets.
+	hub := ws.NewHub(ws.OriginHosts(origins))
+	tradesSvc := trades.NewService(pool)
+	tradesSvc.OnEvent = func(e trades.Event) {
+		hub.Send(e.To, ws.Event{Type: e.Type, TradeID: e.TradeID, By: e.By})
+	}
+	mergesSvc := merges.NewService(pool)
+	mergesSvc.OnTradeEvent = tradesSvc.OnEvent // a merge can fail offers asking for its cards
 	api := httpapi.NewServer(pool, httpapi.Services{
 		Auth:          auth.NewService(store.New(pool)),
 		Packs:         packs.NewService(pool),
-		Merges:        merges.NewService(pool),
+		Merges:        mergesSvc,
 		Collection:    collection.NewService(pool),
 		Leaderboard:   leaderboard.NewService(pool),
 		Push:          pushSvc,
 		PushPublicKey: vapidPublic,
 		Profiles:      profile.NewService(pool),
+		Trades:        tradesSvc,
+		Live:          hub,
 	}, authOpts)
 	srv := &http.Server{
 		Addr:              ":" + port,
@@ -123,6 +135,18 @@ func run() error {
 	defer func() {
 		stopJob()
 		<-jobDone
+	}()
+
+	// Trade offers expire after 48 hours: this frees the offered cards even when nobody
+	// looks at the offer. Stopped and waited for before the pool closes, like the season job.
+	tradesDone := make(chan struct{})
+	go func() {
+		defer close(tradesDone)
+		tradesSvc.Run(jobCtx, time.Minute)
+	}()
+	defer func() {
+		stopJob()
+		<-tradesDone
 	}()
 
 	// The daily push: sent once per UTC day (across servers) to players who haven't claimed yet.

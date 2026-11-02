@@ -64,6 +64,7 @@ func toCard(c store.GetOwnedCardsRow) (Card, error) {
 		ArtSeed:      c.ArtSeed,
 		AcquiredVia:  CardAcquiredVia(c.AcquiredVia),
 		AcquiredAt:   c.AcquiredAt.UTC(),
+		InTrade:      c.InTrade,
 	}
 	if c.MaxCopies.Valid {
 		card.MaxCopies = ptr(int(c.MaxCopies.Int32))
@@ -77,6 +78,13 @@ func toCard(c store.GetOwnedCardsRow) (Card, error) {
 // me is the profile response, with today's pack status when packs are available.
 func (s *Server) me(ctx context.Context, u store.User) (Me, error) {
 	m := toMe(u)
+	if s.trades != nil {
+		n, err := s.trades.WaitingGifts(ctx, u.ID)
+		if err != nil {
+			return Me{}, err
+		}
+		m.GiftsWaiting = n
+	}
 	if s.packs == nil {
 		return m, nil
 	}

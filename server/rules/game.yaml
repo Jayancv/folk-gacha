@@ -1,0 +1,34 @@
+# Game rules you can tune without touching code (starting values; tune in playtesting).
+# The server embeds this file: edit it, then restart (locally) or redeploy. The server
+# refuses to start if a value is out of range, and tells you which one.
+# The web app reads the player-facing numbers from GET /rules.
+
+packs:
+  # Chance per card, in percent. Must add up to 100.
+  dropChancePercent:
+    common: 70
+    uncommon: 20
+    rare: 8
+    epic: 1.8
+    legendary: 0.2
+  # At least one Rare or better every this many daily packs (the pity rule).
+  pityPacks: 7
+
+trading:
+  # Most cards on each side of an offer (1-5; the trade screens show up to 5).
+  maxCardsPerSide: 5
+  # Offers a player can send per UTC day. Cancelled offers still count.
+  dailyOfferLimit: 5
+  # How long an offer stays open before it expires.
+  offerExpiryHours: 48
+  # New accounts wait this many days before they can trade (0 = trade from sign-up).
+  newAccountWaitDays: 0
+  # How long finished offers stay in the Trades history.
+  historyDays: 7
+
+partnerGifts:
+  # The first trade between two players gives each a gift; at most this many per
+  # player per leaderboard week (Monday 00:00 UTC). 0 turns gifts off.
+  perWeek: 2
+  # What a gift can be, picked with the pack odds above (between these rarities).
+  rarities: [common, uncommon]

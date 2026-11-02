@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"cardgame/server/internal/auth"
+	"cardgame/server/internal/game"
 	"cardgame/server/internal/store"
 )
 
@@ -83,7 +84,7 @@ func (s *Server) sessionCookie(token string, expires time.Time) string {
 }
 
 func toMe(u store.User) Me {
-	me := Me{Id: u.ID, Username: u.Username, CreatedAt: u.CreatedAt.UTC(), TradeUnlockedAt: u.TradeUnlockedAt.UTC(), TutorialDone: u.TutorialDoneAt.Valid}
+	me := Me{Id: u.ID, Username: u.Username, CreatedAt: u.CreatedAt.UTC(), TradeUnlockedAt: game.TradeUnlocksAt(u.CreatedAt).UTC(), TutorialDone: u.TutorialDoneAt.Valid}
 	if u.DisplayName != "" {
 		me.DisplayName = ptr(u.DisplayName)
 	}

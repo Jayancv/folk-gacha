@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { EventBus } from '../bridge/EventBus';
 import { GameEvents, type GameScene } from '../bridge/events';
 
-// Pack and Board are Phaser scenes; Cards and Ranks are React screens over the (sleeping) table.
-export type ReactScreen = 'Collection' | 'Leaderboard';
+// Pack and Board are Phaser scenes; Cards, Trades and Ranks are React screens over the (sleeping) table.
+export type ReactScreen = 'Collection' | 'Trades' | 'Leaderboard';
 export type Tab = GameScene | ReactScreen;
 
-export const isReactScreen = (tab: Tab): tab is ReactScreen => tab === 'Collection' || tab === 'Leaderboard';
+export const isReactScreen = (tab: Tab): tab is ReactScreen => tab === 'Collection' || tab === 'Trades' || tab === 'Leaderboard';
 
 /** The open tab. Switching starts the Phaser scene, or sleeps the game loop under a React screen. */
 export function useTabs ()

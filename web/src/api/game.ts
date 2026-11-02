@@ -30,6 +30,35 @@ export async function claimDailyPack (): Promise<ClaimOutcome>
     }
 }
 
+export type GiftError = 'no_gifts' | 'sold_out' | 'no_season' | 'signed_out' | 'network';
+
+export type GiftOutcome =
+    | { ok: true; cards: OwnedCard[]; partners: string[]; waiting: number }
+    | { ok: false; error: GiftError };
+
+/** POST /gifts/open: the waiting trade gifts as cards, in reveal order (with whom each trade was). */
+export async function openGifts (): Promise<GiftOutcome>
+{
+    try
+    {
+        const { data, error, response } = await api.POST('/gifts/open');
+        if (data)
+        {
+            return { ok: true, cards: data.gifts.map(g => toCardData(g.card)), partners: data.gifts.map(g => g.partner), waiting: data.giftsWaiting };
+        }
+        if (response.status === 401)
+        {
+            return { ok: false, error: 'signed_out' };
+        }
+        const code = error?.error;
+        return { ok: false, error: code === 'no_gifts' || code === 'sold_out' || code === 'no_season' ? code : 'network' };
+    }
+    catch
+    {
+        return { ok: false, error: 'network' };
+    }
+}
+
 export function claimError (status: number, code: string | undefined): ClaimError
 {
     if (status === 401)
@@ -55,7 +84,8 @@ export async function loadBoard (size: number): Promise<BoardShowPayload>
     {
         throw new Error(`GET /cards: ${response.status} ${error?.error ?? ''}`.trim());
     }
-    return { cards: data.cards.map(c => toCardData(c)), total: data.total };
+    const cards = data.cards.map(c => toCardData(c));
+    return { cards, total: data.total, locked: cards.filter(c => c.inTrade).map(c => c.id) };
 }
 
 export interface MergeAnswer
@@ -94,7 +124,7 @@ export function mergeFailure (status: number, code: string | undefined): MergeFa
         case 404:
             return 'not_owned';
         case 409:
-            return code === 'max_level' || code === 'sold_out' ? code : 'no_recipe';
+            return code === 'max_level' || code === 'sold_out' || code === 'in_trade' ? code : 'no_recipe';
         case 400:
             // same_card: dropping a card on itself; the board treats it as no merge.
             return 'no_recipe';

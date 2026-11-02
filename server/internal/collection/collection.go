@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -29,6 +30,9 @@ const (
 
 // ErrBadFilter wraps every filter validation error.
 var ErrBadFilter = errors.New("bad filter")
+
+// ErrNoSuchPlayer: no player has that username.
+var ErrNoSuchPlayer = errors.New("collection: no such player")
 
 // Filter selects and orders cards. Zero values mean "any" / defaults.
 type Filter struct {
@@ -86,6 +90,15 @@ type Service struct {
 
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool}
+}
+
+// PlayerID finds a player by username (case-insensitive), to list their cards.
+func (s *Service) PlayerID(ctx context.Context, username string) (uuid.UUID, error) {
+	u, err := store.New(s.pool).GetUserByUsername(ctx, username)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, ErrNoSuchPlayer
+	}
+	return u.ID, err
 }
 
 // List returns one page of the player's cards.

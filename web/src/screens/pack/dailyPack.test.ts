@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimErrorText, nextPackText } from './dailyPack';
+import { claimErrorText, giftButtonText, giftTitle, nextPackText } from './dailyPack';
 
 const reset = '2026-10-31T00:00:00Z';
 const before = (ms: number) => Date.parse(reset) - ms;
@@ -35,5 +35,22 @@ describe('claimErrorText', () =>
         {
             expect(claimErrorText(e)).toMatch(/\w/);
         }
+    });
+});
+
+describe('trade gifts', () =>
+{
+    it('names who the gifts came from', () =>
+    {
+        expect(giftTitle(['asha'])).toBe('Gift from asha');
+        expect(giftTitle(['asha', 'ben'])).toBe('Gifts from asha and ben');
+        expect(giftTitle(['asha', 'ben', 'cara', 'dev'])).toBe('Gifts from asha, ben and 2 more');
+    });
+
+    it('counts the gifts on the button, at most 5 per open', () =>
+    {
+        expect(giftButtonText(1)).toBe('Open your trade gift');
+        expect(giftButtonText(3)).toBe('Open 3 trade gifts');
+        expect(giftButtonText(8)).toBe('Open 5 trade gifts');
     });
 });

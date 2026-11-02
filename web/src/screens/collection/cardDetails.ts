@@ -14,7 +14,7 @@ export function setNumberText (c: Pick<OwnedCard, 'season'>): string | null
     return c.season ? `#${String(c.season.setNo).padStart(4, '0')} / ${c.season.setSize}` : null;
 }
 
-const VIA: Record<OwnedCard['acquiredVia'], string> = { pack: 'From a pack', merge: 'Made by merging', trade: 'Traded' };
+const VIA: Record<OwnedCard['acquiredVia'], string> = { pack: 'From a pack', merge: 'Made by merging', trade: 'Traded', gift: 'Trade gift' };
 
 /** "From a pack · 30 Oct 2026". Dates are shown in UTC, like the daily reset. */
 export function acquiredText (c: Pick<OwnedCard, 'acquiredVia' | 'acquiredAt'>, locale?: string): string

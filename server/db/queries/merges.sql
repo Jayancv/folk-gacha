@@ -1,8 +1,10 @@
 -- name: LockOwnedCards :many
 -- The player's cards among @ids, row-locked for the merge. Locked in id order
--- so two merges of the same cards can't deadlock. Cards another player owns,
--- or that a concurrent merge just used up, are simply missing.
-SELECT c.id, c.season_card_id, c.copy_no, c.level, sc.template_id, sc.card_season_id, sc.score
+-- so two merges (or a merge and a trade) of the same cards can't deadlock. Cards
+-- another player owns, or that a concurrent merge just used up, are simply missing.
+SELECT c.id, c.season_card_id, c.copy_no, c.level, c.traded,
+       (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
+       sc.template_id, sc.card_season_id, sc.score
 FROM cards c
 JOIN season_cards sc ON sc.id = c.season_card_id
 WHERE c.id = ANY(@ids::uuid[]) AND c.owner_id = @owner_id

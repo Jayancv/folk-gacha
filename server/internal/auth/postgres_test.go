@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -32,8 +31,8 @@ func TestPostgresSignInAndSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := a.User.TradeUnlockedAt.Sub(a.User.CreatedAt); got != 7*24*time.Hour {
-		t.Fatalf("trade unlock = created + %v, want 7 days (column default)", got)
+	if !a.User.TradeUnlockedAt.Equal(a.User.CreatedAt) {
+		t.Fatalf("trade unlock %v, want at sign-up %v (column default: no wait)", a.User.TradeUnlockedAt, a.User.CreatedAt)
 	}
 	// A different player with the same name gets a suffixed username (unique index).
 	b, err := svc.SignIn(ctx, "google:pg-2", "ASHA PERERA")

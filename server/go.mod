@@ -6,12 +6,14 @@ tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
+	github.com/coder/websocket v1.8.14
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/oapi-codegen/runtime v1.8.0
 	github.com/pressly/goose/v3 v3.27.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -41,5 +43,4 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

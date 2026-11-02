@@ -1,0 +1,21 @@
+type: object
+required:
+  - gifts
+  - giftsWaiting
+properties:
+  gifts:
+    type: array
+    items:
+      type: object
+      required:
+        - partner
+        - card
+      properties:
+        partner:
+          type: string
+          description: Username of the player the trade was with
+        card:
+          $ref: ./Card.yaml
+  giftsWaiting:
+    type: integer
+    description: Gifts still waiting (more than 5 open over several opens)
