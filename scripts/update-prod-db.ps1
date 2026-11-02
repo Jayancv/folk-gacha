@@ -11,8 +11,9 @@
       5. check    migration status and cards per spirit
 
     The database URL is the Render Postgres *External* URL. It is taken from -DatabaseUrl,
-    else $env:PROD_DATABASE_URL, else PROD_DATABASE_URL in the repo's .env, else asked for.
-    Needs Docker Desktop running (psql and pg_dump come from the cardgame-postgres container).
+    else $env:PROD_DATABASE_URL, else PROD_DATABASE_URL (or PROD_DB) in the repo's .env, else asked for.
+    Needs Docker Desktop running (psql comes from the cardgame-postgres container; pg_dump from a
+    -PgDumpImage container, which must be at least the server's Postgres version).
 
     -ResetCatalog deletes every player's cards, claims, showcases and leaderboard points
     (accounts stay), then reloads the catalog. Use it only before real players: after launch,
@@ -28,7 +29,9 @@ param(
     [switch]$SkipBackup,
     [switch]$ResetCatalog,
     # Lets the script run against a local database (for testing the script itself).
-    [switch]$AllowLocal
+    [switch]$AllowLocal,
+    # pg_dump must be as new as the server (Render: Postgres 18).
+    [string]$PgDumpImage = 'postgres:18-alpine'
 )
 
 # Not 'Stop': Windows PowerShell treats any stderr line from docker/go (their normal logs) as a
@@ -59,6 +62,7 @@ function Get-DotEnvValue ([string]$name)
 # ---- Which database ----
 if (-not $DatabaseUrl) { $DatabaseUrl = $env:PROD_DATABASE_URL }
 if (-not $DatabaseUrl) { $DatabaseUrl = Get-DotEnvValue 'PROD_DATABASE_URL' }
+if (-not $DatabaseUrl) { $DatabaseUrl = Get-DotEnvValue 'PROD_DB' }
 if (-not $DatabaseUrl)
 {
     $secure = Read-Host 'Render Postgres External Database URL' -AsSecureString
@@ -106,12 +110,11 @@ try
         $dir = Join-Path $repo 'backups'
         New-Item -ItemType Directory -Force $dir | Out-Null
         $name = 'prod-{0}.sql' -f (Get-Date -Format 'yyyyMMdd-HHmmss')
-        # Dump inside the container and copy the file out, so the bytes (Sinhala text) stay exact.
-        docker exec $container pg_dump $dockerUrl --no-owner --no-privileges -f "/tmp/$name"
+        # pg_dump refuses servers newer than itself, so it runs from a throwaway container of the
+        # newest client (Render is on Postgres 18; the local one is 17). It writes straight into
+        # backups\, so the bytes (Sinhala text) stay exact.
+        docker run --rm -v "${dir}:/out" $PgDumpImage pg_dump $dockerUrl --no-owner --no-privileges -f "/out/$name"
         Check 'pg_dump'
-        docker cp "${container}:/tmp/$name" (Join-Path $dir $name) | Out-Null
-        Check 'Copying the backup'
-        docker exec $container rm "/tmp/$name" | Out-Null
         Write-Host "Saved backups\$name (player data: keep it private)"
     }
 

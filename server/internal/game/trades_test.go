@@ -42,8 +42,8 @@ func TestCanTradeAfterTheWait(t *testing.T) {
 	r := CurrentRules()
 	t.Cleanup(func() { UseRules(r) })
 	joined := time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC)
-	if !CanTrade(joined, joined) {
-		t.Error("game.yaml has no wait: an account trades from sign-up")
+	if !CanTrade(joined, joined) || !CanTrade(joined, joined.Add(-time.Second)) {
+		t.Error("game.yaml has no wait: an account trades from sign-up, even if the clocks are a moment apart")
 	}
 
 	wait := r

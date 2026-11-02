@@ -191,3 +191,32 @@ func TestEmptyAndUnknownWeeks(t *testing.T) {
 		}
 	}
 }
+
+func TestAllTimeAddsUpEveryWeek(t *testing.T) {
+	pool, svc := setup(t)
+	ctx := context.Background()
+	asha, nimal, kumari := newUser(t, pool, "asha"), newUser(t, pool, "nimal"), newUser(t, pool, "kumari")
+	idle := newUser(t, pool, "idle")
+	lastWeek := friday.AddDate(0, 0, -7)
+	score(t, pool, asha, 500, lastWeek)
+	score(t, pool, asha, 300, friday) // 800 in all, reached on Friday
+	score(t, pool, nimal, 700, friday)
+	score(t, pool, kumari, 800, friday.Add(time.Hour)) // ties asha, but got there later
+
+	b, err := svc.AllTime(ctx, &nimal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{}
+	for _, e := range b.Top {
+		got = append(got, fmt.Sprintf("%d:%s:%d", e.Rank, e.Username, e.Points))
+	}
+	eq(t, "all-time", got, "1:asha:800", "2:kumari:800", "3:nimal:700")
+	if b.Players != 3 || b.You == nil || b.You.Rank != 3 || b.You.Points != 700 {
+		t.Fatalf("players %d, you %+v", b.Players, b.You)
+	}
+	// No points yet: not ranked, but the board still shows.
+	if b, err := svc.AllTime(ctx, &idle); err != nil || b.You != nil || len(b.Top) != 3 {
+		t.Fatalf("idle viewer: %+v %v", b, err)
+	}
+}

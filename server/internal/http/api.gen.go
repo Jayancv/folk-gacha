@@ -219,6 +219,16 @@ func (e TradeStatus) Valid() bool {
 	}
 }
 
+// AllTimeLeaderboard All-time standings (every week's season points added up)
+type AllTimeLeaderboard struct {
+	// Players How many players have any points
+	Players int `json:"players"`
+
+	// Top Up to 100 players, best first
+	Top []LeaderboardEntry `json:"top"`
+	You *LeaderboardEntry  `json:"you,omitempty"`
+}
+
 // AuthConfig defines model for AuthConfig.
 type AuthConfig struct {
 	// DevLogin Whether POST /auth/dev is enabled (local development only)
@@ -706,6 +716,9 @@ type ServerInterface interface {
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// GetAllTimeLeaderboard All-time standings
+	// (GET /leaderboard/all-time)
+	GetAllTimeLeaderboard(w http.ResponseWriter, r *http.Request)
 	// GetCurrentLeaderboard This week's leaderboard (live)
 	// (GET /leaderboard/current)
 	GetCurrentLeaderboard(w http.ResponseWriter, r *http.Request)
@@ -976,6 +989,20 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAllTimeLeaderboard operation middleware
+func (siw *ServerInterfaceWrapper) GetAllTimeLeaderboard(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAllTimeLeaderboard(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1586,6 +1613,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/live/ticket", wrapper.GetLiveTicket)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/gifts/open", wrapper.OpenGifts)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rules", wrapper.GetRules)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/all-time", wrapper.GetAllTimeLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/current", wrapper.GetCurrentLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/leaderboard/{seasonId}", wrapper.GetLeaderboard)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/push/key", wrapper.GetPushKey)
@@ -1917,6 +1945,27 @@ func (response GetHealth503JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAllTimeLeaderboardRequestObject struct {
+}
+
+type GetAllTimeLeaderboardResponseObject interface {
+	VisitGetAllTimeLeaderboardResponse(w http.ResponseWriter) error
+}
+
+type GetAllTimeLeaderboard200JSONResponse AllTimeLeaderboard
+
+func (response GetAllTimeLeaderboard200JSONResponse) VisitGetAllTimeLeaderboardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2920,6 +2969,9 @@ type StrictServerInterface interface {
 	// GetHealth Liveness and database check
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+	// GetAllTimeLeaderboard All-time standings
+	// (GET /leaderboard/all-time)
+	GetAllTimeLeaderboard(ctx context.Context, request GetAllTimeLeaderboardRequestObject) (GetAllTimeLeaderboardResponseObject, error)
 	// GetCurrentLeaderboard This week's leaderboard (live)
 	// (GET /leaderboard/current)
 	GetCurrentLeaderboard(ctx context.Context, request GetCurrentLeaderboardRequestObject) (GetCurrentLeaderboardResponseObject, error)
@@ -3198,6 +3250,30 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
 		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAllTimeLeaderboard operation middleware
+func (sh *strictHandler) GetAllTimeLeaderboard(w http.ResponseWriter, r *http.Request) {
+	var request GetAllTimeLeaderboardRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAllTimeLeaderboard(ctx, request.(GetAllTimeLeaderboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAllTimeLeaderboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAllTimeLeaderboardResponseObject); ok {
+		if err := validResponse.VisitGetAllTimeLeaderboardResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

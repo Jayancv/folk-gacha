@@ -11,6 +11,35 @@ import (
 	"github.com/google/uuid"
 )
 
+const getAllTimeRank = `-- name: GetAllTimeRank :one
+WITH totals AS (
+    SELECT user_id, sum(points)::bigint AS points, max(updated_at) AS reached_at
+    FROM season_points
+    GROUP BY user_id
+    HAVING sum(points) > 0
+), ranked AS (
+    SELECT user_id, points,
+           row_number() OVER (ORDER BY points DESC, reached_at, user_id) AS rank,
+           count(*) OVER () AS players
+    FROM totals
+)
+SELECT rank, points, players FROM ranked WHERE user_id = $1
+`
+
+type GetAllTimeRankRow struct {
+	Rank    int64
+	Points  int64
+	Players int64
+}
+
+// One player's all-time rank (no row: no points yet).
+func (q *Queries) GetAllTimeRank(ctx context.Context, userID uuid.UUID) (GetAllTimeRankRow, error) {
+	row := q.db.QueryRow(ctx, getAllTimeRank, userID)
+	var i GetAllTimeRankRow
+	err := row.Scan(&i.Rank, &i.Points, &i.Players)
+	return i, err
+}
+
 const getFinalRank = `-- name: GetFinalRank :one
 SELECT r.rank, r.points,
        (SELECT count(*) FROM season_results c WHERE c.season_id = r.season_id) AS players
@@ -67,6 +96,62 @@ func (q *Queries) GetLiveRank(ctx context.Context, arg GetLiveRankParams) (GetLi
 	var i GetLiveRankRow
 	err := row.Scan(&i.Rank, &i.Points, &i.Players)
 	return i, err
+}
+
+const listAllTimeTop = `-- name: ListAllTimeTop :many
+
+WITH totals AS (
+    SELECT user_id, sum(points)::bigint AS points, max(updated_at) AS reached_at
+    FROM season_points
+    GROUP BY user_id
+    HAVING sum(points) > 0
+), ranked AS (
+    SELECT user_id, points,
+           row_number() OVER (ORDER BY points DESC, reached_at, user_id) AS rank,
+           count(*) OVER () AS players
+    FROM totals
+)
+SELECT ranked.rank, ranked.points, ranked.user_id, u.username, ranked.players
+FROM ranked
+JOIN users u ON u.id = ranked.user_id
+WHERE ranked.rank <= $1::bigint
+ORDER BY ranked.rank
+`
+
+type ListAllTimeTopRow struct {
+	Rank     int64
+	Points   int64
+	UserID   uuid.UUID
+	Username string
+	Players  int64
+}
+
+// All-time ranks: every week's season points added up (traded and gift cards earn none,
+// so alt accounts can't feed it). Ties go to who reached their total first.
+func (q *Queries) ListAllTimeTop(ctx context.Context, topN int64) ([]ListAllTimeTopRow, error) {
+	rows, err := q.db.Query(ctx, listAllTimeTop, topN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllTimeTopRow
+	for rows.Next() {
+		var i ListAllTimeTopRow
+		if err := rows.Scan(
+			&i.Rank,
+			&i.Points,
+			&i.UserID,
+			&i.Username,
+			&i.Players,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listFinalTop = `-- name: ListFinalTop :many

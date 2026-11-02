@@ -795,6 +795,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GameRules'
+  /leaderboard/all-time:
+    get:
+      operationId: getAllTimeLeaderboard
+      summary: All-time standings
+      description: Every week's season points added up, top 100 (ties go to who reached their total first). Traded and gift cards earn no points, so they don't count here either. Public; a signed-in viewer also gets their own standing.
+      security: []
+      responses:
+        '200':
+          description: The all-time board
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllTimeLeaderboard'
   /leaderboard/current:
     get:
       operationId: getCurrentLeaderboard
@@ -1516,3 +1529,20 @@ components:
         partnerGiftsPerWeek:
           type: integer
           description: Partner gifts a player can get per leaderboard week (0 = gifts off)
+    AllTimeLeaderboard:
+      type: object
+      description: All-time standings (every week's season points added up)
+      required:
+        - top
+        - players
+      properties:
+        top:
+          type: array
+          description: Up to 100 players, best first
+          items:
+            $ref: '#/components/schemas/LeaderboardEntry'
+        players:
+          type: integer
+          description: How many players have any points
+        you:
+          $ref: '#/components/schemas/LeaderboardEntry'

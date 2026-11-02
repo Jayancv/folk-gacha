@@ -1,6 +1,6 @@
 // Package leaderboard reads weekly season standings: live from season_points while
-// a week is running, from the frozen season_results once the rollover finalized it.
-// It never writes.
+// a week is running, from the frozen season_results once the rollover finalized it;
+// and the all-time standings (every week's points added up). It never writes.
 package leaderboard
 
 import (
@@ -138,6 +138,43 @@ func (s *Service) final(ctx context.Context, q *store.Queries, b *Board, viewer 
 	b.You = &Entry{Rank: int(me.Rank), UserID: *viewer, Points: int(me.Points)}
 	b.Players = int(me.Players)
 	return nil
+}
+
+// AllTimeBoard is the all-time standings: every week's season points added up.
+type AllTimeBoard struct {
+	Top []Entry
+	// Players is how many players have any points.
+	Players int
+	// You is the viewer's own standing; nil when signed out or without points.
+	You *Entry
+}
+
+// AllTime is the all-time board. It adds up season_points on every read (fine for
+// thousands of players; a cached total per player would be the next step).
+func (s *Service) AllTime(ctx context.Context, viewer *uuid.UUID) (AllTimeBoard, error) {
+	q := store.New(s.pool)
+	b := AllTimeBoard{Top: []Entry{}}
+	rows, err := q.ListAllTimeTop(ctx, TopN)
+	if err != nil {
+		return AllTimeBoard{}, err
+	}
+	for _, r := range rows {
+		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Points: int(r.Points)})
+		b.Players = int(r.Players)
+	}
+	if viewer == nil {
+		return b, nil
+	}
+	me, err := q.GetAllTimeRank(ctx, *viewer)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return b, nil
+	}
+	if err != nil {
+		return AllTimeBoard{}, err
+	}
+	b.You = &Entry{Rank: int(me.Rank), UserID: *viewer, Points: int(me.Points)}
+	b.Players = int(me.Players)
+	return b, nil
 }
 
 func previousID(s game.Season) string {

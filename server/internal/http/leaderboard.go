@@ -64,3 +64,22 @@ func toLeaderboard(b leaderboard.Board, viewer store.User) Leaderboard {
 	}
 	return out
 }
+
+func (s *Server) GetAllTimeLeaderboard(ctx context.Context, _ GetAllTimeLeaderboardRequestObject) (GetAllTimeLeaderboardResponseObject, error) {
+	if s.leaderboard == nil {
+		return nil, errors.New("leaderboard is not configured")
+	}
+	viewer, user := viewerFrom(ctx)
+	b, err := s.leaderboard.AllTime(ctx, viewer)
+	if err != nil {
+		return nil, err
+	}
+	out := GetAllTimeLeaderboard200JSONResponse{Top: make([]LeaderboardEntry, len(b.Top)), Players: b.Players}
+	for i, e := range b.Top {
+		out.Top[i] = LeaderboardEntry{Rank: e.Rank, Username: e.Username, Points: e.Points}
+	}
+	if b.You != nil {
+		out.You = &LeaderboardEntry{Rank: b.You.Rank, Username: user.Username, Points: b.You.Points}
+	}
+	return out, nil
+}

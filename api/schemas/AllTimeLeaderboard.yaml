@@ -1,0 +1,16 @@
+type: object
+description: All-time standings (every week's season points added up)
+required:
+  - top
+  - players
+properties:
+  top:
+    type: array
+    description: Up to 100 players, best first
+    items:
+      $ref: ./LeaderboardEntry.yaml
+  players:
+    type: integer
+    description: How many players have any points
+  you:
+    $ref: ./LeaderboardEntry.yaml

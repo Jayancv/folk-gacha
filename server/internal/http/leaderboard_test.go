@@ -63,4 +63,16 @@ func TestLeaderboardOverHTTP(t *testing.T) {
 			t.Errorf("%s: %d %s", id, rec.Code, rec.Body)
 		}
 	}
+
+	// All time: public too (the path isn't mistaken for a week id), "you" when signed in.
+	rec = ts.do(t, "GET", "/leaderboard/all-time", "", nil)
+	if rec.Code != 200 {
+		t.Fatalf("all-time: %d %s", rec.Code, rec.Body)
+	}
+	if all := decode[AllTimeLeaderboard](t, rec); all.Players != 1 || len(all.Top) != 1 || all.Top[0].Points != 120 || all.You != nil {
+		t.Fatalf("all-time signed out %+v", all)
+	}
+	if all := decode[AllTimeLeaderboard](t, ts.do(t, "GET", "/leaderboard/all-time", "", cookie)); all.You == nil || all.You.Username != "climber" {
+		t.Fatalf("all-time you %+v", all.You)
+	}
 }
