@@ -307,33 +307,114 @@ func TestDeclineAndCancel(t *testing.T) {
 	}
 }
 
-func TestAcceptFailsWhenARequestedCardIsGone(t *testing.T) {
+func TestMergingARequestedCardFailsTheOffersAtOnce(t *testing.T) {
 	pool, svc, _ := setup(t)
 	ctx := context.Background()
-	asha, ben := newUser(t, pool, "asha"), newUser(t, pool, "ben")
-	a1 := give(t, pool, asha, "gaja-calf", 0, 1)
+	got := &events{}
+	asha, ben, cara := newUser(t, pool, "asha"), newUser(t, pool, "ben"), newUser(t, pool, "cara")
+	a1, c1 := give(t, pool, asha, "gaja-calf", 0, 1), give(t, pool, cara, "malu", 0, 1)
 	b1, b2 := give(t, pool, ben, "simha", 0, 1), give(t, pool, ben, "simha", 1, 1)
+	b3 := give(t, pool, ben, "ura", 0, 1)
 
-	tr, err := svc.Create(ctx, asha, offer("ben", ids(a1), ids(b1)))
+	// Two players ask for b1; a third offer asks for another card of Ben's.
+	fromAsha, err := svc.Create(ctx, asha, offer("ben", ids(a1), ids(b1)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Ben merges the requested card away (requested cards aren't locked).
-	if _, err := merges.NewService(pool).Merge(ctx, ben, b1, b2); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.Accept(ctx, ben, tr.ID); !errors.Is(err, trades.ErrUnavailable) {
-		t.Fatalf("accept: %v", err)
-	}
-	list, err := svc.List(ctx, asha)
+	fromCara, err := svc.Create(ctx, cara, offer("ben", ids(c1), ids(b1)))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(list) != 1 || list[0].Status != trades.StatusFailed || list[0].Request[0].Card != nil {
-		t.Fatalf("after the failed accept: %+v", list)
+	a2 := give(t, pool, asha, "monara", 0, 1)
+	other, err := svc.Create(ctx, asha, offer("ben", ids(a2), ids(b3)))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if s := state(t, pool, a1); s.locked || s.owner != asha {
-		t.Errorf("offered card after failure: %+v", s)
+
+	// Ben merges the requested card away (requested cards aren't locked): both offers
+	// asking for it fail now, and Asha's and Cara's offered cards are free again.
+	m := merges.NewService(pool)
+	m.OnTradeEvent = got.add
+	if _, err := m.Merge(ctx, ben, b1, b2); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []uuid.UUID{fromAsha.ID, fromCara.ID} {
+		if _, err := svc.Accept(ctx, ben, id); !isNotOpen(err, trades.StatusFailed) {
+			t.Errorf("accept a failed offer: %v", err)
+		}
+	}
+	for _, c := range []uuid.UUID{a1, c1} {
+		if s := state(t, pool, c); s.locked {
+			t.Errorf("offered card still locked: %+v", s)
+		}
+	}
+	if s := state(t, pool, a2); !s.locked {
+		t.Error("an offer for another card failed too")
+	}
+	if _, err := svc.Accept(ctx, ben, other.ID); err != nil {
+		t.Errorf("the other offer: %v", err)
+	}
+	// Both players of each failed offer are told.
+	to := map[uuid.UUID]int{}
+	for _, e := range got.take() {
+		if e.Type != "trade.failed" {
+			t.Errorf("event %+v", e)
+		}
+		to[e.To]++
+	}
+	if to[asha] != 1 || to[cara] != 1 || to[ben] != 2 {
+		t.Errorf("failed events to %v", to)
+	}
+}
+
+func TestAcceptingFailsOtherOffersForTheSameCards(t *testing.T) {
+	pool, svc, _ := setup(t)
+	ctx := context.Background()
+	got := &events{}
+	svc.OnEvent = got.add
+	asha, ben, cara := newUser(t, pool, "asha"), newUser(t, pool, "ben"), newUser(t, pool, "cara")
+	a1, c1 := give(t, pool, asha, "gaja-calf", 0, 1), give(t, pool, cara, "malu", 0, 1)
+	b1 := give(t, pool, ben, "simha", 0, 1)
+
+	// Cara asks Asha for a1 first; then Asha offers a1 to Ben (it was free when Cara asked).
+	c2 := give(t, pool, cara, "monara", 0, 1)
+	forA1, err := svc.Create(ctx, cara, offer("asha", ids(c2), ids(a1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromAsha, err := svc.Create(ctx, asha, offer("ben", ids(a1), ids(b1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromCara, err := svc.Create(ctx, cara, offer("ben", ids(c1), ids(b1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got.take()
+
+	if _, err := svc.Accept(ctx, ben, fromAsha.ID); err != nil {
+		t.Fatal(err)
+	}
+	// b1 and a1 changed hands: Cara's offers for them fail, and her cards are free.
+	if _, err := svc.Decline(ctx, ben, fromCara.ID); !isNotOpen(err, trades.StatusFailed) {
+		t.Errorf("cara's offer to ben: %v", err)
+	}
+	if _, err := svc.Decline(ctx, asha, forA1.ID); !isNotOpen(err, trades.StatusFailed) {
+		t.Errorf("cara's offer to asha: %v", err)
+	}
+	for _, c := range []uuid.UUID{c1, c2} {
+		if s := state(t, pool, c); s.locked || s.owner != cara {
+			t.Errorf("cara's card after the failures: %+v", s)
+		}
+	}
+	failed := 0
+	for _, e := range got.take() {
+		if e.Type == "trade.failed" {
+			failed++
+		}
+	}
+	if failed != 4 { // both players of both offers
+		t.Errorf("failed events: %d, want 4", failed)
 	}
 }
 
@@ -531,5 +612,42 @@ func TestConcurrentOffersOfOneCard(t *testing.T) {
 	}
 	if ok != 1 {
 		t.Fatalf("%d offers got the card, want 1", ok)
+	}
+}
+
+// Ben accepts an offer asking for b while merging b away at the same moment: exactly
+// one wins. Either the merge goes first (the offer fails, nothing moves) or the accept
+// does (the merge finds b isn't Ben's any more). Never both, never a deadlock.
+func TestAcceptRacingAMergeOfTheRequestedCard(t *testing.T) {
+	pool, svc, _ := setup(t)
+	ctx := context.Background()
+	asha, ben := newUser(t, pool, "asha"), newUser(t, pool, "ben")
+	m := merges.NewService(pool)
+	for round := range 10 {
+		a := give(t, pool, asha, "gaja-calf", round, 1)
+		b, b2 := give(t, pool, ben, "simha", 2*round, 1), give(t, pool, ben, "simha", 2*round+1, 1)
+		tr, err := svc.Create(ctx, asha, offer("ben", ids(a), ids(b)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, "UPDATE trades SET created_at = created_at - interval '1 day'"); err != nil {
+			t.Fatal(err)
+		}
+		var wg sync.WaitGroup
+		var acceptErr, mergeErr error
+		wg.Add(2)
+		go func() { defer wg.Done(); _, acceptErr = svc.Accept(ctx, ben, tr.ID) }()
+		go func() { defer wg.Done(); _, mergeErr = m.Merge(ctx, ben, b2, b) }()
+		wg.Wait()
+
+		accepted := acceptErr == nil && errors.Is(mergeErr, merges.ErrNotOwned)
+		merged := mergeErr == nil && (isNotOpen(acceptErr, trades.StatusFailed) || errors.Is(acceptErr, trades.ErrUnavailable))
+		if accepted == merged {
+			t.Fatalf("round %d: accept %v, merge %v", round, acceptErr, mergeErr)
+		}
+		sa := state(t, pool, a)
+		if accepted && (sa.owner != ben || state(t, pool, b).owner != asha) || merged && (sa.owner != asha || sa.locked) {
+			t.Fatalf("round %d: cards don't match the outcome (asha's card %+v)", round, sa)
+		}
 	}
 }

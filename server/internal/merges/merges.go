@@ -17,6 +17,7 @@ import (
 	"cardgame/server/internal/mint"
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
+	"cardgame/server/internal/trades"
 )
 
 var (
@@ -40,6 +41,9 @@ type Service struct {
 	Rand game.Rand
 	// Now is replaceable in tests (season points go to the week of the merge).
 	Now func() time.Time
+	// OnTradeEvent, if set, is told about trade offers a merge failed (it used a card
+	// they asked for), after the commit. It must not block.
+	OnTradeEvent func(trades.Event)
 }
 
 func NewService(pool *pgxpool.Pool) *Service {
@@ -68,9 +72,14 @@ func (s *Service) Merge(ctx context.Context, userID, dragged, target uuid.UUID) 
 	now := s.Now()
 	var res Result
 	var id uuid.UUID
+	var failed []trades.Event
 	err := mint.InTx(ctx, s.pool, func(q *store.Queries) error {
 		var err error
-		res, id, err = s.mergeTx(ctx, q, userID, dragged, target, now)
+		if res, id, err = s.mergeTx(ctx, q, userID, dragged, target, now); err != nil {
+			return err
+		}
+		// Offers asking for either card can't succeed now: fail them (unlocking their senders' cards).
+		failed, err = trades.FailOffersRequesting(ctx, q, []uuid.UUID{dragged, target}, uuid.Nil, now)
 		return err
 	})
 	if errors.Is(err, mint.ErrSoldOut) {
@@ -78,6 +87,11 @@ func (s *Service) Merge(ctx context.Context, userID, dragged, target uuid.UUID) 
 	}
 	if err != nil {
 		return Result{}, err
+	}
+	if s.OnTradeEvent != nil {
+		for _, e := range failed {
+			s.OnTradeEvent(e)
+		}
 	}
 	cards, err := mint.LoadCards(ctx, store.New(s.pool), []uuid.UUID{id})
 	if err != nil {

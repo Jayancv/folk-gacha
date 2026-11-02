@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
+import { cardsChanged } from '../../app/cardsChanged';
 import { claimDailyPack, openGifts, type ClaimError, type GiftError } from '../../api/game';
 import { ME_KEY } from '../../auth/useAuth';
 import { EventBus } from '../../bridge/EventBus';
@@ -67,6 +68,7 @@ export function usePackTable ()
             setGift(opened);
             deal(opened.cards, opened.title);
             void qc.invalidateQueries({ queryKey: CARDS_KEY });
+            cardsChanged();
             void qc.invalidateQueries({ queryKey: PROFILE_KEY });
         }
         else

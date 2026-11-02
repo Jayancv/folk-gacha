@@ -103,10 +103,12 @@ func run() error {
 	tradesSvc.OnEvent = func(e trades.Event) {
 		hub.Send(e.To, ws.Event{Type: e.Type, TradeID: e.TradeID, By: e.By})
 	}
+	mergesSvc := merges.NewService(pool)
+	mergesSvc.OnTradeEvent = tradesSvc.OnEvent // a merge can fail offers asking for its cards
 	api := httpapi.NewServer(pool, httpapi.Services{
 		Auth:          auth.NewService(store.New(pool)),
 		Packs:         packs.NewService(pool),
-		Merges:        merges.NewService(pool),
+		Merges:        mergesSvc,
 		Collection:    collection.NewService(pool),
 		Leaderboard:   leaderboard.NewService(pool),
 		Push:          pushSvc,

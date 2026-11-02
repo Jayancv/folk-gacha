@@ -93,6 +93,25 @@ type Event struct {
 // EventReceived: a new offer was sent to the player.
 const EventReceived = "trade.received"
 
+// FailOffersRequesting runs inside the transaction that takes `cards` away from their
+// owner (a merge, or an accepted trade other than `except`): open offers asking for
+// any of them fail at once, unlocking what their senders offered, instead of waiting
+// for an accept or expiry. It returns the events to send after the commit (both
+// players of each failed offer).
+func FailOffersRequesting(ctx context.Context, q *store.Queries, cards []uuid.UUID, except uuid.UUID, now time.Time) ([]Event, error) {
+	failed, err := q.FailOffersRequesting(ctx, store.FailOffersRequestingParams{ExceptTrade: except, CardIds: cards, Now: now})
+	if err != nil {
+		return nil, err
+	}
+	var events []Event
+	for _, t := range failed {
+		for _, u := range []uuid.UUID{t.FromUser, t.ToUser} {
+			events = append(events, Event{To: u, Type: "trade." + StatusFailed, TradeID: t.ID})
+		}
+	}
+	return events, nil
+}
+
 func (s *Service) emit(e Event) {
 	if s.OnEvent != nil {
 		s.OnEvent(e)
@@ -237,7 +256,10 @@ func createTx(ctx context.Context, q *store.Queries, from uuid.UUID, o NewOffer,
 // Accept swaps the cards of an offer sent to `user`, all at once. If a card is gone
 // (or no longer belongs to its side) the offer fails and nothing moves.
 func (s *Service) Accept(ctx context.Context, user, id uuid.UUID) (Trade, error) {
-	return s.resolve(ctx, user, id, func(q *store.Queries, t store.Trade, now time.Time) (string, error) {
+	// Other offers asking for the cards that just changed hands fail with this one's commit.
+	var others []Event
+	t, err := s.resolve(ctx, user, id, func(q *store.Queries, t store.Trade, now time.Time) (string, error) {
+		others = nil
 		if t.ToUser != user {
 			return "", ErrNotFound
 		}
@@ -290,11 +312,20 @@ func (s *Service) Accept(ctx context.Context, user, id uuid.UUID) (Trade, error)
 		if err := q.RemoveFromShowcases(ctx, all); err != nil {
 			return "", err
 		}
+		if others, err = FailOffersRequesting(ctx, q, all, t.ID, now); err != nil {
+			return "", err
+		}
 		if err := s.givePartnerGifts(ctx, q, t, now); err != nil {
 			return "", err
 		}
 		return StatusAccepted, nil
 	})
+	if err == nil {
+		for _, e := range others {
+			s.emit(e)
+		}
+	}
+	return t, err
 }
 
 // givePartnerGifts gives both players a gift the first time they trade with each

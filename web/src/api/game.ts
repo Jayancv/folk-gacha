@@ -84,7 +84,8 @@ export async function loadBoard (size: number): Promise<BoardShowPayload>
     {
         throw new Error(`GET /cards: ${response.status} ${error?.error ?? ''}`.trim());
     }
-    return { cards: data.cards.map(c => toCardData(c)), total: data.total };
+    const cards = data.cards.map(c => toCardData(c));
+    return { cards, total: data.total, locked: cards.filter(c => c.inTrade).map(c => c.id) };
 }
 
 export interface MergeAnswer

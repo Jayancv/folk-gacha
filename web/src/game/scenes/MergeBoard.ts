@@ -2,6 +2,7 @@ import { GameObjects, Geom, Math as PMath, type Types } from 'phaser';
 import * as sfx from '../../audio/sfx';
 import { CardInspector } from '../cards/CardInspector';
 import { CardView } from '../cards/CardView';
+import { CARD_H } from '../cards/drawCard';
 import { cameraFx, createBursts, floatText, shockwave, vibrate, type Bursts } from '../cards/effects';
 import { PALETTE, RARITY_STYLE, type CardData } from '../cards/model';
 import {
@@ -85,6 +86,8 @@ export class MergeBoard extends ResponsiveScene
     private pending = new Map<string, (r: MergeResultPayload) => void>();
     private requestSeq = 0;
     private total = 0;
+    // Cards offered in an open trade (lock badge).
+    private locked = new Set<string>();
 
     constructor ()
     {
@@ -146,10 +149,11 @@ export class MergeBoard extends ResponsiveScene
 
     // ---------- Board ----------
 
-    private onShow ({ cards, total }: BoardShowPayload)
+    private onShow ({ cards, total, locked = [] }: BoardShowPayload)
     {
         this.clearBoard();
         this.total = total;
+        this.locked = new Set(locked);
 
         cards.slice(0, BOARD_SIZE).forEach((card, i) =>
         {
@@ -166,8 +170,21 @@ export class MergeBoard extends ResponsiveScene
         const view = new CardView(this, card, x, y, this.boardTextureScale(), true)
             .setScale(BOARD_SCALE)
             .setDepth(DEPTH.cards);
+        if (this.locked.has(card.id))
+        {
+            view.add(this.lockBadge());
+        }
         this.slots[slot] = view;
         return view;
+    }
+
+    // "In trade" across the bottom of a card offered in an open trade (it moves with the card).
+    private lockBadge (): GameObjects.Text
+    {
+        return this.add.text(0, CARD_H / 2 - 34, '🔒 In trade', {
+            fontFamily: 'system-ui, sans-serif', fontStyle: 'bold', fontSize: 26, color: PALETTE.gold,
+            backgroundColor: '#000000bb', padding: { x: 14, y: 6 }
+        }).setOrigin(0.5);
     }
 
     private clearBoard ()

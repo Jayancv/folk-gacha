@@ -134,3 +134,26 @@ FOR UPDATE OF g;
 -- name: OpenTradeGift :exec
 UPDATE trade_gifts SET card_id = @card_id::uuid, opened_at = @opened_at::timestamptz
 WHERE trade_id = @trade_id AND user_id = @user_id;
+
+-- name: FailOffersRequesting :many
+-- A card left its owner (merged or traded): open offers asking for it can't succeed
+-- any more, so they fail now and the cards their senders offered are free again.
+-- SKIP LOCKED: an offer whose row is locked is being accepted, declined, cancelled or
+-- expired right now, and that resolves it anyway (an accept then finds the card gone).
+WITH due AS (
+    SELECT t.id FROM trades t
+    WHERE t.status = 'open' AND t.id <> @except_trade::uuid
+      AND EXISTS (
+          SELECT 1 FROM trade_items i
+          WHERE i.trade_id = t.id AND i.side = 'request' AND i.card_id = ANY(@card_ids::uuid[]))
+    FOR UPDATE OF t SKIP LOCKED
+), failed AS (
+    UPDATE trades SET status = 'failed', resolved_at = @now::timestamptz
+    WHERE id IN (SELECT id FROM due)
+    RETURNING id, from_user, to_user
+), unlocked AS (
+    UPDATE cards SET locked_in_trade_id = NULL
+    WHERE locked_in_trade_id IN (SELECT id FROM failed)
+    RETURNING 1
+)
+SELECT id, from_user, to_user FROM failed;

@@ -35,7 +35,7 @@ export default function Game ({ me }: { me: Me })
 {
     const { tab, collectionOpened, switchTo } = useTabs();
     const pack = usePackTable();
-    const board = useBoardTable();
+    const board = useBoardTable(tab === 'MergeBoard');
     const install = useInstallPrompt();
     const notifications = usePushNotifications();
     // The tab badge; live events refresh it (it polls only while the socket is down).

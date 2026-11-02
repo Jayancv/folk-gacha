@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { toCardData } from '../../api/cards';
+import { cardsChanged } from '../../app/cardsChanged';
 import { useLiveConnected } from '../../app/live/liveStatus';
 import { ApiRequestError, ME_KEY } from '../../auth/useAuth';
 import { NO_FILTERS, toQuery } from '../collection/filters';
@@ -88,6 +89,7 @@ export function refreshAfterTrade (qc: ReturnType<typeof useQueryClient>)
     void qc.invalidateQueries({ queryKey: PROFILE_KEY }); // card counts and best cards
     void qc.invalidateQueries({ queryKey: PLAYER_CARDS_KEY });
     void qc.invalidateQueries({ queryKey: ME_KEY }); // a first trade with someone leaves a gift on the Pack tab
+    cardsChanged(); // the Board lays out its own copy of the cards
 }
 
 const PLAYER_CARDS_KEY = ['player-cards'] as const;

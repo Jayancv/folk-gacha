@@ -45,6 +45,8 @@ export interface BoardShowPayload
     cards: CardData[];
     /** Total cards owned, when more than fit on the board. */
     total: number;
+    /** Ids of cards offered in an open trade: shown with a lock badge (merging them is refused). */
+    locked?: string[];
 }
 
 export interface MergeRequestedPayload
