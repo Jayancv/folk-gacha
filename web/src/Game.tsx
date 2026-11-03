@@ -18,7 +18,7 @@ import { useBoardTable } from './screens/board/useBoardTable';
 import { Collection } from './screens/collection/Collection';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
-import { GiftButton, GiftDoneButton } from './screens/pack/GiftButton';
+import { GiftButton } from './screens/pack/GiftButton';
 import { Profile } from './screens/profile/Profile';
 import { waitingCount } from './screens/trades/tradeModel';
 import { Trades } from './screens/trades/Trades';
@@ -34,7 +34,7 @@ import { UserChip } from './screens/UserChip';
 export default function Game ({ me }: { me: Me })
 {
     const { tab, collectionOpened, switchTo } = useTabs();
-    const pack = usePackTable();
+    const pack = usePackTable(tab === 'PackOpen');
     const board = useBoardTable(tab === 'MergeBoard');
     const install = useInstallPrompt();
     const notifications = usePushNotifications();
@@ -123,7 +123,6 @@ export default function Game ({ me }: { me: Me })
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
-                {tab === 'PackOpen' && pack.giftOnTable && pack.revealed && <GiftDoneButton onDone={pack.closeGift} />}
                 {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && me.giftsWaiting > 0 && <GiftButton gifts={gifts} />}
                 {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
                 <TabBar tab={tab} onSwitch={switchTo} badges={{ Trades: waitingCount(trades.data ?? []) }} />
