@@ -2,10 +2,9 @@ import { BlendModes, GameObjects, Scene } from 'phaser';
 import { CARD_H, CARD_W, SHINE } from './drawCard';
 import type { CardData } from './model';
 import { prefersReducedMotion } from './revealFx';
+import { SHINE_BAND_ANGLE as BAND_ANGLE, SHINE_BAND_H, SHINE_BAND_W, SHINE_SWEEP_MS as SWEEP_MS, SHINE_TRAVEL } from './shineModel';
 import { ensureGlintTexture, FX } from './textures';
 
-const SWEEP_MS = 1100;
-const BAND_ANGLE = 22;
 const GOLD = 0xffe08a;
 
 // A band of light that sweeps across a face-up card now and then. The band is masked
@@ -27,7 +26,7 @@ export class CardShine extends GameObjects.Container
 
         const foil = card.season?.art.foil ?? 'none';
         this.band = scene.add.image(0, 0, foil === 'holo' ? FX.shineHolo : FX.shine)
-            .setDisplaySize(CARD_W * 0.32, CARD_H * 1.6)
+            .setDisplaySize(CARD_W * SHINE_BAND_W, CARD_H * SHINE_BAND_H)
             .setAngle(BAND_ANGLE)
             .setBlendMode(BlendModes.ADD);
         if (foil === 'gold')
@@ -116,7 +115,7 @@ export class CardShine extends GameObjects.Container
         {
             return;
         }
-        const travel = CARD_W * 1.1;
+        const travel = CARD_W * SHINE_TRAVEL;
         this.band.setX(-travel);
         this.setVisible(true).setAlpha(SHINE[this.card.rarity].alpha);
         this.sweep?.remove();
