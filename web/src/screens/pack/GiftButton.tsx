@@ -28,13 +28,3 @@ export function GiftButton ({ gifts, subtle = false }: { gifts: GiftsWaiting; su
         </div>
     );
 }
-
-// Under revealed gifts: back to the pack table.
-export function GiftDoneButton ({ onDone }: { onDone: () => void })
-{
-    return (
-        <button onClick={onDone} className={`${BUTTON} bg-[#e7b54a] text-[#170e10]`}>
-            Done
-        </button>
-    );
-}

@@ -19,24 +19,26 @@ interface OpenedPack
     cards: CardData[];
     /** When it stops being today's pack (the next 00:00 UTC). */
     expiresAt: number;
+    /** Cards flipped so far: they stay face up when the table is dealt again. */
+    revealed: number[];
 }
 
-/** Trade gifts just opened: on the table until the player taps Done. */
+/** Trade gifts just opened: on the table until the player leaves the Pack tab. */
 interface OpenedGift
 {
     cards: CardData[];
     title: string;
-    /** Cards flipped so far: they stay face up when the table is dealt again. */
     revealed: number[];
 }
 
 /**
  * Drives the PackOpen scene: claims today's pack (POST /packs/daily/claim) when the
- * player asks, deals it, re-deals it when the player comes back to the tab, and
- * forgets it at the next 00:00 UTC. Trade gifts (POST /gifts/open) are dealt the same
- * way, over the pack, until Done. With ?showcase it deals local dev packs instead.
+ * player asks, deals it, re-deals it (flipped cards stay face up) when the player comes
+ * back to the tab, and forgets it at the next 00:00 UTC. Trade gifts (POST /gifts/open)
+ * are dealt over the pack until the player leaves the tab (`active` false); then the
+ * pack is back. With ?showcase it deals local dev packs instead.
  */
-export function usePackTable ()
+export function usePackTable (active: boolean)
 {
     const qc = useQueryClient();
     const [pack, setPack] = useState<OpenedPack | null>(null);
@@ -78,19 +80,25 @@ export function usePackTable ()
         refreshMe(); // gifts waiting changed
     };
 
-    // Done with the gift: back to today's pack, or the empty table and its panel.
-    const closeGift = () =>
+    // Leaving the Pack tab puts the gift away: today's pack (as flipped) or the empty
+    // table and its panel are there on return. (Under the Board the scene is shut down
+    // and re-deals on Ready; under Cards or Trades it only sleeps, so deal now.)
+    useEffect(() =>
     {
+        if (active || !gift)
+        {
+            return;
+        }
         setGift(null);
         if (pack)
         {
-            deal(pack.cards);
+            deal(pack.cards, undefined, pack.revealed);
         }
         else
         {
             deal([]);
         }
-    };
+    }, [active, gift, pack]);
 
     const claim = async () =>
     {
@@ -100,7 +108,7 @@ export function usePackTable ()
         setClaiming(false);
         if (outcome.ok)
         {
-            setPack({ cards: outcome.cards, expiresAt: Date.parse(outcome.nextResetAt) });
+            setPack({ cards: outcome.cards, expiresAt: Date.parse(outcome.nextResetAt), revealed: [] });
             deal(outcome.cards);
             void qc.invalidateQueries({ queryKey: CARDS_KEY });
             void qc.invalidateQueries({ queryKey: LEADERBOARD_KEY }); // the pack earned season points
@@ -119,7 +127,7 @@ export function usePackTable ()
         if (showcase)
         {
             const cards = showcase();
-            setPack({ cards, expiresAt: Infinity });
+            setPack({ cards, expiresAt: Infinity, revealed: [] });
             deal(cards);
         }
     };
@@ -144,15 +152,27 @@ export function usePackTable ()
     {
         if (gift)
         {
-            deal(gift.cards, gift.title, gift.revealed); // an opened gift stays open
+            deal(gift.cards, gift.title, gift.revealed);
         }
         else if (pack)
         {
-            deal(pack.cards);
+            deal(pack.cards, undefined, pack.revealed);
         }
     });
+    // Remember flips on whatever is on the table, so a re-deal keeps them face up.
     useBridgeEvent(PackOpenEvents.CardRevealed, ({ index }) =>
-        setGift(g => (g && !g.revealed.includes(index) ? { ...g, revealed: [...g.revealed, index] } : g)));
+    {
+        const add = <T extends { revealed: number[] }>(t: T | null): T | null =>
+            (t && !t.revealed.includes(index) ? { ...t, revealed: [...t.revealed, index] } : t);
+        if (gift)
+        {
+            setGift(add);
+        }
+        else
+        {
+            setPack(add);
+        }
+    });
     useBridgeEvent(PackOpenEvents.Complete, () => setRevealed(true));
 
     return {
@@ -165,7 +185,6 @@ export function usePackTable ()
         openingGift,
         giftError,
         openGift: () => void openGift(),
-        closeGift,
         /** Every card of the pack on the table is face up. */
         revealed,
         claiming,
