@@ -24,6 +24,7 @@ import (
 	"cardgame/server/internal/push"
 	"cardgame/server/internal/seasons"
 	"cardgame/server/internal/store"
+	"cardgame/server/internal/tournaments"
 	"cardgame/server/internal/trades"
 	"cardgame/server/internal/ws"
 )
@@ -69,13 +70,18 @@ func run() error {
 	// Every session runs in UTC so daily resets and seasons line up.
 	cfg.ConnConfig.RuntimeParams["timezone"] = "UTC"
 
-	// The pool connects lazily, so the server starts even if Postgres is down;
-	// /health then reports database: down.
+	// The pool connects lazily. Wait for Postgres first (it can take a minute to start or
+	// recover), so the jobs and requests don't fail while it boots; if it's still down after
+	// that, start anyway and let /health report database: down.
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
+	waitForDB(ctx, pool.Ping, 90*time.Second, 2*time.Second)
+	if ctx.Err() != nil {
+		return nil // Ctrl+C while waiting
+	}
 
 	authOpts := httpapi.AuthOptions{
 		GoogleClientID: googleClientID,
@@ -105,6 +111,7 @@ func run() error {
 	}
 	mergesSvc := merges.NewService(pool)
 	mergesSvc.OnTradeEvent = tradesSvc.OnEvent // a merge can fail offers asking for its cards
+	tournamentsSvc := tournaments.NewService(pool)
 	api := httpapi.NewServer(pool, httpapi.Services{
 		Auth:          auth.NewService(store.New(pool)),
 		Packs:         packs.NewService(pool),
@@ -115,6 +122,7 @@ func run() error {
 		PushPublicKey: vapidPublic,
 		Profiles:      profile.NewService(pool),
 		Trades:        tradesSvc,
+		Tournaments:   tournamentsSvc,
 		Live:          hub,
 	}, authOpts)
 	srv := &http.Server{
@@ -147,6 +155,19 @@ func run() error {
 	defer func() {
 		stopJob()
 		<-tradesDone
+	}()
+
+	// Tournaments (server/rules/tournaments.yaml): create each series' current one, close and
+	// score due ones, finish ended ones (freeing their cards). Stopped and waited for before the
+	// pool closes, like the season job.
+	tournamentsDone := make(chan struct{})
+	go func() {
+		defer close(tournamentsDone)
+		tournamentsSvc.Run(jobCtx, time.Minute)
+	}()
+	defer func() {
+		stopJob()
+		<-tournamentsDone
 	}()
 
 	// The daily push: sent once per UTC day (across servers) to players who haven't claimed yet.

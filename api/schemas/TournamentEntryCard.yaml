@@ -1,0 +1,10 @@
+type: object
+description: A lineup card; card is missing if it no longer exists (merged after the tournament)
+required:
+  - cardId
+properties:
+  cardId:
+    type: string
+    format: uuid
+  card:
+    $ref: ./Card.yaml

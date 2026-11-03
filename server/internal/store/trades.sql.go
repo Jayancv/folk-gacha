@@ -445,7 +445,7 @@ func (q *Queries) LockTrade(ctx context.Context, id uuid.UUID) (Trade, error) {
 }
 
 const lockTradeCards = `-- name: LockTradeCards :many
-SELECT id, owner_id, locked_in_trade_id FROM cards
+SELECT id, owner_id, locked_in_trade_id, (locked_in_tournament_id IS NOT NULL)::boolean AS in_tournament FROM cards
 WHERE id = ANY($1::uuid[])
 ORDER BY id
 FOR UPDATE
@@ -455,6 +455,7 @@ type LockTradeCardsRow struct {
 	ID              uuid.UUID
 	OwnerID         uuid.UUID
 	LockedInTradeID pgtype.UUID
+	InTournament    bool
 }
 
 // Cards of a trade, any owner, row-locked in id order (so trades and merges of the
@@ -468,7 +469,12 @@ func (q *Queries) LockTradeCards(ctx context.Context, ids []uuid.UUID) ([]LockTr
 	var items []LockTradeCardsRow
 	for rows.Next() {
 		var i LockTradeCardsRow
-		if err := rows.Scan(&i.ID, &i.OwnerID, &i.LockedInTradeID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.LockedInTradeID,
+			&i.InTournament,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

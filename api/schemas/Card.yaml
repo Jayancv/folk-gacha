@@ -22,6 +22,7 @@ required:
   - acquiredVia
   - acquiredAt
   - inTrade
+  - inTournament
 properties:
   id:
     type: string
@@ -89,3 +90,6 @@ properties:
   inTrade:
     type: boolean
     description: "Offered in an open trade: locked, so it can't be merged or offered again until the offer ends"
+  inTournament:
+    type: boolean
+    description: "In a tournament lineup: locked (no merging, trading or other tournaments) until the tournament ends"

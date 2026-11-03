@@ -721,6 +721,190 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /tournaments:
+    get:
+      operationId: listTournaments
+      summary: Tournaments
+      description: |
+        The tournaments running now (one per series, from server/rules/tournaments.yaml), those that
+        ended in the last 7 days (newest first), and each series' next tournament.
+      responses:
+        '200':
+          description: Tournaments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentList'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tournaments/{tournamentId}:
+    get:
+      operationId: getTournament
+      summary: A tournament, your entry and its results
+      description: Results (top 100) appear once entries close; until then the list is empty.
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The tournament
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentDetail'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such tournament (not_found; upcoming ones don't exist yet)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tournaments/{tournamentId}/entry:
+    put:
+      operationId: enterTournament
+      summary: Enter or change your lineup
+      description: |
+        Saves your lineup while entries are open, replacing any earlier one. The cards are locked in
+        the tournament until it ends (no merging, trading or other tournaments); cards you swap out are
+        free again. Cards from the series' previous tournament sit this one out.
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournamentLineup'
+      responses:
+        '200':
+          description: Your entry, with the server's score for it
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TournamentEntry'
+        '400':
+          description: The format doesn't allow this lineup. Wrong number of cards or a card twice (bad_lineup), above the rarity cap (rarity_cap), two cards of one spirit (same_spirit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such tournament (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Entries are closed (closed), a card isn't yours (not_owned), is offered in a trade (in_trade), is in another tournament (in_tournament), was in the series' previous tournament (cooldown), or was traded after the tournament opened (traded_late)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: withdrawFromTournament
+      summary: Withdraw your entry
+      description: Removes your lineup while entries are open and frees its cards.
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Withdrawn
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such tournament (not_found), or you haven't entered it (not_entered)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Entries are closed (closed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /tournaments/{tournamentId}/preview:
+    post:
+      operationId: previewTournamentLineup
+      summary: Score a lineup without entering
+      description: Checks and scores the lineup exactly as entering would, without saving or locking anything.
+      parameters:
+        - name: tournamentId
+          in: path
+          required: true
+          description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TournamentLineup'
+      responses:
+        '200':
+          description: The lineup's score
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LineupScore'
+        '400':
+          description: The format doesn't allow this lineup. Wrong number of cards or a card twice (bad_lineup), above the rarity cap (rarity_cap), two cards of one spirit (same_spirit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No such tournament (not_found)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Entries are closed (closed), a card isn't yours (not_owned), is offered in a trade (in_trade), is in another tournament (in_tournament), was in the series' previous tournament (cooldown), or was traded after the tournament opened (traded_late)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /live/ticket:
     post:
       operationId: getLiveTicket
@@ -1136,6 +1320,7 @@ components:
         - acquiredVia
         - acquiredAt
         - inTrade
+        - inTournament
       properties:
         id:
           type: string
@@ -1203,6 +1388,9 @@ components:
         inTrade:
           type: boolean
           description: 'Offered in an open trade: locked, so it can''t be merged or offered again until the offer ends'
+        inTournament:
+          type: boolean
+          description: 'In a tournament lineup: locked (no merging, trading or other tournaments) until the tournament ends'
     CardTraits:
       type: object
       description: Trait ids from the season config (server/seasons/<id>/config.json)
@@ -1546,3 +1734,232 @@ components:
           description: How many players have any points
         you:
           $ref: '#/components/schemas/LeaderboardEntry'
+    Tournament:
+      type: object
+      required:
+        - id
+        - series
+        - name
+        - format
+        - status
+        - opensAt
+        - closesAt
+        - endsAt
+        - entries
+        - entered
+      properties:
+        id:
+          type: string
+          description: Series and period, e.g. daily-2026-11-03
+        series:
+          type: string
+        name:
+          type: string
+          description: The series' name, e.g. Daily Cup
+        format:
+          $ref: '#/components/schemas/TournamentFormat'
+        element:
+          $ref: '#/components/schemas/Element'
+        status:
+          $ref: '#/components/schemas/TournamentStatus'
+        opensAt:
+          type: string
+          format: date-time
+        closesAt:
+          type: string
+          format: date-time
+          description: Entries close and lineups are scored
+        endsAt:
+          type: string
+          format: date-time
+          description: Entered cards are free again
+        entries:
+          type: integer
+          description: Players who entered
+        entered:
+          type: boolean
+          description: You have an entry
+        seedHash:
+          type: string
+          description: SHA-256 (hex) of the tie-break seed, published when the tournament opens
+        seed:
+          type: string
+          description: The tie-break seed (hex), revealed when entries close; its SHA-256 is seedHash
+    TournamentStatus:
+      type: string
+      description: upcoming (not open yet), open (entries open), locked (scored; cards locked until the end), finished
+      enum:
+        - upcoming
+        - open
+        - locked
+        - finished
+    TournamentFormat:
+      type: object
+      description: How a tournament scores lineups (server/rules/tournaments.yaml)
+      required:
+        - id
+        - kind
+        - name
+        - slots
+        - onePerSpirit
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          description: |
+            power: card scores as they are. element-trial: cards of the tournament's element count
+            ×elementMultiplier. rarity-cap: cards up to maxRarity, plus at most allowAbove better ones.
+            underdog: score ÷ the rarity's base score (× the Common base). harmony: +harmonyBonusPercent
+            for each element after the first.
+          enum:
+            - power
+            - element-trial
+            - rarity-cap
+            - underdog
+            - harmony
+        name:
+          type: string
+        slots:
+          type: integer
+          description: Cards in a lineup
+          minimum: 3
+          maximum: 5
+        onePerSpirit:
+          type: boolean
+          description: No two cards of the same spirit
+        elementMultiplier:
+          type: number
+        maxRarity:
+          $ref: '#/components/schemas/Rarity'
+        allowAbove:
+          type: integer
+        harmonyBonusPercent:
+          type: integer
+        rarityBase:
+          type: object
+          description: Base score per rarity (underdog)
+          additionalProperties:
+            type: number
+    TournamentList:
+      type: object
+      required:
+        - tournaments
+        - upcoming
+      properties:
+        tournaments:
+          type: array
+          description: Running now and ended in the last 7 days, newest first
+          items:
+            $ref: '#/components/schemas/Tournament'
+        upcoming:
+          type: array
+          description: Each series' next tournament
+          items:
+            $ref: '#/components/schemas/Tournament'
+    TournamentDetail:
+      type: object
+      required:
+        - tournament
+        - results
+      properties:
+        tournament:
+          $ref: '#/components/schemas/Tournament'
+        you:
+          $ref: '#/components/schemas/TournamentEntry'
+        results:
+          type: array
+          description: Top 100 once entries close (ties broken by the seed); empty while open
+          items:
+            $ref: '#/components/schemas/TournamentResult'
+    TournamentEntry:
+      type: object
+      description: Your lineup; the score is a preview while entries are open, final once they close
+      required:
+        - cards
+        - score
+      properties:
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/TournamentEntryCard'
+        score:
+          $ref: '#/components/schemas/LineupScore'
+        rank:
+          type: integer
+          minimum: 1
+          description: Your place, once entries close
+    TournamentEntryCard:
+      type: object
+      description: A lineup card; card is missing if it no longer exists (merged after the tournament)
+      required:
+        - cardId
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        card:
+          $ref: '#/components/schemas/Card'
+    TournamentResult:
+      type: object
+      required:
+        - rank
+        - username
+        - score
+      properties:
+        rank:
+          type: integer
+          minimum: 1
+        username:
+          type: string
+        score:
+          type: integer
+    TournamentLineup:
+      type: object
+      required:
+        - cardIds
+      properties:
+        cardIds:
+          type: array
+          description: Your cards, in slot order (as many as the format's slots)
+          minItems: 1
+          maxItems: 5
+          items:
+            type: string
+            format: uuid
+    LineupScore:
+      type: object
+      description: A lineup's score with its breakdown
+      required:
+        - cards
+        - bonusPercent
+        - bonus
+        - total
+      properties:
+        cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineupCardPoints'
+        bonusPercent:
+          type: integer
+          description: Lineup bonus (harmony), in percent of the cards' points
+        bonus:
+          type: integer
+        total:
+          type: integer
+    LineupCardPoints:
+      type: object
+      description: One card's line in a score breakdown
+      required:
+        - cardId
+        - multiplier
+        - points
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        multiplier:
+          type: number
+          description: Applied to the card's score (1 when the format leaves it as it is)
+        points:
+          type: integer

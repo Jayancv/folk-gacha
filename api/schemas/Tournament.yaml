@@ -1,0 +1,50 @@
+type: object
+required:
+  - id
+  - series
+  - name
+  - format
+  - status
+  - opensAt
+  - closesAt
+  - endsAt
+  - entries
+  - entered
+properties:
+  id:
+    type: string
+    description: Series and period, e.g. daily-2026-11-03
+  series:
+    type: string
+  name:
+    type: string
+    description: The series' name, e.g. Daily Cup
+  format:
+    $ref: ./TournamentFormat.yaml
+  element:
+    $ref: ./Element.yaml
+  status:
+    $ref: ./TournamentStatus.yaml
+  opensAt:
+    type: string
+    format: date-time
+  closesAt:
+    type: string
+    format: date-time
+    description: Entries close and lineups are scored
+  endsAt:
+    type: string
+    format: date-time
+    description: Entered cards are free again
+  entries:
+    type: integer
+    description: Players who entered
+  entered:
+    type: boolean
+    description: You have an entry
+  seedHash:
+    type: string
+    description: SHA-256 (hex) of the tie-break seed, published when the tournament opens
+  seed:
+    type: string
+    description: The tie-break seed (hex), revealed when entries close; its SHA-256 is seedHash

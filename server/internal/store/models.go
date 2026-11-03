@@ -12,15 +12,16 @@ import (
 )
 
 type Card struct {
-	ID              uuid.UUID
-	SeasonCardID    string
-	CopyNo          int32
-	OwnerID         uuid.UUID
-	Level           int16
-	AcquiredVia     string
-	AcquiredAt      time.Time
-	LockedInTradeID pgtype.UUID
-	Traded          bool
+	ID                   uuid.UUID
+	SeasonCardID         string
+	CopyNo               int32
+	OwnerID              uuid.UUID
+	Level                int16
+	AcquiredVia          string
+	AcquiredAt           time.Time
+	LockedInTradeID      pgtype.UUID
+	Traded               bool
+	LockedInTournamentID pgtype.Text
 }
 
 type CardSeason struct {
@@ -127,6 +128,39 @@ type ShowcaseCard struct {
 	UserID   uuid.UUID
 	Position int16
 	CardID   uuid.UUID
+}
+
+type Tournament struct {
+	ID       string
+	Series   string
+	N        int32
+	Name     string
+	Format   []byte
+	Element  pgtype.Text
+	OpensAt  time.Time
+	ClosesAt time.Time
+	EndsAt   time.Time
+	Status   string
+	Seed     []byte
+	SeedHash string
+}
+
+type TournamentEntry struct {
+	TournamentID string
+	UserID       uuid.UUID
+	EnteredAt    time.Time
+	UpdatedAt    time.Time
+	Score        pgtype.Int4
+	Rank         pgtype.Int4
+	Breakdown    []byte
+}
+
+type TournamentEntryCard struct {
+	TournamentID string
+	UserID       uuid.UUID
+	Slot         int16
+	CardID       uuid.UUID
+	Snapshot     []byte
 }
 
 type Trade struct {

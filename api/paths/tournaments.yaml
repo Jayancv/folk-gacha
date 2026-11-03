@@ -1,0 +1,20 @@
+# /tournaments
+get:
+  operationId: listTournaments
+  summary: Tournaments
+  description: |
+    The tournaments running now (one per series, from server/rules/tournaments.yaml), those that
+    ended in the last 7 days (newest first), and each series' next tournament.
+  responses:
+    "200":
+      description: Tournaments
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/TournamentList.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../schemas/Error.yaml

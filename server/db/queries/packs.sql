@@ -45,6 +45,7 @@ RETURNING id;
 -- Cards with everything the client needs to draw them.
 SELECT c.id, c.season_card_id, c.copy_no, c.owner_id, c.level, c.acquired_via, c.acquired_at,
        (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
+       (c.locked_in_tournament_id IS NOT NULL)::boolean AS in_tournament,
        sc.card_season_id, sc.set_no, sc.template_id, sc.rarity, sc.name, sc.title, sc.epithet,
        sc.traits, sc.score, sc.max_copies, sc.art_seed,
        cs.card_count AS set_size,

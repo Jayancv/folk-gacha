@@ -1,0 +1,14 @@
+type: object
+required:
+  - tournament
+  - results
+properties:
+  tournament:
+    $ref: ./Tournament.yaml
+  you:
+    $ref: ./TournamentEntry.yaml
+  results:
+    type: array
+    description: Top 100 once entries close (ties broken by the seed); empty while open
+    items:
+      $ref: ./TournamentResult.yaml

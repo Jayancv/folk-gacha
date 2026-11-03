@@ -1,0 +1,15 @@
+type: object
+required:
+  - tournaments
+  - upcoming
+properties:
+  tournaments:
+    type: array
+    description: Running now and ended in the last 7 days, newest first
+    items:
+      $ref: ./Tournament.yaml
+  upcoming:
+    type: array
+    description: Each series' next tournament
+    items:
+      $ref: ./Tournament.yaml

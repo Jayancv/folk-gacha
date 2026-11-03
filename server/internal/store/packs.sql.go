@@ -66,6 +66,7 @@ func (q *Queries) CurrentCardSeason(ctx context.Context, at time.Time) (CurrentC
 const getOwnedCards = `-- name: GetOwnedCards :many
 SELECT c.id, c.season_card_id, c.copy_no, c.owner_id, c.level, c.acquired_via, c.acquired_at,
        (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
+       (c.locked_in_tournament_id IS NOT NULL)::boolean AS in_tournament,
        sc.card_season_id, sc.set_no, sc.template_id, sc.rarity, sc.name, sc.title, sc.epithet,
        sc.traits, sc.score, sc.max_copies, sc.art_seed,
        cs.card_count AS set_size,
@@ -86,6 +87,7 @@ type GetOwnedCardsRow struct {
 	AcquiredVia  string
 	AcquiredAt   time.Time
 	InTrade      bool
+	InTournament bool
 	CardSeasonID string
 	SetNo        int32
 	TemplateID   string
@@ -122,6 +124,7 @@ func (q *Queries) GetOwnedCards(ctx context.Context, ids []uuid.UUID) ([]GetOwne
 			&i.AcquiredVia,
 			&i.AcquiredAt,
 			&i.InTrade,
+			&i.InTournament,
 			&i.CardSeasonID,
 			&i.SetNo,
 			&i.TemplateID,

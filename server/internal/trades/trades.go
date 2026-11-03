@@ -41,6 +41,8 @@ var (
 	ErrNotOwned = errors.New("trades: card not owned")
 	// ErrInTrade: a card is already locked in another open offer.
 	ErrInTrade = errors.New("trades: card is in another open offer")
+	// ErrInTournament: a card is in a tournament lineup (locked until the tournament ends).
+	ErrInTournament = errors.New("trades: card is in a tournament")
 	// ErrExpired: the offer ran out of time before it was accepted.
 	ErrExpired = errors.New("trades: offer expired")
 	// ErrUnavailable: a card of the offer was gone at accept, so the offer failed.
@@ -230,6 +232,9 @@ func createTx(ctx context.Context, q *store.Queries, from uuid.UUID, o NewOffer,
 			if c.LockedInTradeID.Valid {
 				return uuid.Nil, ErrInTrade
 			}
+			if c.InTournament {
+				return uuid.Nil, ErrInTournament
+			}
 		}
 	}
 
@@ -301,6 +306,10 @@ func (s *Service) Accept(ctx context.Context, user, id uuid.UUID) (Trade, error)
 			if c.LockedInTradeID.Valid {
 				// The recipient offered this card elsewhere; they can cancel that and try again.
 				return "", ErrInTrade
+			}
+			if c.InTournament {
+				// The recipient entered it in a tournament since; they can withdraw it, or wait.
+				return "", ErrInTournament
 			}
 		}
 		if err := q.MoveCards(ctx, store.MoveCardsParams{OwnerID: t.ToUser, AcquiredAt: now, Ids: offer}); err != nil {

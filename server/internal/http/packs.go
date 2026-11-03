@@ -65,6 +65,7 @@ func toCard(c store.GetOwnedCardsRow) (Card, error) {
 		AcquiredVia:  CardAcquiredVia(c.AcquiredVia),
 		AcquiredAt:   c.AcquiredAt.UTC(),
 		InTrade:      c.InTrade,
+		InTournament: c.InTournament,
 	}
 	if c.MaxCopies.Valid {
 		card.MaxCopies = ptr(int(c.MaxCopies.Int32))

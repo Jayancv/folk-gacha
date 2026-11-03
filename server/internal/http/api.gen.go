@@ -171,6 +171,57 @@ func (e Rarity) Valid() bool {
 	}
 }
 
+// Defines values for TournamentFormatKind.
+const (
+	ElementTrial TournamentFormatKind = "element-trial"
+	Harmony      TournamentFormatKind = "harmony"
+	Power        TournamentFormatKind = "power"
+	RarityCap    TournamentFormatKind = "rarity-cap"
+	Underdog     TournamentFormatKind = "underdog"
+)
+
+// Valid indicates whether the value is a known member of the TournamentFormatKind enum.
+func (e TournamentFormatKind) Valid() bool {
+	switch e {
+	case ElementTrial:
+		return true
+	case Harmony:
+		return true
+	case Power:
+		return true
+	case RarityCap:
+		return true
+	case Underdog:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TournamentStatus.
+const (
+	TournamentStatusFinished TournamentStatus = "finished"
+	TournamentStatusLocked   TournamentStatus = "locked"
+	TournamentStatusOpen     TournamentStatus = "open"
+	TournamentStatusUpcoming TournamentStatus = "upcoming"
+)
+
+// Valid indicates whether the value is a known member of the TournamentStatus enum.
+func (e TournamentStatus) Valid() bool {
+	switch e {
+	case TournamentStatusFinished:
+		return true
+	case TournamentStatusLocked:
+		return true
+	case TournamentStatusOpen:
+		return true
+	case TournamentStatusUpcoming:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TradeDirection.
 const (
 	Incoming TradeDirection = "incoming"
@@ -191,28 +242,28 @@ func (e TradeDirection) Valid() bool {
 
 // Defines values for TradeStatus.
 const (
-	Accepted  TradeStatus = "accepted"
-	Cancelled TradeStatus = "cancelled"
-	Declined  TradeStatus = "declined"
-	Expired   TradeStatus = "expired"
-	Failed    TradeStatus = "failed"
-	Open      TradeStatus = "open"
+	TradeStatusAccepted  TradeStatus = "accepted"
+	TradeStatusCancelled TradeStatus = "cancelled"
+	TradeStatusDeclined  TradeStatus = "declined"
+	TradeStatusExpired   TradeStatus = "expired"
+	TradeStatusFailed    TradeStatus = "failed"
+	TradeStatusOpen      TradeStatus = "open"
 )
 
 // Valid indicates whether the value is a known member of the TradeStatus enum.
 func (e TradeStatus) Valid() bool {
 	switch e {
-	case Accepted:
+	case TradeStatusAccepted:
 		return true
-	case Cancelled:
+	case TradeStatusCancelled:
 		return true
-	case Declined:
+	case TradeStatusDeclined:
 		return true
-	case Expired:
+	case TradeStatusExpired:
 		return true
-	case Failed:
+	case TradeStatusFailed:
 		return true
-	case Open:
+	case TradeStatusOpen:
 		return true
 	default:
 		return false
@@ -254,6 +305,9 @@ type Card struct {
 	// Epithet Trait words, e.g. "Brightly Moonlit · of Kandy"; empty when plain
 	Epithet string             `json:"epithet"`
 	Id      openapi_types.UUID `json:"id"`
+
+	// InTournament In a tournament lineup: locked (no merging, trading or other tournaments) until the tournament ends
+	InTournament bool `json:"inTournament"`
 
 	// InTrade Offered in an open trade: locked, so it can't be merged or offered again until the offer ends
 	InTrade bool   `json:"inTrade"`
@@ -438,6 +492,25 @@ type LeaderboardSeason struct {
 	StartsAt time.Time `json:"startsAt"`
 }
 
+// LineupCardPoints One card's line in a score breakdown
+type LineupCardPoints struct {
+	CardId openapi_types.UUID `json:"cardId"`
+
+	// Multiplier Applied to the card's score (1 when the format leaves it as it is)
+	Multiplier float32 `json:"multiplier"`
+	Points     int     `json:"points"`
+}
+
+// LineupScore A lineup's score with its breakdown
+type LineupScore struct {
+	Bonus int `json:"bonus"`
+
+	// BonusPercent Lineup bonus (harmony), in percent of the cards' points
+	BonusPercent int                `json:"bonusPercent"`
+	Cards        []LineupCardPoints `json:"cards"`
+	Total        int                `json:"total"`
+}
+
 // LiveTicket A single-use ticket for the live events socket
 type LiveTicket struct {
 	ExpiresAt time.Time `json:"expiresAt"`
@@ -530,6 +603,126 @@ type PushSubscription struct {
 
 // Rarity defines model for Rarity.
 type Rarity string
+
+// Tournament defines model for Tournament.
+type Tournament struct {
+	// ClosesAt Entries close and lineups are scored
+	ClosesAt time.Time `json:"closesAt"`
+	Element  *Element  `json:"element,omitempty"`
+
+	// EndsAt Entered cards are free again
+	EndsAt time.Time `json:"endsAt"`
+
+	// Entered You have an entry
+	Entered bool `json:"entered"`
+
+	// Entries Players who entered
+	Entries int `json:"entries"`
+
+	// Format How a tournament scores lineups (server/rules/tournaments.yaml)
+	Format TournamentFormat `json:"format"`
+
+	// Id Series and period, e.g. daily-2026-11-03
+	Id string `json:"id"`
+
+	// Name The series' name, e.g. Daily Cup
+	Name    string    `json:"name"`
+	OpensAt time.Time `json:"opensAt"`
+
+	// Seed The tie-break seed (hex), revealed when entries close; its SHA-256 is seedHash
+	Seed *string `json:"seed,omitempty"`
+
+	// SeedHash SHA-256 (hex) of the tie-break seed, published when the tournament opens
+	SeedHash *string `json:"seedHash,omitempty"`
+	Series   string  `json:"series"`
+
+	// Status upcoming (not open yet), open (entries open), locked (scored; cards locked until the end), finished
+	Status TournamentStatus `json:"status"`
+}
+
+// TournamentDetail defines model for TournamentDetail.
+type TournamentDetail struct {
+	// Results Top 100 once entries close (ties broken by the seed); empty while open
+	Results    []TournamentResult `json:"results"`
+	Tournament Tournament         `json:"tournament"`
+
+	// You Your lineup; the score is a preview while entries are open, final once they close
+	You *TournamentEntry `json:"you,omitempty"`
+}
+
+// TournamentEntry Your lineup; the score is a preview while entries are open, final once they close
+type TournamentEntry struct {
+	Cards []TournamentEntryCard `json:"cards"`
+
+	// Rank Your place, once entries close
+	Rank *int `json:"rank,omitempty"`
+
+	// Score A lineup's score with its breakdown
+	Score LineupScore `json:"score"`
+}
+
+// TournamentEntryCard A lineup card; card is missing if it no longer exists (merged after the tournament)
+type TournamentEntryCard struct {
+	// Card One owned copy of a season card, with what the client needs to draw it
+	Card   *Card              `json:"card,omitempty"`
+	CardId openapi_types.UUID `json:"cardId"`
+}
+
+// TournamentFormat How a tournament scores lineups (server/rules/tournaments.yaml)
+type TournamentFormat struct {
+	AllowAbove          *int     `json:"allowAbove,omitempty"`
+	ElementMultiplier   *float32 `json:"elementMultiplier,omitempty"`
+	HarmonyBonusPercent *int     `json:"harmonyBonusPercent,omitempty"`
+	Id                  string   `json:"id"`
+
+	// Kind power: card scores as they are. element-trial: cards of the tournament's element count
+	// ×elementMultiplier. rarity-cap: cards up to maxRarity, plus at most allowAbove better ones.
+	// underdog: score ÷ the rarity's base score (× the Common base). harmony: +harmonyBonusPercent
+	// for each element after the first.
+	Kind      TournamentFormatKind `json:"kind"`
+	MaxRarity *Rarity              `json:"maxRarity,omitempty"`
+	Name      string               `json:"name"`
+
+	// OnePerSpirit No two cards of the same spirit
+	OnePerSpirit bool `json:"onePerSpirit"`
+
+	// RarityBase Base score per rarity (underdog)
+	RarityBase *map[string]float32 `json:"rarityBase,omitempty"`
+
+	// Slots Cards in a lineup
+	Slots int `json:"slots"`
+}
+
+// TournamentFormatKind power: card scores as they are. element-trial: cards of the tournament's element count
+// ×elementMultiplier. rarity-cap: cards up to maxRarity, plus at most allowAbove better ones.
+// underdog: score ÷ the rarity's base score (× the Common base). harmony: +harmonyBonusPercent
+// for each element after the first.
+type TournamentFormatKind string
+
+// TournamentLineup defines model for TournamentLineup.
+type TournamentLineup struct {
+	// CardIds Your cards, in slot order (as many as the format's slots)
+	CardIds []openapi_types.UUID `json:"cardIds"`
+}
+
+// TournamentList defines model for TournamentList.
+type TournamentList struct {
+	// Tournaments Running now and ended in the last 7 days, newest first
+	Tournaments []Tournament `json:"tournaments"`
+
+	// Upcoming Each series' next tournament
+	Upcoming []Tournament `json:"upcoming"`
+}
+
+// TournamentResult defines model for TournamentResult.
+type TournamentResult struct {
+	Rank     int    `json:"rank"`
+	Score    int    `json:"score"`
+	Username string `json:"username"`
+}
+
+// TournamentStatus upcoming (not open yet), open (entries open), locked (scored; cards locked until the end), finished
+type TournamentStatus string
 
 // Trade An offer between two players
 type Trade struct {
@@ -690,6 +883,12 @@ type UnsubscribePushJSONRequestBody UnsubscribePushJSONBody
 // SubscribePushJSONRequestBody defines body for SubscribePush for application/json ContentType.
 type SubscribePushJSONRequestBody = PushSubscription
 
+// EnterTournamentJSONRequestBody defines body for EnterTournament for application/json ContentType.
+type EnterTournamentJSONRequestBody = TournamentLineup
+
+// PreviewTournamentLineupJSONRequestBody defines body for PreviewTournamentLineup for application/json ContentType.
+type PreviewTournamentLineupJSONRequestBody = TournamentLineup
+
 // CreateTradeJSONRequestBody defines body for CreateTrade for application/json ContentType.
 type CreateTradeJSONRequestBody CreateTradeJSONBody
 
@@ -758,6 +957,21 @@ type ServerInterface interface {
 	// GetRules The game rules players see
 	// (GET /rules)
 	GetRules(w http.ResponseWriter, r *http.Request)
+	// ListTournaments Tournaments
+	// (GET /tournaments)
+	ListTournaments(w http.ResponseWriter, r *http.Request)
+	// GetTournament A tournament, your entry and its results
+	// (GET /tournaments/{tournamentId})
+	GetTournament(w http.ResponseWriter, r *http.Request, tournamentId string)
+	// WithdrawFromTournament Withdraw your entry
+	// (DELETE /tournaments/{tournamentId}/entry)
+	WithdrawFromTournament(w http.ResponseWriter, r *http.Request, tournamentId string)
+	// EnterTournament Enter or change your lineup
+	// (PUT /tournaments/{tournamentId}/entry)
+	EnterTournament(w http.ResponseWriter, r *http.Request, tournamentId string)
+	// PreviewTournamentLineup Score a lineup without entering
+	// (POST /tournaments/{tournamentId}/preview)
+	PreviewTournamentLineup(w http.ResponseWriter, r *http.Request, tournamentId string)
 	// ListTrades Your trade offers
 	// (GET /trades)
 	ListTrades(w http.ResponseWriter, r *http.Request)
@@ -1206,6 +1420,124 @@ func (siw *ServerInterfaceWrapper) GetRules(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// ListTournaments operation middleware
+func (siw *ServerInterfaceWrapper) ListTournaments(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTournaments(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTournament operation middleware
+func (siw *ServerInterfaceWrapper) GetTournament(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tournamentId" -------------
+	var tournamentId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tournamentId", r.PathValue("tournamentId"), &tournamentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tournamentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTournament(w, r, tournamentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WithdrawFromTournament operation middleware
+func (siw *ServerInterfaceWrapper) WithdrawFromTournament(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tournamentId" -------------
+	var tournamentId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tournamentId", r.PathValue("tournamentId"), &tournamentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tournamentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WithdrawFromTournament(w, r, tournamentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EnterTournament operation middleware
+func (siw *ServerInterfaceWrapper) EnterTournament(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tournamentId" -------------
+	var tournamentId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tournamentId", r.PathValue("tournamentId"), &tournamentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tournamentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnterTournament(w, r, tournamentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewTournamentLineup operation middleware
+func (siw *ServerInterfaceWrapper) PreviewTournamentLineup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "tournamentId" -------------
+	var tournamentId string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "tournamentId", r.PathValue("tournamentId"), &tournamentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tournamentId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewTournamentLineup(w, r, tournamentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListTrades operation middleware
 func (siw *ServerInterfaceWrapper) ListTrades(w http.ResponseWriter, r *http.Request) {
 
@@ -1610,6 +1942,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/accept", wrapper.AcceptTrade)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/decline", wrapper.DeclineTrade)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/trades/{tradeId}/cancel", wrapper.CancelTrade)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/tournaments", wrapper.ListTournaments)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/tournaments/{tournamentId}", wrapper.GetTournament)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/tournaments/{tournamentId}/entry", wrapper.WithdrawFromTournament)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/tournaments/{tournamentId}/entry", wrapper.EnterTournament)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/tournaments/{tournamentId}/preview", wrapper.PreviewTournamentLineup)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/live/ticket", wrapper.GetLiveTicket)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/gifts/open", wrapper.OpenGifts)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/rules", wrapper.GetRules)
@@ -2498,6 +2835,307 @@ func (response GetRules200JSONResponse) VisitGetRulesResponse(w http.ResponseWri
 	return err
 }
 
+type ListTournamentsRequestObject struct {
+}
+
+type ListTournamentsResponseObject interface {
+	VisitListTournamentsResponse(w http.ResponseWriter) error
+}
+
+type ListTournaments200JSONResponse TournamentList
+
+func (response ListTournaments200JSONResponse) VisitListTournamentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTournaments401JSONResponse Error
+
+func (response ListTournaments401JSONResponse) VisitListTournamentsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTournamentRequestObject struct {
+	TournamentId string `json:"tournamentId"`
+}
+
+type GetTournamentResponseObject interface {
+	VisitGetTournamentResponse(w http.ResponseWriter) error
+}
+
+type GetTournament200JSONResponse TournamentDetail
+
+func (response GetTournament200JSONResponse) VisitGetTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTournament401JSONResponse Error
+
+func (response GetTournament401JSONResponse) VisitGetTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTournament404JSONResponse Error
+
+func (response GetTournament404JSONResponse) VisitGetTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawFromTournamentRequestObject struct {
+	TournamentId string `json:"tournamentId"`
+}
+
+type WithdrawFromTournamentResponseObject interface {
+	VisitWithdrawFromTournamentResponse(w http.ResponseWriter) error
+}
+
+type WithdrawFromTournament204Response struct {
+}
+
+func (response WithdrawFromTournament204Response) VisitWithdrawFromTournamentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type WithdrawFromTournament401JSONResponse Error
+
+func (response WithdrawFromTournament401JSONResponse) VisitWithdrawFromTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawFromTournament404JSONResponse Error
+
+func (response WithdrawFromTournament404JSONResponse) VisitWithdrawFromTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawFromTournament409JSONResponse Error
+
+func (response WithdrawFromTournament409JSONResponse) VisitWithdrawFromTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterTournamentRequestObject struct {
+	TournamentId string `json:"tournamentId"`
+	Body         *EnterTournamentJSONRequestBody
+}
+
+type EnterTournamentResponseObject interface {
+	VisitEnterTournamentResponse(w http.ResponseWriter) error
+}
+
+type EnterTournament200JSONResponse TournamentEntry
+
+func (response EnterTournament200JSONResponse) VisitEnterTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterTournament400JSONResponse Error
+
+func (response EnterTournament400JSONResponse) VisitEnterTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterTournament401JSONResponse Error
+
+func (response EnterTournament401JSONResponse) VisitEnterTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterTournament404JSONResponse Error
+
+func (response EnterTournament404JSONResponse) VisitEnterTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EnterTournament409JSONResponse Error
+
+func (response EnterTournament409JSONResponse) VisitEnterTournamentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewTournamentLineupRequestObject struct {
+	TournamentId string `json:"tournamentId"`
+	Body         *PreviewTournamentLineupJSONRequestBody
+}
+
+type PreviewTournamentLineupResponseObject interface {
+	VisitPreviewTournamentLineupResponse(w http.ResponseWriter) error
+}
+
+type PreviewTournamentLineup200JSONResponse LineupScore
+
+func (response PreviewTournamentLineup200JSONResponse) VisitPreviewTournamentLineupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewTournamentLineup400JSONResponse Error
+
+func (response PreviewTournamentLineup400JSONResponse) VisitPreviewTournamentLineupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewTournamentLineup401JSONResponse Error
+
+func (response PreviewTournamentLineup401JSONResponse) VisitPreviewTournamentLineupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewTournamentLineup404JSONResponse Error
+
+func (response PreviewTournamentLineup404JSONResponse) VisitPreviewTournamentLineupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewTournamentLineup409JSONResponse Error
+
+func (response PreviewTournamentLineup409JSONResponse) VisitPreviewTournamentLineupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListTradesRequestObject struct {
 }
 
@@ -3011,6 +3649,21 @@ type StrictServerInterface interface {
 	// GetRules The game rules players see
 	// (GET /rules)
 	GetRules(ctx context.Context, request GetRulesRequestObject) (GetRulesResponseObject, error)
+	// ListTournaments Tournaments
+	// (GET /tournaments)
+	ListTournaments(ctx context.Context, request ListTournamentsRequestObject) (ListTournamentsResponseObject, error)
+	// GetTournament A tournament, your entry and its results
+	// (GET /tournaments/{tournamentId})
+	GetTournament(ctx context.Context, request GetTournamentRequestObject) (GetTournamentResponseObject, error)
+	// WithdrawFromTournament Withdraw your entry
+	// (DELETE /tournaments/{tournamentId}/entry)
+	WithdrawFromTournament(ctx context.Context, request WithdrawFromTournamentRequestObject) (WithdrawFromTournamentResponseObject, error)
+	// EnterTournament Enter or change your lineup
+	// (PUT /tournaments/{tournamentId}/entry)
+	EnterTournament(ctx context.Context, request EnterTournamentRequestObject) (EnterTournamentResponseObject, error)
+	// PreviewTournamentLineup Score a lineup without entering
+	// (POST /tournaments/{tournamentId}/preview)
+	PreviewTournamentLineup(ctx context.Context, request PreviewTournamentLineupRequestObject) (PreviewTournamentLineupResponseObject, error)
 	// ListTrades Your trade offers
 	// (GET /trades)
 	ListTrades(ctx context.Context, request ListTradesRequestObject) (ListTradesResponseObject, error)
@@ -3616,6 +4269,148 @@ func (sh *strictHandler) GetRules(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRulesResponseObject); ok {
 		if err := validResponse.VisitGetRulesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListTournaments operation middleware
+func (sh *strictHandler) ListTournaments(w http.ResponseWriter, r *http.Request) {
+	var request ListTournamentsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTournaments(ctx, request.(ListTournamentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTournaments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTournamentsResponseObject); ok {
+		if err := validResponse.VisitListTournamentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTournament operation middleware
+func (sh *strictHandler) GetTournament(w http.ResponseWriter, r *http.Request, tournamentId string) {
+	var request GetTournamentRequestObject
+
+	request.TournamentId = tournamentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTournament(ctx, request.(GetTournamentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTournament")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTournamentResponseObject); ok {
+		if err := validResponse.VisitGetTournamentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WithdrawFromTournament operation middleware
+func (sh *strictHandler) WithdrawFromTournament(w http.ResponseWriter, r *http.Request, tournamentId string) {
+	var request WithdrawFromTournamentRequestObject
+
+	request.TournamentId = tournamentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.WithdrawFromTournament(ctx, request.(WithdrawFromTournamentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WithdrawFromTournament")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WithdrawFromTournamentResponseObject); ok {
+		if err := validResponse.VisitWithdrawFromTournamentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EnterTournament operation middleware
+func (sh *strictHandler) EnterTournament(w http.ResponseWriter, r *http.Request, tournamentId string) {
+	var request EnterTournamentRequestObject
+
+	request.TournamentId = tournamentId
+
+	var body EnterTournamentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EnterTournament(ctx, request.(EnterTournamentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EnterTournament")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EnterTournamentResponseObject); ok {
+		if err := validResponse.VisitEnterTournamentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewTournamentLineup operation middleware
+func (sh *strictHandler) PreviewTournamentLineup(w http.ResponseWriter, r *http.Request, tournamentId string) {
+	var request PreviewTournamentLineupRequestObject
+
+	request.TournamentId = tournamentId
+
+	var body PreviewTournamentLineupJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewTournamentLineup(ctx, request.(PreviewTournamentLineupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewTournamentLineup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewTournamentLineupResponseObject); ok {
+		if err := validResponse.VisitPreviewTournamentLineupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

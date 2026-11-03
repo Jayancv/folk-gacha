@@ -10,7 +10,7 @@ SELECT count(*) FROM trades WHERE from_user = @from_user AND created_at >= @sinc
 -- name: LockTradeCards :many
 -- Cards of a trade, any owner, row-locked in id order (so trades and merges of the
 -- same cards can't deadlock). Cards that no longer exist are missing.
-SELECT id, owner_id, locked_in_trade_id FROM cards
+SELECT id, owner_id, locked_in_trade_id, (locked_in_tournament_id IS NOT NULL)::boolean AS in_tournament FROM cards
 WHERE id = ANY(@ids::uuid[])
 ORDER BY id
 FOR UPDATE;

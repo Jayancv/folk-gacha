@@ -26,7 +26,7 @@ const card: ApiCard = {
     artSeed: 55970522,
     acquiredVia: 'pack',
     acquiredAt: '2026-10-30T12:00:00Z',
-    inTrade: false
+    inTrade: false, inTournament: false
 };
 
 describe('toCardData', () =>
