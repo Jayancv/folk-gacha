@@ -1,8 +1,8 @@
 -- name: EnsureTournament :exec
 -- Creates the tournament if it doesn't exist yet (any caller, any number of times; the
 -- first seed wins).
-INSERT INTO tournaments (id, series, n, name, format, element, opens_at, closes_at, ends_at, seed, seed_hash)
-VALUES (@id, @series, @n, @name, @format, sqlc.narg('element'), @opens_at, @closes_at, @ends_at, @seed, @seed_hash)
+INSERT INTO tournaments (id, series, n, name, format, element, opens_at, closes_at, ends_at, seed, seed_hash, prizes)
+VALUES (@id, @series, @n, @name, @format, sqlc.narg('element'), @opens_at, @closes_at, @ends_at, @seed, @seed_hash, @prizes::integer[])
 ON CONFLICT DO NOTHING; -- either key (id, or series + n): two servers may create it at once
 
 -- name: GetTournament :one
@@ -108,6 +108,26 @@ WHERE tournament_id = @tournament_id AND card_id = @card_id;
 -- name: ScoreEntry :exec
 UPDATE tournament_entries SET score = @score, rank = @rank, breakdown = @breakdown
 WHERE tournament_id = @tournament_id AND user_id = @user_id;
+
+-- name: AddTournamentPrizes :exec
+-- @cards prize cards for a place, waiting on the winner's Pack tab (made when opened).
+INSERT INTO tournament_prizes (tournament_id, user_id, n, place, created_at)
+SELECT @tournament_id, @user_id, n, @place, @created_at
+FROM generate_series(1, @cards::integer) AS n;
+
+-- name: LockWaitingPrizes :many
+-- The player's unopened prize cards, oldest first, row-locked like LockWaitingGifts.
+SELECT p.tournament_id, p.n, p.place, p.created_at, t.name
+FROM tournament_prizes p
+JOIN tournaments t ON t.id = p.tournament_id
+WHERE p.user_id = @user_id AND p.opened_at IS NULL
+ORDER BY p.created_at, p.tournament_id, p.n
+LIMIT @max_prizes
+FOR UPDATE OF p;
+
+-- name: OpenTournamentPrize :exec
+UPDATE tournament_prizes SET card_id = @card_id::uuid, opened_at = @opened_at::timestamptz
+WHERE tournament_id = @tournament_id AND user_id = @user_id AND n = @n;
 
 -- name: ListTournamentResults :many
 SELECT e.rank, e.score, e.user_id, u.username

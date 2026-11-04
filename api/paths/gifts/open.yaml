@@ -1,10 +1,11 @@
 # /gifts/open
 post:
   operationId: openGifts
-  summary: Open your waiting partner gifts
+  summary: Open your waiting partner gifts and tournament prizes
   description: |
-    Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
-    current card season, rolled now. Gift cards count as traded, so they never earn season points.
+    Turns up to 5 waiting partner gifts and tournament prize cards (oldest first) into cards: each a
+    level-1 Common or Uncommon of the current card season, rolled now. Partner gift cards count as
+    traded, so they never earn season points; prize cards were won, so they count as normal cards.
   responses:
     "200":
       description: The opened gifts, in reveal order

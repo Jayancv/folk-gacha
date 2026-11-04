@@ -1,6 +1,7 @@
 // Text for the daily pack panel (no React here).
 
-import type { ClaimError, GiftError } from '../../api/game';
+import type { ClaimError, GiftError, GiftFrom } from '../../api/game';
+import { placeText } from '../tournaments/tournamentModel';
 
 /** "Next pack in 5h 12m" until the 00:00 UTC reset; rounds up so it never says 0m early. */
 export function nextPackText (nextResetAt: string, now: number): string
@@ -16,9 +17,24 @@ export function nextPackText (nextResetAt: string, now: number): string
     return `Next pack in ${h > 0 ? `${h}h ${m}m` : `${m}m`}`;
 }
 
-/** The title over opened trade gifts: "Gift from asha" / "Gifts from asha and ben" / "Gifts from asha, ben and 2 more". */
-export function giftTitle (partners: readonly string[]): string
+/**
+ * The title over opened gifts. Trade gifts: "Gift from asha" / "Gifts from asha and ben" /
+ * "Gifts from asha, ben and 2 more". Tournament prizes: "Prize · 1st in Daily Cup" /
+ * "Tournament prizes". Both at once: "Gifts and prizes".
+ */
+export function giftTitle (from: readonly GiftFrom[]): string
 {
+    const prizes = from.filter(f => 'tournament' in f);
+    if (prizes.length > 0)
+    {
+        if (prizes.length < from.length)
+        {
+            return 'Gifts and prizes';
+        }
+        const won = [...new Set(prizes.map(p => `${placeText(p.place)} in ${p.tournament}`))];
+        return won.length === 1 ? `${prizes.length > 1 ? 'Prizes' : 'Prize'} · ${won[0]}` : 'Tournament prizes';
+    }
+    const partners = from.flatMap(f => ('partner' in f ? [f.partner] : []));
     const names = [...new Set(partners)];
     if (names.length === 0)
     {
@@ -36,10 +52,10 @@ export function giftTitle (partners: readonly string[]): string
     return `${plural} from ${names[0]}, ${names[1]} and ${names.length - 2} more`;
 }
 
-/** The button that opens waiting trade gifts. */
+/** The button that opens waiting trade gifts and tournament prizes (up to 5 per open). */
 export function giftButtonText (waiting: number): string
 {
-    return waiting === 1 ? 'Open your trade gift' : `Open ${Math.min(waiting, 5)} trade gifts`;
+    return waiting === 1 ? 'Open your gift' : `Open ${Math.min(waiting, 5)} gifts`;
 }
 
 export function giftErrorText (error: GiftError): string

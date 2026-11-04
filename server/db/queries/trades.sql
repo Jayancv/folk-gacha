@@ -117,12 +117,14 @@ INSERT INTO trade_gifts (trade_id, user_id, created_at) VALUES (@trade_id, @user
 SELECT trade_id, user_id FROM trade_gifts WHERE trade_id = ANY(@trade_ids::uuid[]);
 
 -- name: CountWaitingGifts :one
-SELECT count(*) FROM trade_gifts WHERE user_id = $1 AND opened_at IS NULL;
+-- Everything waiting on the Pack tab: trade gifts and tournament prize cards.
+SELECT ((SELECT count(*) FROM trade_gifts g WHERE g.user_id = $1 AND g.opened_at IS NULL)
+      + (SELECT count(*) FROM tournament_prizes p WHERE p.user_id = $1 AND p.opened_at IS NULL))::bigint AS waiting;
 
 -- name: LockWaitingGifts :many
 -- The player's unopened gifts, oldest first, row-locked: two opens at once can't
 -- open the same gift (the second sees it opened and skips it).
-SELECT g.trade_id, u.username AS partner
+SELECT g.trade_id, g.created_at, u.username AS partner
 FROM trade_gifts g
 JOIN trades t ON t.id = g.trade_id
 JOIN users u ON u.id = CASE WHEN t.from_user = g.user_id THEN t.to_user ELSE t.from_user END

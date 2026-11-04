@@ -931,10 +931,11 @@ paths:
   /gifts/open:
     post:
       operationId: openGifts
-      summary: Open your waiting partner gifts
+      summary: Open your waiting partner gifts and tournament prizes
       description: |
-        Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
-        current card season, rolled now. Gift cards count as traded, so they never earn season points.
+        Turns up to 5 waiting partner gifts and tournament prize cards (oldest first) into cards: each a
+        level-1 Common or Uncommon of the current card season, rolled now. Partner gift cards count as
+        traded, so they never earn season points; prize cards were won, so they count as normal cards.
       responses:
         '200':
           description: The opened gifts, in reveal order
@@ -1181,7 +1182,7 @@ components:
           description: Your full name from Google (only ever shown to you); absent for dev logins
         giftsWaiting:
           type: integer
-          description: Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open)
+          description: Partner gifts from trades and tournament prize cards waiting to be opened on the Pack tab (POST /gifts/open)
         tutorialDone:
           type: boolean
           description: The player finished or skipped the first-time tutorial (on any device)
@@ -1382,6 +1383,7 @@ components:
             - merge
             - trade
             - gift
+            - prize
         acquiredAt:
           type: string
           format: date-time
@@ -1680,13 +1682,29 @@ components:
           type: array
           items:
             type: object
+            description: A partner gift (partner set) or a tournament prize card (tournament set)
             required:
-              - partner
               - card
             properties:
               partner:
                 type: string
-                description: Username of the player the trade was with
+                description: Username of the player the trade was with (partner gifts)
+              tournament:
+                type: object
+                description: The tournament this prize card was won in (prize cards)
+                required:
+                  - id
+                  - name
+                  - place
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                    description: The series' name, e.g. Daily Cup
+                  place:
+                    type: integer
+                    description: The place that won it (1 = first)
               card:
                 $ref: '#/components/schemas/Card'
         giftsWaiting:
@@ -1747,6 +1765,7 @@ components:
         - endsAt
         - entries
         - entered
+        - prizes
       properties:
         id:
           type: string
@@ -1779,6 +1798,11 @@ components:
         entered:
           type: boolean
           description: You have an entry
+        prizes:
+          type: array
+          description: Prize cards for each place from 1st down ([3, 2, 1] = the top three win 3, 2 and 1 cards)
+          items:
+            type: integer
         seedHash:
           type: string
           description: SHA-256 (hex) of the tie-break seed, published when the tournament opens
@@ -1822,7 +1846,7 @@ components:
           type: string
         slots:
           type: integer
-          description: Cards in a lineup
+          description: The most cards a lineup may have (a lineup has 1 up to this many)
           minimum: 3
           maximum: 5
         onePerSpirit:
@@ -1921,7 +1945,7 @@ components:
       properties:
         cardIds:
           type: array
-          description: Your cards, in slot order (as many as the format's slots)
+          description: Your cards, in slot order (1 up to the format's slots)
           minItems: 1
           maxItems: 5
           items:

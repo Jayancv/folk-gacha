@@ -21,6 +21,9 @@ import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { GiftButton } from './screens/pack/GiftButton';
 import { Profile } from './screens/profile/Profile';
 import { waitingCount } from './screens/trades/tradeModel';
+import { openToEnterCount } from './screens/tournaments/tournamentModel';
+import { Tournaments } from './screens/tournaments/Tournaments';
+import { useTournaments } from './screens/tournaments/useTournaments';
 import { Trades } from './screens/trades/Trades';
 import { useTrades } from './screens/trades/useTrades';
 import { TutorialOverlay } from './tutorial/TutorialOverlay';
@@ -40,6 +43,7 @@ export default function Game ({ me }: { me: Me })
     const notifications = usePushNotifications();
     // The tab badge; live events refresh it (it polls only while the socket is down).
     const trades = useTrades();
+    const tournaments = useTournaments();
     const [notice, setNotice] = useState<string | null>(null);
     useLive(setNotice);
     // A profile opens over any screen (from the player chip or a leaderboard row).
@@ -91,6 +95,7 @@ export default function Game ({ me }: { me: Me })
                 </div>
             )}
             {tab === 'Trades' && <Trades me={me} onOpenProfile={setProfileOf} />}
+            {tab === 'Tournaments' && <Tournaments me={me} onOpenProfile={setProfileOf} />}
             {tab === 'Leaderboard' && <Leaderboard me={me} onOpenProfile={setProfileOf} />}
             {notice && (
                 <LiveNotice
@@ -125,7 +130,7 @@ export default function Game ({ me }: { me: Me })
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
                 {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && me.giftsWaiting > 0 && <GiftButton gifts={gifts} />}
                 {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
-                <TabBar tab={tab} onSwitch={switchTo} badges={{ Trades: waitingCount(trades.data ?? []) }} />
+                <TabBar tab={tab} onSwitch={switchTo} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />
             </div>
         </div>
     );

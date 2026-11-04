@@ -132,7 +132,7 @@ func (s *Service) ensure(ctx context.Context, q *store.Queries, now time.Time) e
 			ID: t.ID, Series: t.Series, N: int32(t.N), Name: series.Name, Format: format,
 			Element: pgtype.Text{String: t.Element, Valid: t.Element != ""},
 			OpensAt: t.OpensAt, ClosesAt: t.ClosesAt, EndsAt: t.EndsAt,
-			Seed: seed, SeedHash: game.SeedHash(seed),
+			Seed: seed, SeedHash: game.SeedHash(seed), Prizes: toInt32s(t.Prizes),
 		}); err != nil {
 			return err
 		}
@@ -401,8 +401,8 @@ func (s *Service) openForEntry(ctx context.Context, q *store.Queries, user uuid.
 // the format. It returns the cards in the lineup's order.
 func (s *Service) checkLineup(ctx context.Context, q *store.Queries, t Tournament, user uuid.UUID, cardIDs []uuid.UUID) ([]game.LineupCard, error) {
 	// The format's own rules first (size, duplicates), so a bad list gets the clearer error.
-	if len(cardIDs) != t.Format.Slots {
-		return nil, fmt.Errorf("%w: %d, want %d", game.ErrLineupSize, len(cardIDs), t.Format.Slots)
+	if len(cardIDs) < game.MinLineupCards || len(cardIDs) > t.Format.Slots {
+		return nil, fmt.Errorf("%w: %d, want %d-%d", game.ErrLineupSize, len(cardIDs), game.MinLineupCards, t.Format.Slots)
 	}
 	rows, err := q.ListLineupCards(ctx, cardIDs)
 	if err != nil {
@@ -482,8 +482,9 @@ func (s *Service) Step(ctx context.Context) (closed, finished []string, err erro
 // close snapshots and scores every lineup, ranks them, and locks the tournament. It
 // reports false when another server got there first.
 func (s *Service) close(ctx context.Context, id string) (bool, error) {
-	var entries int
+	var entries, prizes int
 	err := mint.InTx(ctx, s.pool, func(q *store.Queries) error {
+		entries, prizes = 0, 0
 		row, err := q.LockTournamentToStep(ctx, store.LockTournamentToStepParams{ID: id, Status: game.TournamentOpen})
 		if err != nil {
 			return err
@@ -491,6 +492,7 @@ func (s *Service) close(ctx context.Context, id string) (bool, error) {
 		t, err := toTournament(store.GetTournamentRow{
 			ID: row.ID, Series: row.Series, N: row.N, Name: row.Name, Format: row.Format, Element: row.Element,
 			OpensAt: row.OpensAt, ClosesAt: row.ClosesAt, EndsAt: row.EndsAt, Status: row.Status, Seed: row.Seed, SeedHash: row.SeedHash,
+			Prizes: row.Prizes,
 		})
 		if err != nil {
 			return err
@@ -549,11 +551,22 @@ func (s *Service) close(ctx context.Context, id string) (bool, error) {
 			if err != nil {
 				return err
 			}
+			user := uuid.MustParse(r.UserID)
 			if err := q.ScoreEntry(ctx, store.ScoreEntryParams{
-				TournamentID: id, UserID: uuid.MustParse(r.UserID), Breakdown: breakdown,
+				TournamentID: id, UserID: user, Breakdown: breakdown,
 				Score: pgtype.Int4{Int32: int32(r.Total), Valid: true}, Rank: pgtype.Int4{Int32: int32(r.Rank), Valid: true},
 			}); err != nil {
 				return err
+			}
+			// Prizes in the same transaction as the ranks, so a place wins its cards exactly
+			// once (a second server finds the tournament locked and skips it).
+			if n := t.PrizeFor(r.Rank); n > 0 {
+				if err := q.AddTournamentPrizes(ctx, store.AddTournamentPrizesParams{
+					TournamentID: id, UserID: user, Place: int32(r.Rank), CreatedAt: s.Now(), Cards: int32(n),
+				}); err != nil {
+					return err
+				}
+				prizes += n
 			}
 		}
 		return q.SetTournamentStatus(ctx, store.SetTournamentStatusParams{ID: id, Status: game.TournamentLocked})
@@ -564,7 +577,7 @@ func (s *Service) close(ctx context.Context, id string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	slog.InfoContext(ctx, "tournament closed", "tournament", id, "entries", entries)
+	slog.InfoContext(ctx, "tournament closed", "tournament", id, "entries", entries, "prizeCards", prizes)
 	return true, nil
 }
 
@@ -625,7 +638,7 @@ func toTournament(r store.GetTournamentRow) (Tournament, error) {
 	t := Tournament{
 		Tournament: game.Tournament{
 			ID: r.ID, Series: r.Series, N: int(r.N), Format: f, Element: r.Element.String,
-			OpensAt: r.OpensAt, ClosesAt: r.ClosesAt, EndsAt: r.EndsAt,
+			OpensAt: r.OpensAt, ClosesAt: r.ClosesAt, EndsAt: r.EndsAt, Prizes: toInts(r.Prizes),
 		},
 		Name:     r.Name,
 		Status:   r.Status,
@@ -636,6 +649,22 @@ func toTournament(r store.GetTournamentRow) (Tournament, error) {
 		t.Seed = r.Seed
 	}
 	return t, nil
+}
+
+func toInt32s(v []int) []int32 {
+	out := make([]int32, len(v))
+	for i, n := range v {
+		out[i] = int32(n)
+	}
+	return out
+}
+
+func toInts(v []int32) []int {
+	out := make([]int, len(v))
+	for i, n := range v {
+		out[i] = int(n)
+	}
+	return out
 }
 
 func toLineupCard(r store.ListLineupCardsRow) game.LineupCard {

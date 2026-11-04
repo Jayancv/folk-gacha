@@ -154,7 +154,7 @@ func lineupError(err error) (status int, code, message string, ok bool) {
 	case errors.Is(err, tournaments.ErrNotFound):
 		return 404, "not_found", "No such tournament.", true
 	case errors.Is(err, game.ErrLineupSize), errors.Is(err, game.ErrLineupDuplicate):
-		return 400, "bad_lineup", "Pick different cards for every slot of the lineup.", true
+		return 400, "bad_lineup", "Pick 1 card up to the lineup's slots, each card once.", true
 	case errors.Is(err, game.ErrLineupRarity):
 		return 400, "rarity_cap", "This tournament caps the rarity of the cards you can enter.", true
 	case errors.Is(err, game.ErrLineupSpirit):
@@ -187,6 +187,7 @@ func toTournament(t tournaments.Tournament) Tournament {
 		EndsAt:   t.EndsAt.UTC(),
 		Entries:  t.Entries,
 		Entered:  t.Entered,
+		Prizes:   append([]int{}, t.Prizes...),
 		Format: TournamentFormat{
 			Id:           f.ID,
 			Kind:         TournamentFormatKind(f.Kind),

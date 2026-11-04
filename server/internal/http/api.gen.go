@@ -23,6 +23,7 @@ const (
 	CardAcquiredViaGift  CardAcquiredVia = "gift"
 	CardAcquiredViaMerge CardAcquiredVia = "merge"
 	CardAcquiredViaPack  CardAcquiredVia = "pack"
+	CardAcquiredViaPrize CardAcquiredVia = "prize"
 	CardAcquiredViaTrade CardAcquiredVia = "trade"
 )
 
@@ -34,6 +35,8 @@ func (e CardAcquiredVia) Valid() bool {
 	case CardAcquiredViaMerge:
 		return true
 	case CardAcquiredViaPack:
+		return true
+	case CardAcquiredViaPrize:
 		return true
 	case CardAcquiredViaTrade:
 		return true
@@ -525,7 +528,7 @@ type Me struct {
 	// DisplayName Your full name from Google (only ever shown to you); absent for dev logins
 	DisplayName *string `json:"displayName,omitempty"`
 
-	// GiftsWaiting Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open)
+	// GiftsWaiting Partner gifts from trades and tournament prize cards waiting to be opened on the Pack tab (POST /gifts/open)
 	GiftsWaiting int                `json:"giftsWaiting"`
 	Id           openapi_types.UUID `json:"id"`
 
@@ -556,8 +559,19 @@ type OpenedGifts struct {
 		// Card One owned copy of a season card, with what the client needs to draw it
 		Card Card `json:"card"`
 
-		// Partner Username of the player the trade was with
-		Partner string `json:"partner"`
+		// Partner Username of the player the trade was with (partner gifts)
+		Partner *string `json:"partner,omitempty"`
+
+		// Tournament The tournament this prize card was won in (prize cards)
+		Tournament *struct {
+			Id string `json:"id"`
+
+			// Name The series' name, e.g. Daily Cup
+			Name string `json:"name"`
+
+			// Place The place that won it (1 = first)
+			Place int `json:"place"`
+		} `json:"tournament,omitempty"`
 	} `json:"gifts"`
 
 	// GiftsWaiting Gifts still waiting (more than 5 open over several opens)
@@ -629,6 +643,9 @@ type Tournament struct {
 	Name    string    `json:"name"`
 	OpensAt time.Time `json:"opensAt"`
 
+	// Prizes Prize cards for each place from 1st down ([3, 2, 1] = the top three win 3, 2 and 1 cards)
+	Prizes []int `json:"prizes"`
+
 	// Seed The tie-break seed (hex), revealed when entries close; its SHA-256 is seedHash
 	Seed *string `json:"seed,omitempty"`
 
@@ -689,7 +706,7 @@ type TournamentFormat struct {
 	// RarityBase Base score per rarity (underdog)
 	RarityBase *map[string]float32 `json:"rarityBase,omitempty"`
 
-	// Slots Cards in a lineup
+	// Slots The most cards a lineup may have (a lineup has 1 up to this many)
 	Slots int `json:"slots"`
 }
 
@@ -701,7 +718,7 @@ type TournamentFormatKind string
 
 // TournamentLineup defines model for TournamentLineup.
 type TournamentLineup struct {
-	// CardIds Your cards, in slot order (as many as the format's slots)
+	// CardIds Your cards, in slot order (1 up to the format's slots)
 	CardIds []openapi_types.UUID `json:"cardIds"`
 }
 
@@ -909,7 +926,7 @@ type ServerInterface interface {
 	// ListCards The signed-in player's collection (paged, filterable)
 	// (GET /cards)
 	ListCards(w http.ResponseWriter, r *http.Request, params ListCardsParams)
-	// OpenGifts Open your waiting partner gifts
+	// OpenGifts Open your waiting partner gifts and tournament prizes
 	// (POST /gifts/open)
 	OpenGifts(w http.ResponseWriter, r *http.Request)
 	// GetHealth Liveness and database check
@@ -3601,7 +3618,7 @@ type StrictServerInterface interface {
 	// ListCards The signed-in player's collection (paged, filterable)
 	// (GET /cards)
 	ListCards(ctx context.Context, request ListCardsRequestObject) (ListCardsResponseObject, error)
-	// OpenGifts Open your waiting partner gifts
+	// OpenGifts Open your waiting partner gifts and tournament prizes
 	// (POST /gifts/open)
 	OpenGifts(ctx context.Context, request OpenGiftsRequestObject) (OpenGiftsResponseObject, error)
 	// GetHealth Liveness and database check

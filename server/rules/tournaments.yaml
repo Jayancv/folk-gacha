@@ -10,19 +10,26 @@
 # period ends. A card entered in one tournament can't enter the series' next one.
 # Formats rotate in the order listed, one per tournament. Changing the list reorders the
 # coming tournaments (a running one keeps its format).
+# prizeCards: cards each place wins, from 1st down (up to 10 places, 1-5 cards each, never
+# more than the place above). Prize cards are Common or Uncommon at their pack odds, level 1,
+# and wait on the winner's Pack tab like trade gifts. They count as normal cards (season
+# points when merged, allowed in tournaments). A running tournament keeps the prizes it opened with.
 series:
   - id: daily
     name: Daily Cup
     cadence: daily
     entryHours: 20
     formats: [power, underdog, element-trial, rarity-cap, harmony]
+    prizeCards: [3, 2, 1]
   - id: weekly
     name: Weekly Grand
     cadence: weekly
     entryHours: 120
     formats: [harmony, power, underdog]
+    prizeCards: [3, 2, 1]
 
-# Formats, by id. `kind` is the scoring method; `slots` is the lineup size (3-5).
+# Formats, by id. `kind` is the scoring method; `slots` is the most cards a lineup may have (3-5);
+# players enter 1 card up to that many.
 # Any format can set `onePerSpirit: true` (no two cards of the same spirit).
 #   power:         a card's score counts as it is.
 #   element-trial: cards of the tournament's element count ×elementMultiplier (the element

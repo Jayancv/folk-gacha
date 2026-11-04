@@ -45,6 +45,10 @@ func TestTournamentRulesOutOfRangeAreRefused(t *testing.T) {
 		{"rarity base zero", "common: 10,", "common: 0,", "rarityBase.common"},
 		{"no harmony bonus", "harmonyBonusPercent: 10", "harmonyBonusPercent: 0", "harmonyBonusPercent"},
 		{"typo in a key", "entryHours: 20", "entryHour: 20", "entryHour"},
+		{"prize of no cards", "prizeCards: [3, 2, 1]", "prizeCards: [3, 0]", "prizeCards[1]"},
+		{"prize of too many cards", "prizeCards: [3, 2, 1]", "prizeCards: [6]", "prizeCards[0]"},
+		{"lower place wins more", "prizeCards: [3, 2, 1]", "prizeCards: [1, 2]", "lower place"},
+		{"too many prize places", "prizeCards: [3, 2, 1]", "prizeCards: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]", "places"},
 	} {
 		changed := strings.Replace(good, c.from, c.to, 1)
 		if changed == good {
@@ -131,6 +135,21 @@ func TestWeeklyTournamentPeriods(t *testing.T) {
 	}
 }
 
+func TestPrizes(t *testing.T) {
+	tour := Series{ID: "s", Cadence: CadenceDaily, Formats: []string{"power"}, PrizeCards: []int{3, 2, 1}}.
+		TournamentAt(time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC))
+	for rank, want := range map[int]int{0: 0, 1: 3, 2: 2, 3: 1, 4: 0} {
+		if got := tour.PrizeFor(rank); got != want {
+			t.Errorf("PrizeFor(%d) = %d, want %d", rank, got, want)
+		}
+	}
+	for _, s := range TournamentSeries {
+		if s.PrizeCards == nil {
+			t.Errorf("series %s in tournaments.yaml has no prizeCards", s.ID)
+		}
+	}
+}
+
 func TestTournamentStatus(t *testing.T) {
 	useTestTournaments(t, testTournaments)
 	tour := TournamentSeries[0].TournamentAt(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
@@ -213,7 +232,9 @@ func TestCheckLineup(t *testing.T) {
 		want   error
 	}{
 		{"full lineup", power, []LineupCard{a, b, c}, nil},
-		{"too few", power, []LineupCard{a, b}, ErrLineupSize},
+		{"fewer cards than slots", power, []LineupCard{a, b}, nil},
+		{"one card", power, []LineupCard{a}, nil},
+		{"no cards", power, nil, ErrLineupSize},
 		{"too many", power, []LineupCard{a, b, c, d}, ErrLineupSize},
 		{"same card twice", power, []LineupCard{a, b, a}, ErrLineupDuplicate},
 		{"one above the cap allowed", capped, []LineupCard{a, b, c}, nil},

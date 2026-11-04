@@ -57,6 +57,7 @@ export const FAILURE_TEXT: Record<MergeFailure, string> = {
     not_owned: 'Card unavailable',
     sold_out: 'None left this season',
     in_trade: 'Offered in a trade',
+    in_tournament: 'In a tournament',
     network: 'No answer, try again'
 };
 

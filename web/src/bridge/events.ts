@@ -45,8 +45,10 @@ export interface BoardShowPayload
     cards: CardData[];
     /** Total cards owned, when more than fit on the board. */
     total: number;
-    /** Ids of cards offered in an open trade: shown with a lock badge (merging them is refused). */
+    /** Ids of cards offered in an open trade or in a tournament: shown with a lock badge (merging them is refused). */
     locked?: string[];
+    /** Which of `locked` are in a tournament (their badge says so). */
+    inEvent?: string[];
 }
 
 export interface MergeRequestedPayload
@@ -56,7 +58,7 @@ export interface MergeRequestedPayload
     cardIds: [string, string];
 }
 
-export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'sold_out' | 'in_trade' | 'network';
+export type MergeFailure = 'no_recipe' | 'max_level' | 'not_owned' | 'sold_out' | 'in_trade' | 'in_tournament' | 'network';
 
 export type MergeResultPayload =
     | {

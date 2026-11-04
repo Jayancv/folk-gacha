@@ -139,7 +139,7 @@ formats:
 		code int
 		err  string
 	}{
-		{fmt.Sprintf(`{"cardIds":["%s","%s"]}`, a, c), 400, "bad_lineup"},
+		{fmt.Sprintf(`{"cardIds":["%s","%s","%s","%s"]}`, a, c, uuid.New(), uuid.New()), 400, "bad_lineup"},
 		{fmt.Sprintf(`{"cardIds":["%s","%s","%s"]}`, a, a, c), 400, "bad_lineup"},
 		{fmt.Sprintf(`{"cardIds":["%s","%s","%s"]}`, a, c, uuid.New()), 409, "not_owned"},
 	} {

@@ -4,7 +4,7 @@ import { CardImage } from '../collection/CardImage';
 import { NO_FILTERS } from '../collection/filters';
 import { useCollection } from '../collection/useCollection';
 import { togglePick } from '../profile/profileModel';
-import { InTradeBadge } from './InTradeBadge';
+import { PickGrid } from './PickGrid';
 import { useRules } from '../../app/useRules';
 import { hoursText, pickCountText, tradeErrorText } from './tradeModel';
 import { errorOf, useCreateTrade, usePlayerCards } from './useTrades';
@@ -79,8 +79,8 @@ export function TradeComposer ({ username, onClose, onSent }: Props)
                             max={maxTradeCards}
                             onPick={step === 'request' ? pick(request, setRequest) : pick(offer, setOffer)}
                             empty={step === 'request' ? `${username} has no cards yet.` : 'No cards yet. Open your daily pack first.'}
-                            // Their cards in their own open offer can't be asked for; yours can't be offered twice.
-                            lockedText={step === 'request' ? 'In their offer' : 'In an offer'}
+                            // Cards in an open offer (theirs: their own offer) or a tournament can't be traded.
+                            blocked={c => (c.inTrade ? (step === 'request' ? 'In their offer' : 'In an offer') : c.inTournament ? 'In event' : null)}
                         />
                     )}
                 </div>
@@ -107,71 +107,6 @@ export function TradeComposer ({ username, onClose, onSent }: Props)
                 </div>
             </footer>
         </div>
-    );
-}
-
-interface PickQuery
-{
-    data?: { pages: { cards: OwnedCard[] }[] };
-    isPending: boolean;
-    isError: boolean;
-    hasNextPage: boolean;
-    isFetchingNextPage: boolean;
-    fetchNextPage: () => Promise<unknown>;
-    refetch: () => Promise<unknown>;
-}
-
-function PickGrid ({ query, picked, max, onPick, empty, lockedText }: { query: PickQuery; picked: string[]; max: number; onPick: (card: OwnedCard) => void; empty: string; lockedText: string })
-{
-    const list = query.data?.pages.flatMap(p => p.cards) ?? [];
-    if (query.isPending)
-    {
-        return <p className="py-16 text-center text-sm text-[#bba595]">Loading cards…</p>;
-    }
-    if (query.isError && list.length === 0)
-    {
-        return (
-            <p className="py-16 text-center text-sm text-[#bba595]">
-                Couldn't load the cards. <button className="text-[#e7b54a] underline" onClick={() => void query.refetch()}>Retry</button>
-            </p>
-        );
-    }
-    if (list.length === 0)
-    {
-        return <p className="py-16 text-center text-sm text-[#bba595]">{empty}</p>;
-    }
-    return (
-        <>
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                {list.map(card =>
-                {
-                    const at = picked.indexOf(card.id);
-                    const full = picked.length >= max && at < 0;
-                    return (
-                        <li key={card.id}>
-                            <button
-                                onClick={() => onPick(card)}
-                                disabled={card.inTrade}
-                                aria-pressed={at >= 0}
-                                aria-label={`${card.name}, level ${card.level}${card.inTrade ? `, ${lockedText.toLowerCase()}` : ''}`}
-                                className={`relative block w-full rounded-[6%] transition ${at >= 0 ? 'ring-3 ring-[#e7b54a]' : ''} ${full || card.inTrade ? 'opacity-45' : ''}`}
-                            >
-                                <CardImage card={card} />
-                                {card.inTrade && <InTradeBadge text={lockedText} />}
-                                {at >= 0 && (
-                                    <span className="absolute -top-2 -right-2 grid h-7 w-7 place-items-center rounded-full bg-[#e7b54a] text-sm font-bold text-[#170e10] shadow">✓</span>
-                                )}
-                            </button>
-                        </li>
-                    );
-                })}
-            </ul>
-            {query.hasNextPage && (
-                <button onClick={() => void query.fetchNextPage()} disabled={query.isFetchingNextPage} className="mx-auto mt-4 block text-sm text-[#e7b54a] underline">
-                    {query.isFetchingNextPage ? 'Loading…' : 'Show more cards'}
-                </button>
-            )}
-        </>
     );
 }
 

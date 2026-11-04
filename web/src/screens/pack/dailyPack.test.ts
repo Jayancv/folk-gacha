@@ -42,15 +42,25 @@ describe('trade gifts', () =>
 {
     it('names who the gifts came from', () =>
     {
-        expect(giftTitle(['asha'])).toBe('Gift from asha');
-        expect(giftTitle(['asha', 'ben'])).toBe('Gifts from asha and ben');
-        expect(giftTitle(['asha', 'ben', 'cara', 'dev'])).toBe('Gifts from asha, ben and 2 more');
+        const p = (...names: string[]) => names.map(partner => ({ partner }));
+        expect(giftTitle(p('asha'))).toBe('Gift from asha');
+        expect(giftTitle(p('asha', 'ben'))).toBe('Gifts from asha and ben');
+        expect(giftTitle(p('asha', 'ben', 'cara', 'dev'))).toBe('Gifts from asha, ben and 2 more');
+    });
+
+    it('names the tournament place for prizes', () =>
+    {
+        const cup = { tournament: 'Daily Cup', place: 1 };
+        expect(giftTitle([cup])).toBe('Prize · 1st in Daily Cup');
+        expect(giftTitle([cup, cup, cup])).toBe('Prizes · 1st in Daily Cup');
+        expect(giftTitle([cup, { tournament: 'Weekly Grand', place: 2 }])).toBe('Tournament prizes');
+        expect(giftTitle([{ partner: 'asha' }, cup])).toBe('Gifts and prizes');
     });
 
     it('counts the gifts on the button, at most 5 per open', () =>
     {
-        expect(giftButtonText(1)).toBe('Open your trade gift');
-        expect(giftButtonText(3)).toBe('Open 3 trade gifts');
-        expect(giftButtonText(8)).toBe('Open 5 trade gifts');
+        expect(giftButtonText(1)).toBe('Open your gift');
+        expect(giftButtonText(3)).toBe('Open 3 gifts');
+        expect(giftButtonText(8)).toBe('Open 5 gifts');
     });
 });

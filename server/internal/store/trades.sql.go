@@ -120,14 +120,16 @@ func (q *Queries) CountTradesSince(ctx context.Context, arg CountTradesSincePara
 }
 
 const countWaitingGifts = `-- name: CountWaitingGifts :one
-SELECT count(*) FROM trade_gifts WHERE user_id = $1 AND opened_at IS NULL
+SELECT ((SELECT count(*) FROM trade_gifts g WHERE g.user_id = $1 AND g.opened_at IS NULL)
+      + (SELECT count(*) FROM tournament_prizes p WHERE p.user_id = $1 AND p.opened_at IS NULL))::bigint AS waiting
 `
 
+// Everything waiting on the Pack tab: trade gifts and tournament prize cards.
 func (q *Queries) CountWaitingGifts(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countWaitingGifts, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var waiting int64
+	err := row.Scan(&waiting)
+	return waiting, err
 }
 
 const createTrade = `-- name: CreateTrade :one
@@ -505,7 +507,7 @@ func (q *Queries) LockTrader(ctx context.Context, id uuid.UUID) (LockTraderRow, 
 }
 
 const lockWaitingGifts = `-- name: LockWaitingGifts :many
-SELECT g.trade_id, u.username AS partner
+SELECT g.trade_id, g.created_at, u.username AS partner
 FROM trade_gifts g
 JOIN trades t ON t.id = g.trade_id
 JOIN users u ON u.id = CASE WHEN t.from_user = g.user_id THEN t.to_user ELSE t.from_user END
@@ -521,8 +523,9 @@ type LockWaitingGiftsParams struct {
 }
 
 type LockWaitingGiftsRow struct {
-	TradeID uuid.UUID
-	Partner string
+	TradeID   uuid.UUID
+	CreatedAt time.Time
+	Partner   string
 }
 
 // The player's unopened gifts, oldest first, row-locked: two opens at once can't
@@ -536,7 +539,7 @@ func (q *Queries) LockWaitingGifts(ctx context.Context, arg LockWaitingGiftsPara
 	var items []LockWaitingGiftsRow
 	for rows.Next() {
 		var i LockWaitingGiftsRow
-		if err := rows.Scan(&i.TradeID, &i.Partner); err != nil {
+		if err := rows.Scan(&i.TradeID, &i.CreatedAt, &i.Partner); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

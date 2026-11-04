@@ -143,6 +143,7 @@ type Tournament struct {
 	Status   string
 	Seed     []byte
 	SeedHash string
+	Prizes   []int32
 }
 
 type TournamentEntry struct {
@@ -161,6 +162,16 @@ type TournamentEntryCard struct {
 	Slot         int16
 	CardID       uuid.UUID
 	Snapshot     []byte
+}
+
+type TournamentPrize struct {
+	TournamentID string
+	UserID       uuid.UUID
+	N            int16
+	Place        int32
+	CreatedAt    time.Time
+	CardID       pgtype.UUID
+	OpenedAt     pgtype.Timestamptz
 }
 
 type Trade struct {

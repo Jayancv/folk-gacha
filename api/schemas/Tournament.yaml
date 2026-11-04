@@ -10,6 +10,7 @@ required:
   - endsAt
   - entries
   - entered
+  - prizes
 properties:
   id:
     type: string
@@ -42,6 +43,11 @@ properties:
   entered:
     type: boolean
     description: You have an entry
+  prizes:
+    type: array
+    description: Prize cards for each place from 1st down ([3, 2, 1] = the top three win 3, 2 and 1 cards)
+    items:
+      type: integer
   seedHash:
     type: string
     description: SHA-256 (hex) of the tie-break seed, published when the tournament opens

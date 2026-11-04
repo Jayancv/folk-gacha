@@ -3,6 +3,7 @@ package tournaments_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ const (
 // Two small series, both Power with 3 slots, so tests choose the cards freely.
 const testRules = `
 series:
-  - { id: daily, name: Daily Cup, cadence: daily, entryHours: 20, formats: [power] }
+  - { id: daily, name: Daily Cup, cadence: daily, entryHours: 20, formats: [power], prizeCards: [3, 2, 1] }
   - { id: weekly, name: Weekly Grand, cadence: weekly, entryHours: 120, formats: [power] }
 formats:
   power: { kind: power, name: Power, slots: 3 }
@@ -222,7 +223,8 @@ func TestEnterRefusesCardsItCantUse(t *testing.T) {
 		cards []uuid.UUID
 		want  error
 	}{
-		{"too few", today, cards[:2], game.ErrLineupSize},
+		{"no cards", today, []uuid.UUID{}, game.ErrLineupSize},
+		{"too many", today, []uuid.UUID{cards[0], cards[1], cards[2], uuid.New()}, game.ErrLineupSize},
 		{"twice", today, []uuid.UUID{cards[0], cards[0], cards[1]}, game.ErrLineupDuplicate},
 		{"someone else's", today, []uuid.UUID{cards[0], cards[1], bens}, tournaments.ErrNotOwned},
 		{"no such card", today, []uuid.UUID{cards[0], cards[1], uuid.New()}, tournaments.ErrNotOwned},
@@ -376,6 +378,83 @@ func TestCloseScoresAndRanksThenFinishFreesCards(t *testing.T) {
 	}
 	if after.Status != game.TournamentFinished || after.You.Score.Total != mine.You.Score.Total || after.You.Cards[0].Card != nil {
 		t.Errorf("after finish %+v", after.You)
+	}
+}
+
+func TestTopPlacesWinPrizeCardsOnThePackTab(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	// Four players; higher levels score more, so the order is first..fourth.
+	names := []string{"first", "second", "third", "fourth"}
+	users := make([]uuid.UUID, len(names))
+	for i, name := range names {
+		users[i] = newUser(t, e.pool, name)
+		card := give(t, e.pool, users[i], "gaja-calf", i, 4-i)
+		if _, err := e.svc.Enter(ctx, users[i], today, []uuid.UUID{card}); err != nil {
+			t.Fatalf("%s enters: %v", name, err)
+		}
+	}
+	// The weekly tournament stays open and gives nothing yet.
+	*e.clock = t0.Add(11 * time.Hour)
+	if closed, _ := e.step(t); len(closed) != 1 {
+		t.Fatalf("closed %v", closed)
+	}
+	if closed, _ := e.step(t); len(closed) != 0 {
+		t.Fatalf("closed again: %v", closed)
+	}
+
+	for i, want := range []int{3, 2, 1, 0} {
+		waiting, err := e.trades.WaitingGifts(ctx, users[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting != want {
+			t.Errorf("%s has %d prize cards waiting, want %d", names[i], waiting, want)
+		}
+	}
+
+	opened, err := e.trades.OpenGifts(ctx, users[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != 3 {
+		t.Fatalf("opened %d prize cards, want 3", len(opened))
+	}
+	for _, g := range opened {
+		if g.Tournament != today || g.TournamentName != "Daily Cup" || g.Place != 1 || g.Partner != "" {
+			t.Errorf("prize %+v", g)
+		}
+		c := g.Card
+		var traded bool
+		if err := e.pool.QueryRow(ctx, "SELECT traded FROM cards WHERE id = $1", c.ID).Scan(&traded); err != nil {
+			t.Fatal(err)
+		}
+		if c.AcquiredVia != "prize" || traded || c.Level != 1 || (c.Rarity != "common" && c.Rarity != "uncommon") {
+			t.Errorf("prize card via %s traded %v level %d rarity %s", c.AcquiredVia, traded, c.Level, c.Rarity)
+		}
+	}
+	if waiting, _ := e.trades.WaitingGifts(ctx, users[0]); waiting != 0 {
+		t.Errorf("%d still waiting after opening", waiting)
+	}
+	if _, err := e.trades.OpenGifts(ctx, users[0]); !errors.Is(err, trades.ErrNoGifts) {
+		t.Errorf("open again: %v", err)
+	}
+	if _, err := e.trades.OpenGifts(ctx, users[3]); !errors.Is(err, trades.ErrNoGifts) {
+		t.Errorf("fourth place opens: %v", err)
+	}
+
+	// The list shows the prizes, and a prize card can enter the next tournament.
+	d, err := e.svc.Get(ctx, users[1], today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(d.Prizes, []int{3, 2, 1}) || d.PrizeFor(d.You.Rank) != 2 {
+		t.Errorf("prizes %v, rank %d", d.Prizes, d.You.Rank)
+	}
+	*e.clock = t0.Add(15 * time.Hour) // tomorrow's tournament is open
+	e.step(t)
+	if _, err := e.svc.Enter(ctx, users[0], "daily-2026-11-05", []uuid.UUID{opened[0].Card.ID}); err != nil {
+		t.Errorf("enter a prize card: %v", err)
 	}
 }
 

@@ -30,6 +30,32 @@ func (q *Queries) AddEntryCards(ctx context.Context, arg AddEntryCardsParams) er
 	return err
 }
 
+const addTournamentPrizes = `-- name: AddTournamentPrizes :exec
+INSERT INTO tournament_prizes (tournament_id, user_id, n, place, created_at)
+SELECT $1, $2, n, $3, $4
+FROM generate_series(1, $5::integer) AS n
+`
+
+type AddTournamentPrizesParams struct {
+	TournamentID string
+	UserID       uuid.UUID
+	Place        int32
+	CreatedAt    time.Time
+	Cards        int32
+}
+
+// @cards prize cards for a place, waiting on the winner's Pack tab (made when opened).
+func (q *Queries) AddTournamentPrizes(ctx context.Context, arg AddTournamentPrizesParams) error {
+	_, err := q.db.Exec(ctx, addTournamentPrizes,
+		arg.TournamentID,
+		arg.UserID,
+		arg.Place,
+		arg.CreatedAt,
+		arg.Cards,
+	)
+	return err
+}
+
 const cardsInTournament = `-- name: CardsInTournament :many
 SELECT card_id FROM tournament_entry_cards
 WHERE tournament_id = $1 AND card_id = ANY($2::uuid[])
@@ -93,8 +119,8 @@ func (q *Queries) DeleteEntry(ctx context.Context, arg DeleteEntryParams) (int64
 }
 
 const ensureTournament = `-- name: EnsureTournament :exec
-INSERT INTO tournaments (id, series, n, name, format, element, opens_at, closes_at, ends_at, seed, seed_hash)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+INSERT INTO tournaments (id, series, n, name, format, element, opens_at, closes_at, ends_at, seed, seed_hash, prizes)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::integer[])
 ON CONFLICT DO NOTHING
 `
 
@@ -110,6 +136,7 @@ type EnsureTournamentParams struct {
 	EndsAt   time.Time
 	Seed     []byte
 	SeedHash string
+	Prizes   []int32
 }
 
 // Creates the tournament if it doesn't exist yet (any caller, any number of times; the
@@ -127,6 +154,7 @@ func (q *Queries) EnsureTournament(ctx context.Context, arg EnsureTournamentPara
 		arg.EndsAt,
 		arg.Seed,
 		arg.SeedHash,
+		arg.Prizes,
 	)
 	return err
 }
@@ -157,7 +185,7 @@ func (q *Queries) GetEntry(ctx context.Context, arg GetEntryParams) (TournamentE
 
 const getTournament = `-- name: GetTournament :one
 
-SELECT t.id, t.series, t.n, t.name, t.format, t.element, t.opens_at, t.closes_at, t.ends_at, t.status, t.seed, t.seed_hash, (SELECT count(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entries
+SELECT t.id, t.series, t.n, t.name, t.format, t.element, t.opens_at, t.closes_at, t.ends_at, t.status, t.seed, t.seed_hash, t.prizes, (SELECT count(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entries
 FROM tournaments t WHERE t.id = $1
 `
 
@@ -174,6 +202,7 @@ type GetTournamentRow struct {
 	Status   string
 	Seed     []byte
 	SeedHash string
+	Prizes   []int32
 	Entries  int64
 }
 
@@ -194,6 +223,7 @@ func (q *Queries) GetTournament(ctx context.Context, id string) (GetTournamentRo
 		&i.Status,
 		&i.Seed,
 		&i.SeedHash,
+		&i.Prizes,
 		&i.Entries,
 	)
 	return i, err
@@ -428,7 +458,7 @@ func (q *Queries) ListTournamentResults(ctx context.Context, arg ListTournamentR
 }
 
 const listTournaments = `-- name: ListTournaments :many
-SELECT t.id, t.series, t.n, t.name, t.format, t.element, t.opens_at, t.closes_at, t.ends_at, t.status, t.seed, t.seed_hash, (SELECT count(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entries
+SELECT t.id, t.series, t.n, t.name, t.format, t.element, t.opens_at, t.closes_at, t.ends_at, t.status, t.seed, t.seed_hash, t.prizes, (SELECT count(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entries
 FROM tournaments t
 WHERE t.ends_at > $1::timestamptz
 ORDER BY t.opens_at DESC, t.id
@@ -448,6 +478,7 @@ type ListTournamentsRow struct {
 	Status   string
 	Seed     []byte
 	SeedHash string
+	Prizes   []int32
 	Entries  int64
 }
 
@@ -474,6 +505,7 @@ func (q *Queries) ListTournaments(ctx context.Context, since time.Time) ([]ListT
 			&i.Status,
 			&i.Seed,
 			&i.SeedHash,
+			&i.Prizes,
 			&i.Entries,
 		); err != nil {
 			return nil, err
@@ -560,7 +592,7 @@ func (q *Queries) LockCardsInTournament(ctx context.Context, arg LockCardsInTour
 }
 
 const lockTournamentToStep = `-- name: LockTournamentToStep :one
-SELECT id, series, n, name, format, element, opens_at, closes_at, ends_at, status, seed, seed_hash FROM tournaments WHERE id = $1 AND status = $2 FOR UPDATE
+SELECT id, series, n, name, format, element, opens_at, closes_at, ends_at, status, seed, seed_hash, prizes FROM tournaments WHERE id = $1 AND status = $2 FOR UPDATE
 `
 
 type LockTournamentToStepParams struct {
@@ -585,8 +617,83 @@ func (q *Queries) LockTournamentToStep(ctx context.Context, arg LockTournamentTo
 		&i.Status,
 		&i.Seed,
 		&i.SeedHash,
+		&i.Prizes,
 	)
 	return i, err
+}
+
+const lockWaitingPrizes = `-- name: LockWaitingPrizes :many
+SELECT p.tournament_id, p.n, p.place, p.created_at, t.name
+FROM tournament_prizes p
+JOIN tournaments t ON t.id = p.tournament_id
+WHERE p.user_id = $1 AND p.opened_at IS NULL
+ORDER BY p.created_at, p.tournament_id, p.n
+LIMIT $2
+FOR UPDATE OF p
+`
+
+type LockWaitingPrizesParams struct {
+	UserID    uuid.UUID
+	MaxPrizes int32
+}
+
+type LockWaitingPrizesRow struct {
+	TournamentID string
+	N            int16
+	Place        int32
+	CreatedAt    time.Time
+	Name         string
+}
+
+// The player's unopened prize cards, oldest first, row-locked like LockWaitingGifts.
+func (q *Queries) LockWaitingPrizes(ctx context.Context, arg LockWaitingPrizesParams) ([]LockWaitingPrizesRow, error) {
+	rows, err := q.db.Query(ctx, lockWaitingPrizes, arg.UserID, arg.MaxPrizes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LockWaitingPrizesRow
+	for rows.Next() {
+		var i LockWaitingPrizesRow
+		if err := rows.Scan(
+			&i.TournamentID,
+			&i.N,
+			&i.Place,
+			&i.CreatedAt,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const openTournamentPrize = `-- name: OpenTournamentPrize :exec
+UPDATE tournament_prizes SET card_id = $1::uuid, opened_at = $2::timestamptz
+WHERE tournament_id = $3 AND user_id = $4 AND n = $5
+`
+
+type OpenTournamentPrizeParams struct {
+	CardID       uuid.UUID
+	OpenedAt     time.Time
+	TournamentID string
+	UserID       uuid.UUID
+	N            int16
+}
+
+func (q *Queries) OpenTournamentPrize(ctx context.Context, arg OpenTournamentPrizeParams) error {
+	_, err := q.db.Exec(ctx, openTournamentPrize,
+		arg.CardID,
+		arg.OpenedAt,
+		arg.TournamentID,
+		arg.UserID,
+		arg.N,
+	)
+	return err
 }
 
 const saveEntry = `-- name: SaveEntry :exec

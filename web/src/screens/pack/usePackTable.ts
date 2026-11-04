@@ -66,7 +66,7 @@ export function usePackTable (active: boolean)
         setOpeningGift(false);
         if (outcome.ok)
         {
-            const opened = { cards: outcome.cards, title: giftTitle(outcome.partners), revealed: [] };
+            const opened = { cards: outcome.cards, title: giftTitle(outcome.from), revealed: [] };
             setGift(opened);
             deal(opened.cards, opened.title);
             void qc.invalidateQueries({ queryKey: CARDS_KEY });

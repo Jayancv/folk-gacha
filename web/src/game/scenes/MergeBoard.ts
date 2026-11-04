@@ -88,6 +88,7 @@ export class MergeBoard extends ResponsiveScene
     private total = 0;
     // Cards offered in an open trade (lock badge).
     private locked = new Set<string>();
+    private inEvent = new Set<string>();
 
     constructor ()
     {
@@ -149,11 +150,12 @@ export class MergeBoard extends ResponsiveScene
 
     // ---------- Board ----------
 
-    private onShow ({ cards, total, locked = [] }: BoardShowPayload)
+    private onShow ({ cards, total, locked = [], inEvent = [] }: BoardShowPayload)
     {
         this.clearBoard();
         this.total = total;
         this.locked = new Set(locked);
+        this.inEvent = new Set(inEvent);
 
         cards.slice(0, BOARD_SIZE).forEach((card, i) =>
         {
@@ -172,16 +174,16 @@ export class MergeBoard extends ResponsiveScene
             .setDepth(DEPTH.cards);
         if (this.locked.has(card.id))
         {
-            view.add(this.lockBadge());
+            view.add(this.lockBadge(this.inEvent.has(card.id) ? '🏆 In event' : '🔒 In trade'));
         }
         this.slots[slot] = view;
         return view;
     }
 
-    // "In trade" across the bottom of a card offered in an open trade (it moves with the card).
-    private lockBadge (): GameObjects.Text
+    // "In trade" / "In event" across the bottom of a locked card (it moves with the card).
+    private lockBadge (text: string): GameObjects.Text
     {
-        return this.add.text(0, CARD_H / 2 - 34, '🔒 In trade', {
+        return this.add.text(0, CARD_H / 2 - 34, text, {
             fontFamily: 'system-ui, sans-serif', fontStyle: 'bold', fontSize: 26, color: PALETTE.gold,
             backgroundColor: '#000000bb', padding: { x: 14, y: 6 }
         }).setOrigin(0.5);

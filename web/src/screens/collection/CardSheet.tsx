@@ -65,6 +65,9 @@ export function CardSheet ({ card, onClose }: { card: OwnedCard; onClose: () => 
                 {card.inTrade && (
                     <p className="mt-1 text-xs text-[#e7b54a]">Offered in an open trade: locked until the offer ends (withdraw it on Trades).</p>
                 )}
+                {card.inTournament && (
+                    <p className="mt-1 text-xs text-[#e7b54a]">In a tournament lineup: locked until the tournament ends (see Events).</p>
+                )}
 
                 <button
                     ref={close}

@@ -84,6 +84,7 @@ properties:
       - merge
       - trade
       - gift
+      - prize
   acquiredAt:
     type: string
     format: date-time

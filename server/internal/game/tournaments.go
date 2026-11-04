@@ -36,10 +36,12 @@ const (
 	CadenceWeekly = "weekly"
 )
 
-// Lineup sizes the screens can lay out.
+// Lineup sizes the screens can lay out: a format's slots (the most cards a lineup may
+// have) are 3-5; a lineup has 1 card up to the format's slots.
 const (
 	MinLineupSlots = 3
 	MaxLineupSlots = 5
+	MinLineupCards = 1
 )
 
 // Format is one way of scoring lineups (server/rules/tournaments.yaml).
@@ -64,7 +66,16 @@ type Series struct {
 	Cadence    string   `yaml:"cadence"`
 	EntryHours int      `yaml:"entryHours"`
 	Formats    []string `yaml:"formats"`
+	// PrizeCards: how many prize cards each place gets, from 1st down ([3, 2, 1]: the top
+	// three). Prizes are Common or Uncommon (GiftRarity) and wait on the Pack tab.
+	PrizeCards []int `yaml:"prizeCards"`
 }
+
+// Prize limits: places that win cards, and cards per place.
+const (
+	MaxPrizePlaces = 10
+	MaxPrizeCards  = 5
+)
 
 // TournamentRules is server/rules/tournaments.yaml.
 type TournamentRules struct {
@@ -125,6 +136,17 @@ func (r TournamentRules) Check() error {
 		for _, f := range s.Formats {
 			if _, ok := r.Formats[f]; !ok {
 				return fmt.Errorf("%s.formats: unknown format %q", at, f)
+			}
+		}
+		if len(s.PrizeCards) > MaxPrizePlaces {
+			return fmt.Errorf("%s.prizeCards: at most %d places", at, MaxPrizePlaces)
+		}
+		for i, n := range s.PrizeCards {
+			if n < 1 || n > MaxPrizeCards {
+				return fmt.Errorf("%s.prizeCards[%d]: must be 1-%d cards", at, i, MaxPrizeCards)
+			}
+			if i > 0 && n > s.PrizeCards[i-1] {
+				return fmt.Errorf("%s.prizeCards[%d]: a lower place can't win more than the one above", at, i)
 			}
 		}
 	}
@@ -226,6 +248,16 @@ type Tournament struct {
 	OpensAt  time.Time
 	ClosesAt time.Time
 	EndsAt   time.Time
+	// Prizes: cards for each place from 1st down (the series' prizeCards when it opened).
+	Prizes []int
+}
+
+// PrizeFor is how many prize cards `rank` wins (0 outside the prize places).
+func (t Tournament) PrizeFor(rank int) int {
+	if rank < 1 || rank > len(t.Prizes) {
+		return 0
+	}
+	return t.Prizes[rank-1]
 }
 
 // Tournament statuses.
@@ -274,6 +306,7 @@ func (s Series) tournament(n int) Tournament {
 		OpensAt:  opens,
 		ClosesAt: opens.Add(time.Duration(s.EntryHours) * time.Hour),
 		EndsAt:   ends,
+		Prizes:   slices.Clone(s.PrizeCards),
 	}
 	if t.Format.Kind == FormatElementTrial {
 		// Rotate the element each time the format comes round (not by n itself: with five
@@ -313,7 +346,7 @@ type LineupCard struct {
 
 // Lineup errors.
 var (
-	ErrLineupSize      = errors.New("game: lineup has the wrong number of cards")
+	ErrLineupSize      = errors.New("game: lineup has no cards or more than the format's slots")
 	ErrLineupDuplicate = errors.New("game: lineup lists a card twice")
 	ErrLineupRarity    = errors.New("game: lineup breaks the format's rarity cap")
 	ErrLineupSpirit    = errors.New("game: lineup has two cards of one spirit")
@@ -326,8 +359,8 @@ var (
 // "not in the series' previous tournament" rule need the database; the server checks those.
 func (t Tournament) CheckLineup(cards []LineupCard) error {
 	f := t.Format
-	if len(cards) != f.Slots {
-		return fmt.Errorf("%w: %d, want %d", ErrLineupSize, len(cards), f.Slots)
+	if len(cards) < MinLineupCards || len(cards) > f.Slots {
+		return fmt.Errorf("%w: %d, want %d-%d", ErrLineupSize, len(cards), MinLineupCards, f.Slots)
 	}
 	ids := map[string]bool{}
 	spirits := map[string]bool{}

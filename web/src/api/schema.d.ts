@@ -472,9 +472,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Open your waiting partner gifts
-         * @description Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
-         *     current card season, rolled now. Gift cards count as traded, so they never earn season points.
+         * Open your waiting partner gifts and tournament prizes
+         * @description Turns up to 5 waiting partner gifts and tournament prize cards (oldest first) into cards: each a
+         *     level-1 Common or Uncommon of the current card season, rolled now. Partner gift cards count as
+         *     traded, so they never earn season points; prize cards were won, so they count as normal cards.
          */
         post: operations["openGifts"];
         delete?: never;
@@ -643,7 +644,7 @@ export interface components {
             dailyPack?: components["schemas"]["DailyPackStatus"];
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
             displayName?: string;
-            /** @description Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open) */
+            /** @description Partner gifts from trades and tournament prize cards waiting to be opened on the Pack tab (POST /gifts/open) */
             giftsWaiting: number;
             /** @description The player finished or skipped the first-time tutorial (on any device) */
             tutorialDone: boolean;
@@ -739,7 +740,7 @@ export interface components {
              */
             artSeed: number;
             /** @enum {string} */
-            acquiredVia: "pack" | "merge" | "trade" | "gift";
+            acquiredVia: "pack" | "merge" | "trade" | "gift" | "prize";
             /** Format: date-time */
             acquiredAt: string;
             /** @description Offered in an open trade: locked, so it can't be merged or offered again until the offer ends */
@@ -884,8 +885,16 @@ export interface components {
         };
         OpenedGifts: {
             gifts: {
-                /** @description Username of the player the trade was with */
-                partner: string;
+                /** @description Username of the player the trade was with (partner gifts) */
+                partner?: string;
+                /** @description The tournament this prize card was won in (prize cards) */
+                tournament?: {
+                    id: string;
+                    /** @description The series' name, e.g. Daily Cup */
+                    name: string;
+                    /** @description The place that won it (1 = first) */
+                    place: number;
+                };
                 card: components["schemas"]["Card"];
             }[];
             /** @description Gifts still waiting (more than 5 open over several opens) */
@@ -937,6 +946,8 @@ export interface components {
             entries: number;
             /** @description You have an entry */
             entered: boolean;
+            /** @description Prize cards for each place from 1st down ([3, 2, 1] = the top three win 3, 2 and 1 cards) */
+            prizes: number[];
             /** @description SHA-256 (hex) of the tie-break seed, published when the tournament opens */
             seedHash?: string;
             /** @description The tie-break seed (hex), revealed when entries close; its SHA-256 is seedHash */
@@ -959,7 +970,7 @@ export interface components {
              */
             kind: "power" | "element-trial" | "rarity-cap" | "underdog" | "harmony";
             name: string;
-            /** @description Cards in a lineup */
+            /** @description The most cards a lineup may have (a lineup has 1 up to this many) */
             slots: number;
             /** @description No two cards of the same spirit */
             onePerSpirit: boolean;
@@ -1003,7 +1014,7 @@ export interface components {
             score: number;
         };
         TournamentLineup: {
-            /** @description Your cards, in slot order (as many as the format's slots) */
+            /** @description Your cards, in slot order (1 up to the format's slots) */
             cardIds: string[];
         };
         /** @description A lineup's score with its breakdown */
