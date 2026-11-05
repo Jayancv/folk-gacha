@@ -1,0 +1,40 @@
+# /me/name
+put:
+  operationId: setPublicName
+  summary: Choose the name other players see
+  description: |
+    The name shown on leaderboards, tournament results and your profile, next to your @username.
+    2–20 letters (any language), digits, spaces and . - _ ' with at least one letter; spaces are
+    tidied. An empty name goes back to showing your username. Your Google name is never shown
+    to other players unless you type it here.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              maxLength: 60
+  responses:
+    "200":
+      description: Your updated profile
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Profile.yaml
+    "400":
+      description: The name is too short or long, or uses characters names can't have (bad_name)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

@@ -1,3 +1,4 @@
+import { handleText, shownName } from '../profile/playerName';
 import { medal } from './leaderboardText';
 import type { Leaderboard } from './useLeaderboard';
 
@@ -11,7 +12,7 @@ export function LeaderboardRow ({ entry, mine, onOpen }: { entry: Entry; mine: b
         <li aria-current={mine ? 'true' : undefined}>
             <button
                 onClick={onOpen}
-                aria-label={`${entry.username}, rank ${entry.rank}, ${entry.points} points. Open profile`}
+                aria-label={`${shownName(entry)}, rank ${entry.rank}, ${entry.points} points. Open profile`}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm active:bg-white/10 ${mine ? 'bg-[#e7b54a]/15 ring-1 ring-[#e7b54a]/60' : 'bg-white/[0.03]'}`}
             >
                 <span
@@ -20,9 +21,12 @@ export function LeaderboardRow ({ entry, mine, onOpen }: { entry: Entry; mine: b
                 >
                     {entry.rank}
                 </span>
-                <span className="mr-auto truncate font-bold">
-                    {entry.username}
-                    {mine && <span className="ml-1.5 text-xs font-normal text-[#e7b54a]">you</span>}
+                <span className="mr-auto min-w-0">
+                    <span className="block truncate font-bold">
+                        {shownName(entry)}
+                        {mine && <span className="ml-1.5 text-xs font-normal text-[#e7b54a]">you</span>}
+                    </span>
+                    {handleText(entry) && <span className="block truncate text-[11px] text-[#bba595]">{handleText(entry)}</span>}
                 </span>
                 <span className="tabular-nums">{entry.points}</span>
             </button>

@@ -87,7 +87,7 @@ func (q *Queries) GetProfileStats(ctx context.Context, userID uuid.UUID) (GetPro
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at FROM users WHERE lower(username) = lower($1)
+SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at, public_name FROM users WHERE lower(username) = lower($1)
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, error) {
@@ -101,6 +101,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.TradeUnlockedAt,
 		&i.DisplayName,
 		&i.TutorialDoneAt,
+		&i.PublicName,
 	)
 	return i, err
 }
@@ -166,4 +167,29 @@ func (q *Queries) ListShowcaseCardIDs(ctx context.Context, userID uuid.UUID) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const setPublicName = `-- name: SetPublicName :one
+UPDATE users SET public_name = $1 WHERE id = $2 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at, public_name
+`
+
+type SetPublicNameParams struct {
+	PublicName string
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetPublicName(ctx context.Context, arg SetPublicNameParams) (User, error) {
+	row := q.db.QueryRow(ctx, setPublicName, arg.PublicName, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AuthID,
+		&i.Username,
+		&i.CreatedAt,
+		&i.TradeUnlockedAt,
+		&i.DisplayName,
+		&i.TutorialDoneAt,
+		&i.PublicName,
+	)
+	return i, err
 }

@@ -412,7 +412,7 @@ func (q *Queries) ListLineupCards(ctx context.Context, ids []uuid.UUID) ([]ListL
 }
 
 const listTournamentResults = `-- name: ListTournamentResults :many
-SELECT e.rank, e.score, e.user_id, u.username
+SELECT e.rank, e.score, e.user_id, u.username, u.public_name
 FROM tournament_entries e
 JOIN users u ON u.id = e.user_id
 WHERE e.tournament_id = $1 AND e.rank IS NOT NULL
@@ -426,10 +426,11 @@ type ListTournamentResultsParams struct {
 }
 
 type ListTournamentResultsRow struct {
-	Rank     pgtype.Int4
-	Score    pgtype.Int4
-	UserID   uuid.UUID
-	Username string
+	Rank       pgtype.Int4
+	Score      pgtype.Int4
+	UserID     uuid.UUID
+	Username   string
+	PublicName string
 }
 
 func (q *Queries) ListTournamentResults(ctx context.Context, arg ListTournamentResultsParams) ([]ListTournamentResultsRow, error) {
@@ -446,6 +447,7 @@ func (q *Queries) ListTournamentResults(ctx context.Context, arg ListTournamentR
 			&i.Score,
 			&i.UserID,
 			&i.Username,
+			&i.PublicName,
 		); err != nil {
 			return nil, err
 		}

@@ -7,7 +7,7 @@ import { EventBus } from '../../bridge/EventBus';
 import { MergeBoardEvents } from '../../bridge/events';
 import { useBridgeEvent } from '../../bridge/useBridgeEvent';
 import type { CardData } from '../../game/cards/model';
-import { BOARD_SIZE, RESULT_TIMEOUT_MS } from '../../game/merge/boardModel';
+import { BOARD_LIMIT, RESULT_TIMEOUT_MS, type BoardFocus } from '../../game/merge/boardModel';
 import { CARDS_KEY } from '../collection/useCollection';
 import { LEADERBOARD_KEY } from '../leaderboard/useLeaderboard';
 import { PROFILE_KEY } from '../profile/useProfile';
@@ -21,6 +21,8 @@ const RESYNC_DELAY_MS = 1200;
  * match the server (an answer came too late, never came, or a card was used elsewhere)
  * it reloads the board. Cards changed elsewhere (trades, gifts: `cardsChanged`) reload
  * it while it's on screen and no merge is waiting, or as soon as it's back on screen.
+ * `focusOn(card)` ("Merge" on a card's sheet) lays out that card and its matches first;
+ * `focusOn(null)` goes back to the newest cards.
  */
 export function useBoardTable (visible: boolean)
 {
@@ -28,6 +30,9 @@ export function useBoardTable (visible: boolean)
     const [loadError, setLoadError] = useState(false);
     // The cards the board last laid out (the tutorial looks for a pair in them).
     const [cards, setCards] = useState<CardData[] | null>(null);
+    // The card "Merge" was tapped on (kept for later reloads: its matches stay on the board).
+    const [focusCard, setFocusCard] = useState<CardData | null>(null);
+    const focusRef = useRef<BoardFocus | null>(null);
     // Only the newest board load may lay out cards (an older, slower one is dropped).
     const latestLoad = useRef(0);
     // Cards changed elsewhere since the board was laid out; merges waiting for an answer.
@@ -50,7 +55,7 @@ export function useBoardTable (visible: boolean)
         const id = ++latestLoad.current;
         try
         {
-            const board = await loadBoard(BOARD_SIZE);
+            const board = await loadBoard(BOARD_LIMIT, focusRef.current);
             if (id === latestLoad.current)
             {
                 setLoadError(false);
@@ -121,5 +126,20 @@ export function useBoardTable (visible: boolean)
         }
     });
 
-    return { loadError, cards, retry: () => void reload() };
+    const focusOn = (card: CardData | null) =>
+    {
+        const next = card ? { id: card.id, templateId: card.templateId, level: card.level } : null;
+        if (next?.id === focusRef.current?.id)
+        {
+            return;
+        }
+        focusRef.current = next;
+        setFocusCard(card);
+        // Lay it out now if the scene is already running; a scene that is starting asks
+        // for cards itself (Ready) and gets the new focus then.
+        stale.current = false;
+        void reload();
+    };
+
+    return { loadError, cards, focusCard, focusOn, retry: () => void reload() };
 }

@@ -153,6 +153,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /me/name:
+    put:
+      operationId: setPublicName
+      summary: Choose the name other players see
+      description: |
+        The name shown on leaderboards, tournament results and your profile, next to your @username.
+        2–20 letters (any language), digits, spaces and . - _ ' with at least one letter; spaces are
+        tidied. An empty name goes back to showing your username. Your Google name is never shown
+        to other players unless you type it here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  maxLength: 60
+      responses:
+        '200':
+          description: Your updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          description: The name is too short or long, or uses characters names can't have (bad_name)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /me/showcase:
     put:
       operationId: setShowcase
@@ -1177,6 +1217,9 @@ components:
           description: When this account may start trading (UTC; at sign-up, no wait)
         dailyPack:
           $ref: '#/components/schemas/DailyPackStatus'
+        publicName:
+          type: string
+          description: The name you chose to show other players (PUT /me/name); absent until you pick one
         displayName:
           type: string
           description: Your full name from Google (only ever shown to you); absent for dev logins
@@ -1504,6 +1547,9 @@ components:
           minimum: 1
         username:
           type: string
+        name:
+          type: string
+          description: The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
         points:
           type: integer
     Profile:
@@ -1520,6 +1566,9 @@ components:
       properties:
         username:
           type: string
+        name:
+          type: string
+          description: The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
         joinedAt:
           type: string
           format: date-time
@@ -1961,6 +2010,9 @@ components:
           minimum: 1
         username:
           type: string
+        name:
+          type: string
+          description: The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
         score:
           type: integer
     TournamentLineup:

@@ -5,9 +5,16 @@ import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../layout';
 import {
     BOARD_SIZE,
     boardHint,
+    boardOrder,
+    edgeScrollSpeed,
+    maxScroll,
+    ROW_H,
+    slotCountFor,
+    slotPosition,
     CELL_H,
     CELL_W,
     FAILURE_TEXT,
+    focusLayout,
     GAP,
     isLevelUpMatch,
     mergeLabel,
@@ -76,6 +83,83 @@ describe('slotAt', () =>
     });
 });
 
+describe('scrolling board', () =>
+{
+    it('continues the grid below the first screen', () =>
+    {
+        expect(slotPosition(5)).toEqual(SLOTS[5]);
+        expect(slotPosition(20).y - slotPosition(16).y).toBeCloseTo(ROW_H);
+        expect(slotPosition(20).x).toBeCloseTo(SLOTS[0].x);
+    });
+
+    it('finds the slot under a point at any scroll', () =>
+    {
+        const s = slotPosition(21);
+        expect(slotAt(s.x, s.y - 3 * ROW_H, 3 * ROW_H, 40)).toBe(21);
+        expect(slotAt(s.x, s.y, 0, 40)).toBe(21);
+        expect(slotAt(s.x, s.y, 0, 20)).toBe(-1); // past the last slot
+        expect(slotAt(SLOTS[0].x, SLOTS[0].y - ROW_H, 0, 40)).toBe(-1); // above the grid
+    });
+
+    it('fills whole rows and scrolls only when the board is taller than the view', () =>
+    {
+        expect(slotCountFor(3)).toBe(BOARD_SIZE);
+        expect(slotCountFor(17)).toBe(20);
+        expect(slotCountFor(40)).toBe(40);
+        expect(maxScroll(BOARD_SIZE, 1200)).toBe(0);
+        expect(maxScroll(40, 1100)).toBeCloseTo((210 + 10 * ROW_H - GAP) - 1100);
+    });
+
+    it('scrolls faster the closer a dragged card is to an edge', () =>
+    {
+        expect(edgeScrollSpeed(600, 200, 1100)).toBe(0);
+        expect(edgeScrollSpeed(200, 200, 1100)).toBe(-18);
+        expect(edgeScrollSpeed(1100, 200, 1100)).toBe(18);
+        expect(edgeScrollSpeed(1045, 200, 1100)).toBeCloseTo(9);
+    });
+});
+
+describe('boardOrder', () =>
+{
+    const card = (id: string, spirit: string, level = 1, over = {}) => ({ ...makeCard(t(spirit), level), id, ...over });
+
+    it('puts pairs first, side by side, then the rest newest first', () =>
+    {
+        const cards = [card('a', 'malu'), card('b', 'gaja-calf'), card('c', 'monara'), card('d', 'gaja-calf'), card('e', 'malu'), card('f', 'malu', 2)];
+        expect(boardOrder(cards).map(c => c.id)).toEqual(['a', 'e', 'b', 'd', 'c', 'f']);
+    });
+
+    it('never pairs locked or max-level cards', () =>
+    {
+        const cards = [card('a', 'malu'), card('b', 'monara'), card('c', 'malu', 1, { inTrade: true }), card('d', 'gaja-calf', 5), card('e', 'gaja-calf', 5)];
+        expect(boardOrder(cards).map(c => c.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    });
+});
+
+describe('focusLayout', () =>
+{
+    const malu = (n: number) => ({ ...makeCard(t('malu')), id: `m${n}` });
+    const newest = Array.from({ length: BOARD_SIZE }, (_, i) => ({ ...makeCard(t('gaja-calf')), id: `n${i}` }));
+
+    it('puts the focused card first, then its matches, then the newest cards', () =>
+    {
+        const board = focusLayout('m2', [malu(1), malu(2), malu(3)], newest, BOARD_SIZE);
+        expect(board.map(c => c.id).slice(0, 5)).toEqual(['m2', 'm1', 'm3', 'n0', 'n1']);
+        expect(board).toHaveLength(BOARD_SIZE);
+    });
+
+    it('lists each card once', () =>
+    {
+        const board = focusLayout('m1', [malu(1)], [malu(1), ...newest]);
+        expect(board.filter(c => c.id === 'm1')).toHaveLength(1);
+    });
+
+    it('still fills the board when the focused card is gone (merged away)', () =>
+    {
+        expect(focusLayout('gone', [malu(1)], newest, 4).map(c => c.id)).toEqual(['m1', 'n0', 'n1', 'n2']);
+    });
+});
+
 describe('isLevelUpMatch', () =>
 {
     it('matches the same card at the same level', () =>
@@ -107,6 +191,12 @@ describe('board text', () =>
     it('shows a plain count when everything fits', () =>
     {
         expect(boardHint(11, 11)).toBe('Drag a card onto another to merge\n11 cards');
+    });
+
+    it('names the card the board was opened on', () =>
+    {
+        expect(boardHint(5, 5, { name: 'Monara Chick', matches: 2 })).toBe('Drag one Monara Chick onto another to level up\n5 cards');
+        expect(boardHint(5, 5, { name: 'Ura Boarlet', matches: 0 })).toBe('No Ura Boarlet to level up with yet\nTry it on a different spirit: some combine');
     });
 
     it('says how many are hidden when the collection is bigger than the board', () =>

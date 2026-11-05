@@ -10,7 +10,7 @@ WITH ranked AS (
     FROM season_points
     WHERE season_id = @season_id AND points > 0
 )
-SELECT ranked.rank, ranked.points, ranked.user_id, u.username, ranked.players
+SELECT ranked.rank, ranked.points, ranked.user_id, u.username, u.public_name, ranked.players
 FROM ranked
 JOIN users u ON u.id = ranked.user_id
 WHERE ranked.rank <= @top_n::bigint
@@ -32,7 +32,7 @@ WHERE u.id = @user_id;
 
 -- name: ListFinalTop :many
 -- The top @top_n of a frozen season, plus how many were ranked.
-SELECT r.rank, r.points, r.user_id, u.username,
+SELECT r.rank, r.points, r.user_id, u.username, u.public_name,
        (SELECT count(*) FROM season_results c WHERE c.season_id = r.season_id) AS players
 FROM season_results r
 JOIN users u ON u.id = r.user_id
@@ -60,7 +60,7 @@ WITH totals AS (
            count(*) OVER () AS players
     FROM totals
 )
-SELECT ranked.rank, ranked.points, ranked.user_id, u.username, ranked.players
+SELECT ranked.rank, ranked.points, ranked.user_id, u.username, u.public_name, ranked.players
 FROM ranked
 JOIN users u ON u.id = ranked.user_id
 WHERE ranked.rank <= @top_n::bigint

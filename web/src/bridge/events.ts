@@ -49,6 +49,8 @@ export interface BoardShowPayload
     locked?: string[];
     /** Which of `locked` are in a tournament (their badge says so). */
     inEvent?: string[];
+    /** Opened with "Merge" on this card: it and its level-up matches glow until the first drag. */
+    focusId?: string;
 }
 
 export interface MergeRequestedPayload

@@ -57,10 +57,10 @@ func toLeaderboard(b leaderboard.Board, viewer store.User) Leaderboard {
 		Players:    b.Players,
 	}
 	for i, e := range b.Top {
-		out.Top[i] = LeaderboardEntry{Rank: e.Rank, Username: e.Username, Points: e.Points}
+		out.Top[i] = LeaderboardEntry{Rank: e.Rank, Username: e.Username, Name: optName(e.Name), Points: e.Points}
 	}
 	if b.You != nil {
-		out.You = &LeaderboardEntry{Rank: b.You.Rank, Username: viewer.Username, Points: b.You.Points}
+		out.You = &LeaderboardEntry{Rank: b.You.Rank, Username: viewer.Username, Name: optName(viewer.PublicName), Points: b.You.Points}
 	}
 	return out
 }
@@ -76,10 +76,10 @@ func (s *Server) GetAllTimeLeaderboard(ctx context.Context, _ GetAllTimeLeaderbo
 	}
 	out := GetAllTimeLeaderboard200JSONResponse{Top: make([]LeaderboardEntry, len(b.Top)), Players: b.Players}
 	for i, e := range b.Top {
-		out.Top[i] = LeaderboardEntry{Rank: e.Rank, Username: e.Username, Points: e.Points}
+		out.Top[i] = LeaderboardEntry{Rank: e.Rank, Username: e.Username, Name: optName(e.Name), Points: e.Points}
 	}
 	if b.You != nil {
-		out.You = &LeaderboardEntry{Rank: b.You.Rank, Username: user.Username, Points: b.You.Points}
+		out.You = &LeaderboardEntry{Rank: b.You.Rank, Username: user.Username, Name: optName(user.PublicName), Points: b.You.Points}
 	}
 	return out, nil
 }

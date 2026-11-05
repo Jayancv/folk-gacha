@@ -1,6 +1,9 @@
 -- name: GetUserByUsername :one
 SELECT * FROM users WHERE lower(username) = lower($1);
 
+-- name: SetPublicName :one
+UPDATE users SET public_name = @public_name WHERE id = @id RETURNING *;
+
 -- name: GetProfileStats :one
 -- Collection power is the sum of the player's best 10 card scores at their levels
 -- (same rounding as game.LevelScore); podiums are weekly finishes in the top 3.

@@ -21,6 +21,9 @@ properties:
     description: When this account may start trading (UTC; at sign-up, no wait)
   dailyPack:
     $ref: ./DailyPackStatus.yaml
+  publicName:
+    type: string
+    description: The name you chose to show other players (PUT /me/name); absent until you pick one
   displayName:
     type: string
     description: Your full name from Google (only ever shown to you); absent for dev logins

@@ -5,12 +5,17 @@ import { RARITY_STYLE } from '../../game/cards/model';
 import { CardImage } from './CardImage';
 import { acquiredText, copyText, setNumberText } from './cardDetails';
 import { ELEMENT_LABEL } from './filters';
+import { mergeAction } from './mergeModel';
+import { useMergeMatches } from './useMergeMatches';
 
 // One card, large, with its details. Closes on the backdrop, the button, or Escape.
 // Portalled to <body> so it covers the tab bar and the player chip, not just the collection.
-export function CardSheet ({ card, onClose }: { card: OwnedCard; onClose: () => void })
+// `onMerge` (your own cards only) adds a Merge button that opens the Board on this card.
+export function CardSheet ({ card, onClose, onMerge }: { card: OwnedCard; onClose: () => void; onMerge?: (card: OwnedCard) => void })
 {
     const close = useRef<HTMLButtonElement>(null);
+    const matches = useMergeMatches(card, onMerge !== undefined);
+    const merge = onMerge ? mergeAction(card, matches) : null;
 
     useEffect(() =>
     {
@@ -66,16 +71,30 @@ export function CardSheet ({ card, onClose }: { card: OwnedCard; onClose: () => 
                     <p className="mt-1 text-xs text-[#e7b54a]">Offered in an open trade: locked until the offer ends (withdraw it on Trades).</p>
                 )}
                 {card.inTournament && (
-                    <p className="mt-1 text-xs text-[#e7b54a]">In a tournament lineup: locked until the tournament ends (see Events).</p>
+                    <p className="mt-1 text-xs text-[#e7b54a]">In a tournament lineup: locked until the tournament ends (see Tournament).</p>
                 )}
 
-                <button
-                    ref={close}
-                    onClick={onClose}
-                    className="mt-4 w-full rounded-xl bg-[#e7b54a] py-3 text-sm font-bold text-[#170e10] active:scale-[0.98]"
-                >
-                    Close
-                </button>
+                {merge?.hint && <p className="mt-3 text-xs text-[#bba595]" aria-live="polite">{merge.hint}</p>}
+                <div className="mt-4 flex gap-2">
+                    {merge && (
+                        <button
+                            onClick={() => onMerge?.(card)}
+                            disabled={!merge.enabled}
+                            className="flex-[2] rounded-xl bg-[#e7b54a] py-3 text-sm font-bold text-[#170e10] active:scale-[0.98] disabled:opacity-40"
+                        >
+                            {merge.label}
+                        </button>
+                    )}
+                    <button
+                        ref={close}
+                        onClick={onClose}
+                        className={`flex-1 rounded-xl py-3 text-sm font-bold active:scale-[0.98] ${
+                            merge ? 'border border-[#3b2529] text-[#bba595]' : 'bg-[#e7b54a] text-[#170e10]'
+                        }`}
+                    >
+                        Close
+                    </button>
+                </div>
             </div>
         </div>,
         document.body

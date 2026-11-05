@@ -490,9 +490,11 @@ type Leaderboard struct {
 
 // LeaderboardEntry defines model for LeaderboardEntry.
 type LeaderboardEntry struct {
-	Points   int    `json:"points"`
-	Rank     int    `json:"rank"`
-	Username string `json:"username"`
+	// Name The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
+	Name     *string `json:"name,omitempty"`
+	Points   int     `json:"points"`
+	Rank     int     `json:"rank"`
+	Username string  `json:"username"`
 }
 
 // LeaderboardSeason defines model for LeaderboardSeason.
@@ -543,6 +545,9 @@ type Me struct {
 	// GiftsWaiting Partner gifts from trades and tournament prize cards waiting to be opened on the Pack tab (POST /gifts/open)
 	GiftsWaiting int                `json:"giftsWaiting"`
 	Id           openapi_types.UUID `json:"id"`
+
+	// PublicName The name you chose to show other players (PUT /me/name); absent until you pick one
+	PublicName *string `json:"publicName,omitempty"`
 
 	// TradeUnlockedAt When this account may start trading (UTC; at sign-up, no wait)
 	TradeUnlockedAt time.Time `json:"tradeUnlockedAt"`
@@ -600,6 +605,9 @@ type Profile struct {
 	// DisplayName The player's full name; only included on your own profile (other players see the username)
 	DisplayName *string   `json:"displayName,omitempty"`
 	JoinedAt    time.Time `json:"joinedAt"`
+
+	// Name The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
+	Name *string `json:"name,omitempty"`
 
 	// Podiums Weekly seasons finished in the top 3
 	Podiums           int    `json:"podiums"`
@@ -745,9 +753,11 @@ type TournamentList struct {
 
 // TournamentResult defines model for TournamentResult.
 type TournamentResult struct {
-	Rank     int    `json:"rank"`
-	Score    int    `json:"score"`
-	Username string `json:"username"`
+	// Name The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
+	Name     *string `json:"name,omitempty"`
+	Rank     int     `json:"rank"`
+	Score    int     `json:"score"`
+	Username string  `json:"username"`
 }
 
 // TournamentStatus upcoming (not open yet), open (entries open), locked (scored; cards locked until the end), finished
@@ -841,6 +851,11 @@ type ListCardsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// SetPublicNameJSONBody defines parameters for SetPublicName.
+type SetPublicNameJSONBody struct {
+	Name string `json:"name"`
+}
+
 // SetShowcaseJSONBody defines parameters for SetShowcase.
 type SetShowcaseJSONBody struct {
 	CardIds []openapi_types.UUID `json:"cardIds"`
@@ -899,6 +914,9 @@ type SignInDevJSONRequestBody SignInDevJSONBody
 
 // SignInWithGoogleJSONRequestBody defines body for SignInWithGoogle for application/json ContentType.
 type SignInWithGoogleJSONRequestBody SignInWithGoogleJSONBody
+
+// SetPublicNameJSONRequestBody defines body for SetPublicName for application/json ContentType.
+type SetPublicNameJSONRequestBody SetPublicNameJSONBody
 
 // SetShowcaseJSONRequestBody defines body for SetShowcase for application/json ContentType.
 type SetShowcaseJSONRequestBody SetShowcaseJSONBody
@@ -959,6 +977,9 @@ type ServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// SetPublicName Choose the name other players see
+	// (PUT /me/name)
+	SetPublicName(w http.ResponseWriter, r *http.Request)
 	// SetShowcase Choose the cards on your profile
 	// (PUT /me/showcase)
 	SetShowcase(w http.ResponseWriter, r *http.Request)
@@ -1314,6 +1335,20 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetPublicName operation middleware
+func (siw *ServerInterfaceWrapper) SetPublicName(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetPublicName(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1958,6 +1993,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/dev", wrapper.SignInDev)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/name", wrapper.SetPublicName)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/showcase", wrapper.SetShowcase)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/me/tutorial", wrapper.CompleteTutorial)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}", wrapper.GetProfile)
@@ -2452,6 +2488,56 @@ func (response GetMe200JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 type GetMe401JSONResponse Error
 
 func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetPublicNameRequestObject struct {
+	Body *SetPublicNameJSONRequestBody
+}
+
+type SetPublicNameResponseObject interface {
+	VisitSetPublicNameResponse(w http.ResponseWriter) error
+}
+
+type SetPublicName200JSONResponse Profile
+
+func (response SetPublicName200JSONResponse) VisitSetPublicNameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetPublicName400JSONResponse Error
+
+func (response SetPublicName400JSONResponse) VisitSetPublicNameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetPublicName401JSONResponse Error
+
+func (response SetPublicName401JSONResponse) VisitSetPublicNameResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3651,6 +3737,9 @@ type StrictServerInterface interface {
 	// GetMe The signed-in player's profile
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// SetPublicName Choose the name other players see
+	// (PUT /me/name)
+	SetPublicName(ctx context.Context, request SetPublicNameRequestObject) (SetPublicNameResponseObject, error)
 	// SetShowcase Choose the cards on your profile
 	// (PUT /me/showcase)
 	SetShowcase(ctx context.Context, request SetShowcaseRequestObject) (SetShowcaseResponseObject, error)
@@ -4054,6 +4143,37 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetPublicName operation middleware
+func (sh *strictHandler) SetPublicName(w http.ResponseWriter, r *http.Request) {
+	var request SetPublicNameRequestObject
+
+	var body SetPublicNameJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetPublicName(ctx, request.(SetPublicNameRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetPublicName")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetPublicNameResponseObject); ok {
+		if err := validResponse.VisitSetPublicNameResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

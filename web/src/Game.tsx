@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { OwnedCard } from './api/cards';
 import type { Me } from './auth/useAuth';
+import type { CardsView } from './app/cardsView';
 import { ApiStatus } from './app/ApiStatus';
 import { InstallBanner } from './app/install/InstallBanner';
 import { LiveNotice } from './app/live/LiveNotice';
@@ -15,7 +17,9 @@ import { ShowcaseAgainButton, ShowcasePanel } from './dev/ShowcasePanel';
 import { PhaserGame } from './PhaserGame';
 import { BoardLoadError } from './screens/board/BoardLoadError';
 import { useBoardTable } from './screens/board/useBoardTable';
+import { CardsViewSwitch } from './screens/collection/CardsViewSwitch';
 import { Collection } from './screens/collection/Collection';
+import { BoardFocusChip } from './screens/board/BoardFocusChip';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { GiftButton } from './screens/pack/GiftButton';
@@ -37,9 +41,24 @@ import { UserChip } from './screens/UserChip';
 // decides every outcome (see usePackTable and useBoardTable).
 export default function Game ({ me }: { me: Me })
 {
-    const { tab, collectionOpened, switchTo } = useTabs();
+    const { tab, collectionOpened, switchTo, openNav, showCardsView } = useTabs();
     const pack = usePackTable(tab === 'PackOpen');
     const board = useBoardTable(tab === 'MergeBoard');
+    // The Cards tab: Board / List switch. Tapping Board shows the newest cards again;
+    // Merge on a card's sheet opens the Board on that card and its matches.
+    const showView = (view: CardsView) =>
+    {
+        if (view === 'MergeBoard')
+        {
+            board.focusOn(null);
+        }
+        showCardsView(view);
+    };
+    const mergeFrom = (card: OwnedCard) =>
+    {
+        board.focusOn(card);
+        showCardsView('MergeBoard');
+    };
     const install = useInstallPrompt();
     const notifications = usePushNotifications();
     // The tab badge; live events refresh it (it polls only while the socket is down).
@@ -90,11 +109,19 @@ export default function Game ({ me }: { me: Me })
                 />
             ))}
 
+            {tab === 'MergeBoard' && (
+                <div className="pointer-events-none fixed inset-x-0 top-12 px-4">
+                    <div className="mx-auto flex max-w-3xl items-center gap-2">
+                        <CardsViewSwitch view="MergeBoard" onChange={showView} />
+                        {board.focusCard && <BoardFocusChip card={board.focusCard} onClear={() => board.focusOn(null)} />}
+                    </div>
+                </div>
+            )}
             {tab === 'MergeBoard' && board.loadError && <BoardLoadError onRetry={board.retry} />}
 
             {collectionOpened && (
                 <div hidden={tab !== 'Collection'}>
-                    <Collection />
+                    <Collection viewSwitch={<CardsViewSwitch view="Collection" onChange={showView} />} onMerge={mergeFrom} />
                 </div>
             )}
             {tab === 'Trades' && <Trades me={me} onOpenProfile={setProfileOf} />}
@@ -134,7 +161,7 @@ export default function Game ({ me }: { me: Me })
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
                 {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && me.giftsWaiting > 0 && <GiftButton gifts={gifts} />}
                 {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
-                <TabBar tab={tab} onSwitch={switchTo} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />
+                <TabBar tab={tab} onSwitch={openNav} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />
             </div>
         </div>
     );

@@ -59,7 +59,7 @@ func (s *Server) GetTournament(ctx context.Context, req GetTournamentRequestObje
 		out.You = &e
 	}
 	for _, r := range d.Results {
-		out.Results = append(out.Results, TournamentResult{Rank: r.Rank, Username: r.Username, Score: r.Score})
+		out.Results = append(out.Results, TournamentResult{Rank: r.Rank, Username: r.Username, Name: optName(r.Name), Score: r.Score})
 	}
 	return out, nil
 }

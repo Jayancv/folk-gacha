@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { toCardData, type OwnedCard } from '../../api/cards';
 import type { components } from '../../api/schema';
-import { ApiRequestError } from '../../auth/useAuth';
+import { ApiRequestError, ME_KEY } from '../../auth/useAuth';
+import { LEADERBOARD_KEY } from '../leaderboard/useLeaderboard';
+import { TOURNAMENTS_KEY } from '../tournaments/useTournaments';
 
 type ApiProfile = components['schemas']['Profile'];
 
@@ -35,6 +37,33 @@ export function useProfile (username: string)
         },
         staleTime: 15_000,
         retry: (count, err) => !(err instanceof ApiRequestError && err.status < 500) && count < 2
+    });
+}
+
+/**
+ * Saves the name other players see (PUT /me/name; "" shows the username again) and refreshes
+ * everything that shows names: your profile, /me (the player chip), boards and tournaments.
+ */
+export function useSetName (username: string)
+{
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (name: string) =>
+        {
+            const { data, error, response } = await api.PUT('/me/name', { body: { name } });
+            if (!data)
+            {
+                throw new ApiRequestError(response.status, error?.error ?? 'unknown', error?.message);
+            }
+            return toProfile(data);
+        },
+        onSuccess: profile =>
+        {
+            qc.setQueryData(key(username), profile);
+            void qc.invalidateQueries({ queryKey: ME_KEY });
+            void qc.invalidateQueries({ queryKey: LEADERBOARD_KEY });
+            void qc.invalidateQueries({ queryKey: TOURNAMENTS_KEY });
+        }
     });
 }
 

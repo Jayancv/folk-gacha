@@ -88,6 +88,21 @@ func (s *Service) load(ctx context.Context, q *store.Queries, user store.User) (
 	return p, nil
 }
 
+// SetName saves the name the player shows other players (cleaned by CleanPublicName;
+// "" goes back to the username). Returns the updated profile.
+func (s *Service) SetName(ctx context.Context, user store.User, name string) (Profile, error) {
+	clean, err := CleanPublicName(name)
+	if err != nil {
+		return Profile{}, err
+	}
+	q := store.New(s.pool)
+	updated, err := q.SetPublicName(ctx, store.SetPublicNameParams{ID: user.ID, PublicName: clean})
+	if err != nil {
+		return Profile{}, err
+	}
+	return s.load(ctx, q, updated)
+}
+
 // SetShowcase replaces the player's showcase with these cards, in this order. An empty
 // list goes back to showing their best cards. Returns the updated profile.
 func (s *Service) SetShowcase(ctx context.Context, user store.User, cardIDs []uuid.UUID) (Profile, error) {

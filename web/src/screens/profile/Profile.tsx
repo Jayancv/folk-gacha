@@ -5,6 +5,8 @@ import { CardImage } from '../collection/CardImage';
 import { CardSheet } from '../collection/CardSheet';
 import { TradeComposer } from '../trades/TradeComposer';
 import { tradeUnlockText } from '../trades/tradeModel';
+import { NameEditor } from './NameEditor';
+import { handleText, shownName } from './playerName';
 import { joinedText, MAX_SHOWCASE } from './profileModel';
 import { ShowcasePicker } from './ShowcasePicker';
 import { useProfile, useSetShowcase } from './useProfile';
@@ -32,10 +34,10 @@ export function Profile ({ username, me, onClose, onTradeSent }: { username: str
                         </svg>
                     </button>
                     <div className="mr-auto min-w-0">
-                        {/* displayName only comes with your own profile; others see the username. */}
-                        <h1 className="truncate font-serif text-xl font-bold">{p?.displayName ?? p?.username ?? username}</h1>
+                        {/* The name they chose to show, else the username; the Google name is never shown here. */}
+                        <h1 className="truncate font-serif text-xl font-bold">{p ? shownName(p) : username}</h1>
                         <p className="truncate text-xs text-[#bba595]">
-                            {p ? (p.displayName ? `@${p.username} · ${joinedText(p.joinedAt)}` : joinedText(p.joinedAt)) : ' '}
+                            {p ? [handleText(p), joinedText(p.joinedAt)].filter(Boolean).join(' · ') : ' '}
                         </p>
                     </div>
                 </div>
@@ -50,7 +52,9 @@ export function Profile ({ username, me, onClose, onTradeSent }: { username: str
                     </p>
                 ) : p && (
                     <>
-                        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {mine && <NameEditor username={p.username} name={p.name} googleName={p.displayName ?? me.displayName} />}
+
+                        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                             <Stat label="Collection power" value={p.collectionPower} accent />
                             <Stat label="Cards" value={p.cardCount} />
                             <Stat label="Recipes found" value={p.recipesDiscovered} />
