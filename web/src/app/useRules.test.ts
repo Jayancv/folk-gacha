@@ -22,7 +22,8 @@ describe('DEFAULT_RULES', () =>
                 epic: value('epic'),
                 legendary: value('legendary')
             },
-            pityPacks: value('pityPacks')
+            pityPacks: value('pityPacks'),
+            maxUnopenedCards: value('maxUnopenedCards')
         });
     });
 });

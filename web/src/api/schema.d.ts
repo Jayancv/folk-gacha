@@ -698,8 +698,10 @@ export interface components {
             tutorialDone: boolean;
         };
         DailyPackStatus: {
-            /** @description Whether today's pack can be claimed */
+            /** @description Whether a daily pack can be opened now (waiting > 0) */
             ready: boolean;
+            /** @description Unopened daily packs (today's and saved-up ones, up to packs.maxUnopenedCards / 5) */
+            waiting: number;
             /**
              * Format: date-time
              * @description Next daily reset (00:00 UTC)
@@ -709,10 +711,12 @@ export interface components {
         DailyPack: {
             /**
              * Format: date
-             * @description The UTC day this pack was claimed for
+             * @description The UTC day whose pack this was (an earlier day for a saved-up pack; the oldest opens first)
              */
             day: string;
             cards: components["schemas"]["Card"][];
+            /** @description Daily packs still unopened after this one */
+            waiting: number;
             /**
              * Format: date-time
              * @description When the next pack can be claimed (00:00 UTC)
@@ -974,6 +978,8 @@ export interface components {
             };
             /** @description At least one Rare or better every this many daily packs */
             pityPacks: number;
+            /** @description Unopened daily packs are kept up to this many cards (a multiple of 5); older ones are lost */
+            maxUnopenedCards: number;
         };
         /** @description All-time standings (every week's season points added up) */
         AllTimeLeaderboard: {

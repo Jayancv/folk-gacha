@@ -53,7 +53,55 @@ func newUser(t *testing.T, pool *pgxpool.Pool, name string) uuid.UUID {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Players join on the tests' first day, so only that day's pack waits at first.
+	joinedAt(t, pool, u.ID, game.ClaimDay(noon))
 	return u.ID
+}
+
+func joinedAt(t *testing.T, pool *pgxpool.Pool, user uuid.UUID, at time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), "UPDATE users SET created_at = $2 WHERE id = $1", user, at); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Unopened packs wait, up to game.StoredPacks; the oldest opens first and older ones are lost.
+func TestUnopenedPacksAreKeptUpToTheLimit(t *testing.T) {
+	pool := setup(t)
+	ctx := context.Background()
+	defer func(n int) { game.StoredPacks = n }(game.StoredPacks)
+	game.StoredPacks = 3
+	asha := newUser(t, pool, "asha")
+	joinedAt(t, pool, asha, noon.AddDate(0, 0, -30))
+	later := noon.AddDate(0, 0, 7) // away a week: only the last 3 days' packs are kept
+
+	st, err := service(pool, later, constRand(0)).Status(ctx, asha)
+	if err != nil || !st.Ready || st.Waiting != 3 {
+		t.Fatalf("status %+v, %v", st, err)
+	}
+	for i, wantLeft := range []int{2, 1, 0} {
+		c, err := service(pool, later, constRand(0)).ClaimDaily(ctx, asha)
+		if err != nil {
+			t.Fatalf("claim %d: %v", i, err)
+		}
+		wantDay := game.ClaimDay(later).AddDate(0, 0, i-2) // oldest first
+		if !c.Day.Equal(wantDay) || c.Waiting != wantLeft || len(c.Cards) != game.PackSize {
+			t.Errorf("claim %d: day %v waiting %d cards %d; want day %v waiting %d", i, c.Day, c.Waiting, len(c.Cards), wantDay, wantLeft)
+		}
+	}
+	if _, err := service(pool, later, constRand(0)).ClaimDaily(ctx, asha); !errors.Is(err, packs.ErrAlreadyClaimed) {
+		t.Fatalf("a fourth pack: %v", err)
+	}
+	if st, _ := service(pool, later, constRand(0)).Status(ctx, asha); st.Ready || st.Waiting != 0 {
+		t.Errorf("after opening all: %+v", st)
+	}
+
+	// A new player only gets today's pack, never packs from before they joined.
+	ben := newUser(t, pool, "ben")
+	joinedAt(t, pool, ben, later.Add(-time.Hour))
+	if st, _ := service(pool, later, constRand(0)).Status(ctx, ben); st.Waiting != 1 {
+		t.Errorf("new player waiting %d", st.Waiting)
+	}
 }
 
 func service(pool *pgxpool.Pool, at time.Time, rng game.Rand) *packs.Service {

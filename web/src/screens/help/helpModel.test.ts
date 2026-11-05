@@ -28,6 +28,7 @@ describe('help', () =>
         const text = (rules = DEFAULT_RULES) => helpSections(rules, '05:30').flatMap(s => s.lines).join('\n');
         expect(text()).toContain('00:00 UTC (05:30 on your clock)');
         expect(text()).toContain('at least once every 7 packs');
+        expect(text()).toContain('Unopened packs are kept, up to 3 packs (15 cards)');
         expect(text()).toContain('Up to 5 cards on each side');
         expect(text()).toContain('5 offers a day; an offer expires after 48 hours');
         expect(text()).toContain('up to 2 gifts a week');

@@ -39,7 +39,10 @@ func NewService(pool *pgxpool.Pool) *Service {
 
 // Claim is an opened daily pack.
 type Claim struct {
+	// Day whose pack was opened (today, or an earlier day's saved-up pack).
 	Day time.Time
+	// Waiting: packs still unopened after this one.
+	Waiting int
 	// Cards in reveal order.
 	Cards     []store.GetOwnedCardsRow
 	NextReset time.Time
@@ -48,20 +51,35 @@ type Claim struct {
 	SeasonID string
 }
 
-// Status is whether today's pack can be claimed.
+// Status is whether a daily pack can be opened now.
 type Status struct {
-	Ready     bool
+	Ready bool
+	// Waiting: unopened daily packs the player can open now (saved up to game.StoredPacks).
+	Waiting   int
 	NextReset time.Time
+}
+
+// waiting lists the days whose pack the player can open now, oldest first.
+func waiting(ctx context.Context, q *store.Queries, userID uuid.UUID, now time.Time) ([]time.Time, error) {
+	joined, err := q.UserJoinedAt(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	claimed, err := q.ListClaimedDaysSince(ctx, store.ListClaimedDaysSinceParams{UserID: userID, Since: game.OldestStoredDay(now)})
+	if err != nil {
+		return nil, err
+	}
+	return game.WaitingPacks(now, joined, claimed), nil
 }
 
 // Status reports whether the player can claim a pack right now.
 func (s *Service) Status(ctx context.Context, userID uuid.UUID) (Status, error) {
 	now := s.Now()
-	claimed, err := store.New(s.pool).HasClaimedDay(ctx, store.HasClaimedDayParams{UserID: userID, Day: game.ClaimDay(now)})
+	days, err := waiting(ctx, store.New(s.pool), userID, now)
 	if err != nil {
 		return Status{}, err
 	}
-	return Status{Ready: !claimed, NextReset: game.NextReset(now)}, nil
+	return Status{Ready: len(days) > 0, Waiting: len(days), NextReset: game.NextReset(now)}, nil
 }
 
 // ClaimDaily opens today's pack for the player.
@@ -88,12 +106,15 @@ func (s *Service) ClaimDaily(ctx context.Context, userID uuid.UUID) (Claim, erro
 	if err != nil {
 		return Claim{}, err
 	}
-	return Claim{Day: game.ClaimDay(now), Cards: cards, NextReset: game.NextReset(now), Points: earned.points, SeasonID: earned.season}, nil
+	return Claim{Day: earned.day, Waiting: earned.left, Cards: cards, NextReset: game.NextReset(now), Points: earned.points, SeasonID: earned.season}, nil
 }
 
 type earnedPoints struct {
 	season string
 	points int
+	// day: whose pack was opened; left: packs still waiting after it.
+	day  time.Time
+	left int
 }
 
 func (s *Service) claimTx(ctx context.Context, q *store.Queries, userID uuid.UUID, now time.Time) ([]uuid.UUID, earnedPoints, error) {
@@ -101,14 +122,15 @@ func (s *Service) claimTx(ctx context.Context, q *store.Queries, userID uuid.UUI
 	if _, err := q.LockUser(ctx, userID); err != nil {
 		return nil, earnedPoints{}, fmt.Errorf("lock user: %w", err)
 	}
-	day := game.ClaimDay(now)
-	claimed, err := q.HasClaimedDay(ctx, store.HasClaimedDayParams{UserID: userID, Day: day})
+	// The oldest waiting pack opens first (saved-up packs, then today's).
+	days, err := waiting(ctx, q, userID, now)
 	if err != nil {
 		return nil, earnedPoints{}, err
 	}
-	if claimed {
+	if len(days) == 0 {
 		return nil, earnedPoints{}, ErrAlreadyClaimed
 	}
+	day := days[0]
 	season, err := q.CurrentCardSeason(ctx, now)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, earnedPoints{}, ErrNoSeason
@@ -167,5 +189,5 @@ func (s *Service) claimTx(ctx context.Context, q *store.Queries, userID uuid.UUI
 	if !added {
 		points = 0
 	}
-	return ids, earnedPoints{season: week.ID, points: points}, nil
+	return ids, earnedPoints{season: week.ID, points: points, day: day, left: len(days) - 1}, nil
 }

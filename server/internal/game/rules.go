@@ -18,6 +18,7 @@ type Rules struct {
 	Packs struct {
 		DropChancePercent map[Rarity]float64 `yaml:"dropChancePercent"`
 		PityPacks         int                `yaml:"pityPacks"`
+		MaxUnopenedCards  int                `yaml:"maxUnopenedCards"`
 	} `yaml:"packs"`
 	Trading struct {
 		MaxCardsPerSide    int `yaml:"maxCardsPerSide"`
@@ -31,6 +32,9 @@ type Rules struct {
 		Rarities []Rarity `yaml:"rarities"`
 	} `yaml:"partnerGifts"`
 }
+
+// maxUnopenedCardsLimit: at most a month of packs can wait.
+const maxUnopenedCardsLimit = 30 * PackSize
 
 // maxTradeCardsLimit: the trade screens lay out at most this many cards per side.
 const maxTradeCardsLimit = 5
@@ -70,6 +74,8 @@ func (r Rules) Check() error {
 	switch {
 	case r.Packs.PityPacks < 1:
 		return errors.New("packs.pityPacks: must be at least 1")
+	case r.Packs.MaxUnopenedCards < PackSize || r.Packs.MaxUnopenedCards%PackSize != 0 || r.Packs.MaxUnopenedCards > maxUnopenedCardsLimit:
+		return fmt.Errorf("packs.maxUnopenedCards: must be a multiple of %d from %d to %d", PackSize, PackSize, maxUnopenedCardsLimit)
 	case t.MaxCardsPerSide < 1 || t.MaxCardsPerSide > maxTradeCardsLimit:
 		return fmt.Errorf("trading.maxCardsPerSide: must be 1-%d", maxTradeCardsLimit)
 	case t.DailyOfferLimit < 1:
@@ -105,6 +111,7 @@ func UseRules(r Rules) {
 	current = r
 	DropChance = r.Packs.DropChancePercent
 	PityPacks = r.Packs.PityPacks
+	StoredPacks = r.Packs.MaxUnopenedCards / PackSize
 	MaxTradeCards = r.Trading.MaxCardsPerSide
 	DailyTradeLimit = r.Trading.DailyOfferLimit
 	TradeExpiry = time.Duration(r.Trading.OfferExpiryHours) * time.Hour

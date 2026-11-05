@@ -13,9 +13,17 @@ LIMIT 1;
 -- name: HasClaimedDay :one
 SELECT EXISTS (SELECT 1 FROM daily_claims WHERE user_id = $1 AND day = $2);
 
+-- name: ListClaimedDaysSince :many
+-- The days whose pack the player opened, from @since on (for the packs still waiting).
+SELECT day FROM daily_claims WHERE user_id = @user_id AND day >= @since ORDER BY day;
+
+-- name: UserJoinedAt :one
+SELECT created_at FROM users WHERE id = $1;
+
 -- name: LastPityCounter :one
--- Pity counter of the player's latest pack (no rows = never claimed).
-SELECT pity_counter FROM daily_claims WHERE user_id = $1 ORDER BY day DESC LIMIT 1;
+-- Pity counter of the pack the player opened last (no rows = never claimed). Saved-up packs
+-- open later than their day, so the latest opening counts, not the latest day.
+SELECT pity_counter FROM daily_claims WHERE user_id = $1 ORDER BY claimed_at DESC, day DESC LIMIT 1;
 
 -- name: InsertDailyClaim :exec
 INSERT INTO daily_claims (user_id, day, card_season_id, pity_counter)

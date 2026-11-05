@@ -26,6 +26,8 @@ var (
 	DropChance map[Rarity]float64
 	// PityPacks: at least one Rare or better every PityPacks daily packs.
 	PityPacks int
+	// StoredPacks: how many daily packs can wait unopened (packs.maxUnopenedCards / PackSize).
+	StoredPacks int
 )
 
 const (
@@ -132,6 +134,28 @@ func LevelScore(level1Score, level int) int {
 func ClaimDay(t time.Time) time.Time {
 	y, m, d := t.UTC().Date()
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
+// WaitingPacks are the days whose daily pack the player can still open at `now`, oldest
+// first: each of the last StoredPacks UTC days (today included) that isn't claimed and isn't
+// before the day they joined. Older unopened packs are gone. `claimed` may hold any days.
+func WaitingPacks(now, joined time.Time, claimed []time.Time) []time.Time {
+	today := ClaimDay(now)
+	first := ClaimDay(joined)
+	var days []time.Time
+	for back := StoredPacks - 1; back >= 0; back-- {
+		day := today.AddDate(0, 0, -back)
+		if day.Before(first) || slices.ContainsFunc(claimed, day.Equal) {
+			continue
+		}
+		days = append(days, day)
+	}
+	return days
+}
+
+// OldestStoredDay is the first day whose pack can still be waiting at `now`.
+func OldestStoredDay(now time.Time) time.Time {
+	return ClaimDay(now).AddDate(0, 0, -(StoredPacks - 1))
 }
 
 // NextReset is the next daily reset (00:00 UTC) strictly after t.

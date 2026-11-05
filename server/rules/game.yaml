@@ -13,6 +13,9 @@ packs:
     legendary: 0.2
   # At least one Rare or better every this many daily packs (the pity rule).
   pityPacks: 7
+  # Unopened daily packs are kept, up to this many cards (a multiple of the 5-card pack:
+  # 15 = 3 packs). A player who skips more days loses the oldest; 5 = no saving up.
+  maxUnopenedCards: 15
 
 trading:
   # Most cards on each side of an offer (1-5; the trade screens show up to 5).

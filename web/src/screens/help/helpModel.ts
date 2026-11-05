@@ -88,7 +88,7 @@ export function helpSections (rules: GameRules, resetTime: string): HelpSection[
             lines: [
                 `Every day you get a free pack of 5 spirit cards. A new one is ready at 00:00 UTC (${resetTime} on your clock).`,
                 '• Tap "Open today\'s pack", then tap or swipe the cards to flip them.',
-                '• Packs don\'t pile up: open yours every day so you don\'t miss one.',
+                `• Missed a day? Unopened packs are kept, up to ${plural(Math.floor(rules.maxUnopenedCards / 5), 'pack')} (${rules.maxUnopenedCards} cards). Any more are lost, so open them before then.`,
                 `• Bad luck protection: you always get a Rare or better at least once every ${plural(rules.pityPacks, 'pack')}.`,
                 'Turn on "Notify me" on the Pack tab to get a reminder when your pack is ready.'
             ]

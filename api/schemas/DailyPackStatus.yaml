@@ -1,11 +1,15 @@
 type: object
 required:
   - ready
+  - waiting
   - nextResetAt
 properties:
   ready:
     type: boolean
-    description: Whether today's pack can be claimed
+    description: Whether a daily pack can be opened now (waiting > 0)
+  waiting:
+    type: integer
+    description: Unopened daily packs (today's and saved-up ones, up to packs.maxUnopenedCards / 5)
   nextResetAt:
     type: string
     format: date-time

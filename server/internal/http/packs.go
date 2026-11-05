@@ -24,7 +24,7 @@ func (s *Server) ClaimDailyPack(ctx context.Context, _ ClaimDailyPackRequestObje
 	claim, err := s.packs.ClaimDaily(ctx, user.ID)
 	switch {
 	case errors.Is(err, packs.ErrAlreadyClaimed):
-		return ClaimDailyPack409JSONResponse{Error: "already_claimed", Message: ptr("Today's pack is already open. A new one arrives at 00:00 UTC.")}, nil
+		return ClaimDailyPack409JSONResponse{Error: "already_claimed", Message: ptr("No pack waiting: they're all open. A new one arrives at 00:00 UTC.")}, nil
 	case errors.Is(err, packs.ErrNoSeason):
 		return ClaimDailyPack503JSONResponse{Error: "no_season", Message: ptr("Packs aren't available right now.")}, nil
 	case err != nil:
@@ -39,6 +39,7 @@ func (s *Server) ClaimDailyPack(ctx context.Context, _ ClaimDailyPackRequestObje
 	return ClaimDailyPack200JSONResponse{
 		Day:         openapi_types.Date{Time: claim.Day},
 		Cards:       cards,
+		Waiting:     claim.Waiting,
 		NextResetAt: claim.NextReset.UTC(),
 	}, nil
 }
@@ -93,6 +94,6 @@ func (s *Server) me(ctx context.Context, u store.User) (Me, error) {
 	if err != nil {
 		return Me{}, err
 	}
-	m.DailyPack = &DailyPackStatus{Ready: st.Ready, NextResetAt: st.NextReset.UTC()}
+	m.DailyPack = &DailyPackStatus{Ready: st.Ready, Waiting: st.Waiting, NextResetAt: st.NextReset.UTC()}
 	return m, nil
 }

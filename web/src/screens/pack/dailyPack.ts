@@ -17,6 +17,37 @@ export function nextPackText (nextResetAt: string, now: number): string
     return `Next pack in ${h > 0 ? `${h}h ${m}m` : `${m}m`}`;
 }
 
+/** Over the claim button: "Your daily pack is here" / "3 packs are waiting". */
+export function packPanelTitle (waiting: number): string
+{
+    return waiting > 1 ? `${waiting} packs are waiting` : 'Your daily pack is here';
+}
+
+/** The claim button: "Open today's pack", or with saved-up packs "Open a pack" (the oldest opens first). */
+export function openPackText (waiting: number): string
+{
+    return waiting > 1 ? 'Open a pack' : "Open today's pack";
+}
+
+/** Under an opened pack while more wait: "Open next pack · 2 left". */
+export function nextPackButtonText (waiting: number): string
+{
+    return `Open next pack · ${waiting} left`;
+}
+
+/**
+ * A warning once the player keeps as many packs as they can ("You're keeping 3 packs, the most
+ * you can: open one before 00:00 UTC or tomorrow's is lost."), else null.
+ */
+export function packLimitText (waiting: number, maxPacks: number): string | null
+{
+    if (maxPacks <= 1 || waiting < maxPacks)
+    {
+        return null;
+    }
+    return `You're keeping ${waiting} packs, the most you can: open one before 00:00 UTC or the next one is lost.`;
+}
+
 /**
  * The title over opened gifts. Trade gifts: "Gift from asha" / "Gifts from asha and ben" /
  * "Gifts from asha, ben and 2 more". Tournament prizes: "Prize · 1st in Daily Cup" /
@@ -80,7 +111,7 @@ export function claimErrorText (error: ClaimError): string
     switch (error)
     {
         case 'already_claimed':
-            return "Today's pack is already open.";
+            return 'No pack waiting: they are all open.';
         case 'no_season':
             return "Packs aren't available right now. Try again later.";
         case 'signed_out':
