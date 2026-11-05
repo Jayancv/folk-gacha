@@ -36,7 +36,7 @@ export function parseEvent (data: unknown): LiveEvent | null
 
 /**
  * The socket URL for a ticket. `wsUrl` (VITE_WS_URL) wins: in production the socket
- * goes straight to the API server, since Netlify's /api proxy doesn't carry WebSockets.
+ * goes straight to the API server, since the static site's /api rewrite doesn't carry WebSockets.
  * Otherwise it is next to the API: an absolute VITE_API_URL, or the same origin's /api
  * (the dev server proxies it).
  */

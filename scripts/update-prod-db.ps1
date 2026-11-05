@@ -3,7 +3,7 @@
     Brings the production database up to date: backup, migrations, card catalog and recipes.
 
 .DESCRIPTION
-    Run it from your PC after Render (server) and Netlify (web) have deployed. Steps:
+    Run it from your PC after Render (server and web) has deployed. Steps:
       1. backup   pg_dump to backups\prod-<time>.sql (skip with -SkipBackup)
       2. migrate  go run ./cmd/migrate up
       3. reset    only with -ResetCatalog (pre-launch only, see below)
