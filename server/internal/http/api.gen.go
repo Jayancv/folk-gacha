@@ -546,6 +546,9 @@ type Me struct {
 	GiftsWaiting int                `json:"giftsWaiting"`
 	Id           openapi_types.UUID `json:"id"`
 
+	// NotifyTrades Push notifications for new trade offers and accepted trades (on devices with notifications on)
+	NotifyTrades bool `json:"notifyTrades"`
+
 	// PublicName The name you chose to show other players (PUT /me/name); absent until you pick one
 	PublicName *string `json:"publicName,omitempty"`
 
@@ -856,6 +859,11 @@ type SetPublicNameJSONBody struct {
 	Name string `json:"name"`
 }
 
+// SetNotificationsJSONBody defines parameters for SetNotifications.
+type SetNotificationsJSONBody struct {
+	Trades bool `json:"trades"`
+}
+
 // SetShowcaseJSONBody defines parameters for SetShowcase.
 type SetShowcaseJSONBody struct {
 	CardIds []openapi_types.UUID `json:"cardIds"`
@@ -917,6 +925,9 @@ type SignInWithGoogleJSONRequestBody SignInWithGoogleJSONBody
 
 // SetPublicNameJSONRequestBody defines body for SetPublicName for application/json ContentType.
 type SetPublicNameJSONRequestBody SetPublicNameJSONBody
+
+// SetNotificationsJSONRequestBody defines body for SetNotifications for application/json ContentType.
+type SetNotificationsJSONRequestBody SetNotificationsJSONBody
 
 // SetShowcaseJSONRequestBody defines body for SetShowcase for application/json ContentType.
 type SetShowcaseJSONRequestBody SetShowcaseJSONBody
@@ -980,6 +991,9 @@ type ServerInterface interface {
 	// SetPublicName Choose the name other players see
 	// (PUT /me/name)
 	SetPublicName(w http.ResponseWriter, r *http.Request)
+	// SetNotifications Choose which push notifications you get
+	// (PUT /me/notifications)
+	SetNotifications(w http.ResponseWriter, r *http.Request)
 	// SetShowcase Choose the cards on your profile
 	// (PUT /me/showcase)
 	SetShowcase(w http.ResponseWriter, r *http.Request)
@@ -1349,6 +1363,20 @@ func (siw *ServerInterfaceWrapper) SetPublicName(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetPublicName(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetNotifications operation middleware
+func (siw *ServerInterfaceWrapper) SetNotifications(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetNotifications(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1994,6 +2022,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/name", wrapper.SetPublicName)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/notifications", wrapper.SetNotifications)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/showcase", wrapper.SetShowcase)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/me/tutorial", wrapper.CompleteTutorial)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/users/{username}", wrapper.GetProfile)
@@ -2538,6 +2567,36 @@ func (response SetPublicName400JSONResponse) VisitSetPublicNameResponse(w http.R
 type SetPublicName401JSONResponse Error
 
 func (response SetPublicName401JSONResponse) VisitSetPublicNameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNotificationsRequestObject struct {
+	Body *SetNotificationsJSONRequestBody
+}
+
+type SetNotificationsResponseObject interface {
+	VisitSetNotificationsResponse(w http.ResponseWriter) error
+}
+
+type SetNotifications204Response struct {
+}
+
+func (response SetNotifications204Response) VisitSetNotificationsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SetNotifications401JSONResponse Error
+
+func (response SetNotifications401JSONResponse) VisitSetNotificationsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -3740,6 +3799,9 @@ type StrictServerInterface interface {
 	// SetPublicName Choose the name other players see
 	// (PUT /me/name)
 	SetPublicName(ctx context.Context, request SetPublicNameRequestObject) (SetPublicNameResponseObject, error)
+	// SetNotifications Choose which push notifications you get
+	// (PUT /me/notifications)
+	SetNotifications(ctx context.Context, request SetNotificationsRequestObject) (SetNotificationsResponseObject, error)
 	// SetShowcase Choose the cards on your profile
 	// (PUT /me/showcase)
 	SetShowcase(ctx context.Context, request SetShowcaseRequestObject) (SetShowcaseResponseObject, error)
@@ -4174,6 +4236,37 @@ func (sh *strictHandler) SetPublicName(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetPublicNameResponseObject); ok {
 		if err := validResponse.VisitSetPublicNameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetNotifications operation middleware
+func (sh *strictHandler) SetNotifications(w http.ResponseWriter, r *http.Request) {
+	var request SetNotificationsRequestObject
+
+	var body SetNotificationsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetNotifications(ctx, request.(SetNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetNotificationsResponseObject); ok {
+		if err := validResponse.VisitSetNotificationsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

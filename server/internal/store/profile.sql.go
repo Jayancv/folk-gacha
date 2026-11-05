@@ -87,7 +87,7 @@ func (q *Queries) GetProfileStats(ctx context.Context, userID uuid.UUID) (GetPro
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at, public_name FROM users WHERE lower(username) = lower($1)
+SELECT id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at, public_name, notify_trades FROM users WHERE lower(username) = lower($1)
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, error) {
@@ -102,6 +102,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, lower string) (User, er
 		&i.DisplayName,
 		&i.TutorialDoneAt,
 		&i.PublicName,
+		&i.NotifyTrades,
 	)
 	return i, err
 }
@@ -170,7 +171,7 @@ func (q *Queries) ListShowcaseCardIDs(ctx context.Context, userID uuid.UUID) ([]
 }
 
 const setPublicName = `-- name: SetPublicName :one
-UPDATE users SET public_name = $1 WHERE id = $2 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at, public_name
+UPDATE users SET public_name = $1 WHERE id = $2 RETURNING id, auth_id, username, created_at, trade_unlocked_at, display_name, tutorial_done_at, public_name, notify_trades
 `
 
 type SetPublicNameParams struct {
@@ -190,6 +191,7 @@ func (q *Queries) SetPublicName(ctx context.Context, arg SetPublicNameParams) (U
 		&i.DisplayName,
 		&i.TutorialDoneAt,
 		&i.PublicName,
+		&i.NotifyTrades,
 	)
 	return i, err
 }

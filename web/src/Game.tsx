@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { OwnedCard } from './api/cards';
 import type { Me } from './auth/useAuth';
 import type { CardsView } from './app/cardsView';
@@ -9,6 +9,7 @@ import { useLive } from './app/live/useLive';
 import { useInstallPrompt } from './app/install/useInstallPrompt';
 import { PackReadyToggle } from './app/push/PackReadyToggle';
 import { usePushNotifications } from './app/push/usePushNotifications';
+import { tabFromUrl } from './app/openTab';
 import { TabBar } from './app/TabBar';
 import { isReactScreen, useTabs } from './app/useTabs';
 import { EventBus } from './bridge/EventBus';
@@ -43,6 +44,29 @@ export default function Game ({ me }: { me: Me })
 {
     const { tab, collectionOpened, switchTo, openNav, showCardsView } = useTabs();
     const pack = usePackTable(tab === 'PackOpen');
+    // A tapped notification opens a tab: "/?tab=trades" when the app starts from it, or a
+    // message from the service worker when the app was already open.
+    const switchRef = useRef(switchTo);
+    switchRef.current = switchTo;
+    useEffect(() =>
+    {
+        const start = tabFromUrl(window.location.href);
+        if (start)
+        {
+            switchRef.current(start);
+            window.history.replaceState(null, '', window.location.pathname);
+        }
+        const onMessage = (e: MessageEvent) =>
+        {
+            const next = e.data?.type === 'open-url' ? tabFromUrl(String(e.data.url)) : null;
+            if (next)
+            {
+                switchRef.current(next);
+            }
+        };
+        navigator.serviceWorker?.addEventListener('message', onMessage);
+        return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+    }, []);
     const board = useBoardTable(tab === 'MergeBoard');
     // The Cards tab: Board / List switch. Tapping Board shows the newest cards again;
     // Merge on a card's sheet opens the Board on that card and its matches.

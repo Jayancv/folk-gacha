@@ -5,6 +5,7 @@ import { CardImage } from '../collection/CardImage';
 import { CardSheet } from '../collection/CardSheet';
 import { TradeComposer } from '../trades/TradeComposer';
 import { tradeUnlockText } from '../trades/tradeModel';
+import { NotificationSettings } from '../../app/push/NotificationSettings';
 import { NameEditor } from './NameEditor';
 import { handleText, shownName } from './playerName';
 import { joinedText, MAX_SHOWCASE } from './profileModel';
@@ -53,6 +54,7 @@ export function Profile ({ username, me, onClose, onTradeSent }: { username: str
                 ) : p && (
                     <>
                         {mine && <NameEditor username={p.username} name={p.name} googleName={p.displayName ?? me.displayName} />}
+                        {mine && <NotificationSettings me={me} />}
 
                         <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                             <Stat label="Collection power" value={p.collectionPower} accent />

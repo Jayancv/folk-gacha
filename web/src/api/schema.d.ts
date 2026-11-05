@@ -129,6 +129,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose which push notifications you get
+         * @description Applies to every device where notifications are turned on ("Notify me"). `trades`: a push
+         *     when someone sends you a trade offer or accepts yours, sent only while the app isn't open.
+         */
+        put: operations["setNotifications"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/showcase": {
         parameters: {
             query?: never;
@@ -665,6 +686,8 @@ export interface components {
              */
             tradeUnlockedAt: string;
             dailyPack?: components["schemas"]["DailyPackStatus"];
+            /** @description Push notifications for new trade offers and accepted trades (on devices with notifications on) */
+            notifyTrades: boolean;
             /** @description The name you chose to show other players (PUT /me/name); absent until you pick one */
             publicName?: string;
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
@@ -1303,6 +1326,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Error"];
                 };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    trades: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Not signed in */
             401: {

@@ -72,6 +72,19 @@ func (q *Queries) FinishPushRun(ctx context.Context, arg FinishPushRunParams) er
 	return err
 }
 
+const getPushName = `-- name: GetPushName :one
+SELECT CASE WHEN public_name <> '' THEN public_name ELSE username END::text AS name
+FROM users WHERE lower(username) = lower($1)
+`
+
+// How a trade notification names the other player: their chosen name, else their username.
+func (q *Queries) GetPushName(ctx context.Context, lower string) (string, error) {
+	row := q.db.QueryRow(ctx, getPushName, lower)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
 const listPackReadySubscriptions = `-- name: ListPackReadySubscriptions :many
 SELECT s.endpoint, s.p256dh, s.auth
 FROM push_subscriptions s
@@ -106,6 +119,41 @@ func (q *Queries) ListPackReadySubscriptions(ctx context.Context, day time.Time)
 	return items, nil
 }
 
+const listTradePushSubscriptions = `-- name: ListTradePushSubscriptions :many
+SELECT s.endpoint, s.p256dh, s.auth
+FROM push_subscriptions s
+JOIN users u ON u.id = s.user_id
+WHERE s.user_id = $1 AND u.notify_trades
+ORDER BY s.endpoint
+`
+
+type ListTradePushSubscriptionsRow struct {
+	Endpoint string
+	P256dh   string
+	Auth     string
+}
+
+// A player's subscriptions, if they want trade notifications.
+func (q *Queries) ListTradePushSubscriptions(ctx context.Context, userID uuid.UUID) ([]ListTradePushSubscriptionsRow, error) {
+	rows, err := q.db.Query(ctx, listTradePushSubscriptions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTradePushSubscriptionsRow
+	for rows.Next() {
+		var i ListTradePushSubscriptionsRow
+		if err := rows.Scan(&i.Endpoint, &i.P256dh, &i.Auth); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordPushFailure = `-- name: RecordPushFailure :one
 UPDATE push_subscriptions SET failures = failures + 1 WHERE endpoint = $1 RETURNING failures
 `
@@ -123,6 +171,20 @@ UPDATE push_subscriptions SET failures = 0 WHERE endpoint = $1 AND failures > 0
 
 func (q *Queries) RecordPushSuccess(ctx context.Context, endpoint string) error {
 	_, err := q.db.Exec(ctx, recordPushSuccess, endpoint)
+	return err
+}
+
+const setNotifyTrades = `-- name: SetNotifyTrades :exec
+UPDATE users SET notify_trades = $2 WHERE id = $1
+`
+
+type SetNotifyTradesParams struct {
+	ID           uuid.UUID
+	NotifyTrades bool
+}
+
+func (q *Queries) SetNotifyTrades(ctx context.Context, arg SetNotifyTradesParams) error {
+	_, err := q.db.Exec(ctx, setNotifyTrades, arg.ID, arg.NotifyTrades)
 	return err
 }
 

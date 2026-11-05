@@ -49,3 +49,19 @@ func (s *Server) UnsubscribePush(ctx context.Context, req UnsubscribePushRequest
 	}
 	return UnsubscribePush204Response{}, nil
 }
+
+// SetNotifications saves which pushes the player wants (all their devices). A server without
+// push keys has nothing to send, so it accepts and ignores it (the app hides the switch then).
+func (s *Server) SetNotifications(ctx context.Context, req SetNotificationsRequestObject) (SetNotificationsResponseObject, error) {
+	user, ok := userFrom(ctx)
+	if !ok {
+		return SetNotifications401JSONResponse{Error: "not_signed_in"}, nil
+	}
+	if s.push == nil || req.Body == nil {
+		return SetNotifications204Response{}, nil
+	}
+	if err := s.push.SetTradeNotices(ctx, user.ID, req.Body.Trades); err != nil {
+		return nil, err
+	}
+	return SetNotifications204Response{}, nil
+}

@@ -70,3 +70,38 @@ func TestPushSubscriptionsOverHTTP(t *testing.T) {
 		t.Fatalf("unsubscribe: %d, left %d", rec.Code, count())
 	}
 }
+
+// Trade notifications are on by default and can be switched off and on again.
+func TestTradeNotificationSettingOverHTTP(t *testing.T) {
+	pool := dbtest.Pool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, "TRUNCATE users, push_subscriptions CASCADE"); err != nil {
+		t.Fatal(err)
+	}
+	ts := testServer{h: NewServer(pool, Services{
+		Auth:          auth.NewService(store.New(pool)),
+		Push:          push.NewService(pool, noSender{}),
+		PushPublicKey: "BPublicKeyForTests",
+	}, AuthOptions{DevLogin: true}).Handler(nil)}
+
+	if rec := ts.do(t, "PUT", "/me/notifications", `{"trades":false}`, nil); rec.Code != 401 {
+		t.Fatalf("signed out: %d", rec.Code)
+	}
+	signIn := ts.do(t, "POST", "/auth/dev", `{"name":"asha"}`, nil)
+	cookie := sessionFrom(t, signIn)
+	if !decode[Me](t, signIn).NotifyTrades {
+		t.Fatal("trade notifications should start on")
+	}
+	for _, on := range []bool{false, true} {
+		body := `{"trades":false}`
+		if on {
+			body = `{"trades":true}`
+		}
+		if rec := ts.do(t, "PUT", "/me/notifications", body, cookie); rec.Code != 204 {
+			t.Fatalf("set %v: %d %s", on, rec.Code, rec.Body)
+		}
+		if got := decode[Me](t, ts.do(t, "GET", "/me", "", cookie)).NotifyTrades; got != on {
+			t.Fatalf("after set %v: %v", on, got)
+		}
+	}
+}
