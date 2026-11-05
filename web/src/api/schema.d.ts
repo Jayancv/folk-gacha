@@ -351,6 +351,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tournaments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tournaments
+         * @description The tournaments running now (one per series, from server/rules/tournaments.yaml), those that
+         *     ended in the last 7 days (newest first), and each series' next tournament.
+         */
+        get: operations["listTournaments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tournaments/{tournamentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A tournament, your entry and its results
+         * @description Results (top 100) appear once entries close; until then the list is empty.
+         */
+        get: operations["getTournament"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tournaments/{tournamentId}/entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Enter or change your lineup
+         * @description Saves your lineup while entries are open, replacing any earlier one. The cards are locked in
+         *     the tournament until it ends (no merging, trading or other tournaments); cards you swap out are
+         *     free again. Cards from the series' previous tournament sit this one out.
+         */
+        put: operations["enterTournament"];
+        post?: never;
+        /**
+         * Withdraw your entry
+         * @description Removes your lineup while entries are open and frees its cards.
+         */
+        delete: operations["withdrawFromTournament"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tournaments/{tournamentId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Score a lineup without entering
+         * @description Checks and scores the lineup exactly as entering would, without saving or locking anything.
+         */
+        post: operations["previewTournamentLineup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/live/ticket": {
         parameters: {
             query?: never;
@@ -385,9 +472,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Open your waiting partner gifts
-         * @description Turns up to 5 waiting gifts (oldest first) into cards: each a level-1 Common or Uncommon of the
-         *     current card season, rolled now. Gift cards count as traded, so they never earn season points.
+         * Open your waiting partner gifts and tournament prizes
+         * @description Turns up to 5 waiting partner gifts and tournament prize cards (oldest first) into cards: each a
+         *     level-1 Common or Uncommon of the current card season, rolled now. Partner gift cards count as
+         *     traded, so they never earn season points; prize cards were won, so they count as normal cards.
          */
         post: operations["openGifts"];
         delete?: never;
@@ -556,7 +644,7 @@ export interface components {
             dailyPack?: components["schemas"]["DailyPackStatus"];
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
             displayName?: string;
-            /** @description Partner gifts from trades waiting to be opened on the Pack tab (POST /gifts/open) */
+            /** @description Partner gifts from trades and tournament prize cards waiting to be opened on the Pack tab (POST /gifts/open) */
             giftsWaiting: number;
             /** @description The player finished or skipped the first-time tutorial (on any device) */
             tutorialDone: boolean;
@@ -652,11 +740,13 @@ export interface components {
              */
             artSeed: number;
             /** @enum {string} */
-            acquiredVia: "pack" | "merge" | "trade" | "gift";
+            acquiredVia: "pack" | "merge" | "trade" | "gift" | "prize";
             /** Format: date-time */
             acquiredAt: string;
             /** @description Offered in an open trade: locked, so it can't be merged or offered again until the offer ends */
             inTrade: boolean;
+            /** @description In a tournament lineup: locked (no merging, trading or other tournaments) until the tournament ends */
+            inTournament: boolean;
         };
         /** @description Trait ids from the season config (server/seasons/<id>/config.json) */
         CardTraits: {
@@ -795,8 +885,16 @@ export interface components {
         };
         OpenedGifts: {
             gifts: {
-                /** @description Username of the player the trade was with */
-                partner: string;
+                /** @description Username of the player the trade was with (partner gifts) */
+                partner?: string;
+                /** @description The tournament this prize card was won in (prize cards) */
+                tournament?: {
+                    id: string;
+                    /** @description The series' name, e.g. Daily Cup */
+                    name: string;
+                    /** @description The place that won it (1 = first) */
+                    place: number;
+                };
                 card: components["schemas"]["Card"];
             }[];
             /** @description Gifts still waiting (more than 5 open over several opens) */
@@ -822,6 +920,118 @@ export interface components {
             /** @description How many players have any points */
             players: number;
             you?: components["schemas"]["LeaderboardEntry"];
+        };
+        Tournament: {
+            /** @description Series and period, e.g. daily-2026-11-03 */
+            id: string;
+            series: string;
+            /** @description The series' name, e.g. Daily Cup */
+            name: string;
+            format: components["schemas"]["TournamentFormat"];
+            element?: components["schemas"]["Element"];
+            status: components["schemas"]["TournamentStatus"];
+            /** Format: date-time */
+            opensAt: string;
+            /**
+             * Format: date-time
+             * @description Entries close and lineups are scored
+             */
+            closesAt: string;
+            /**
+             * Format: date-time
+             * @description Entered cards are free again
+             */
+            endsAt: string;
+            /** @description Players who entered */
+            entries: number;
+            /** @description You have an entry */
+            entered: boolean;
+            /** @description Prize cards for each place from 1st down ([3, 2, 1] = the top three win 3, 2 and 1 cards) */
+            prizes: number[];
+            /** @description SHA-256 (hex) of the tie-break seed, published when the tournament opens */
+            seedHash?: string;
+            /** @description The tie-break seed (hex), revealed when entries close; its SHA-256 is seedHash */
+            seed?: string;
+        };
+        /**
+         * @description upcoming (not open yet), open (entries open), locked (scored; cards locked until the end), finished
+         * @enum {string}
+         */
+        TournamentStatus: "upcoming" | "open" | "locked" | "finished";
+        /** @description How a tournament scores lineups (server/rules/tournaments.yaml) */
+        TournamentFormat: {
+            id: string;
+            /**
+             * @description power: card scores as they are. element-trial: cards of the tournament's element count
+             *     ×elementMultiplier. rarity-cap: cards up to maxRarity, plus at most allowAbove better ones.
+             *     underdog: score ÷ the rarity's base score (× the Common base). harmony: +harmonyBonusPercent
+             *     for each element after the first.
+             * @enum {string}
+             */
+            kind: "power" | "element-trial" | "rarity-cap" | "underdog" | "harmony";
+            name: string;
+            /** @description The most cards a lineup may have (a lineup has 1 up to this many) */
+            slots: number;
+            /** @description No two cards of the same spirit */
+            onePerSpirit: boolean;
+            elementMultiplier?: number;
+            maxRarity?: components["schemas"]["Rarity"];
+            allowAbove?: number;
+            harmonyBonusPercent?: number;
+            /** @description Base score per rarity (underdog) */
+            rarityBase?: {
+                [key: string]: number;
+            };
+        };
+        TournamentList: {
+            /** @description Running now and ended in the last 7 days, newest first */
+            tournaments: components["schemas"]["Tournament"][];
+            /** @description Each series' next tournament */
+            upcoming: components["schemas"]["Tournament"][];
+        };
+        TournamentDetail: {
+            tournament: components["schemas"]["Tournament"];
+            you?: components["schemas"]["TournamentEntry"];
+            /** @description Top 100 once entries close (ties broken by the seed); empty while open */
+            results: components["schemas"]["TournamentResult"][];
+        };
+        /** @description Your lineup; the score is a preview while entries are open, final once they close */
+        TournamentEntry: {
+            cards: components["schemas"]["TournamentEntryCard"][];
+            score: components["schemas"]["LineupScore"];
+            /** @description Your place, once entries close */
+            rank?: number;
+        };
+        /** @description A lineup card; card is missing if it no longer exists (merged after the tournament) */
+        TournamentEntryCard: {
+            /** Format: uuid */
+            cardId: string;
+            card?: components["schemas"]["Card"];
+        };
+        TournamentResult: {
+            rank: number;
+            username: string;
+            score: number;
+        };
+        TournamentLineup: {
+            /** @description Your cards, in slot order (1 up to the format's slots) */
+            cardIds: string[];
+        };
+        /** @description A lineup's score with its breakdown */
+        LineupScore: {
+            cards: components["schemas"]["LineupCardPoints"][];
+            /** @description Lineup bonus (harmony), in percent of the cards' points */
+            bonusPercent: number;
+            bonus: number;
+            total: number;
+        };
+        /** @description One card's line in a score breakdown */
+        LineupCardPoints: {
+            /** Format: uuid */
+            cardId: string;
+            /** @description Applied to the card's score (1 when the format leaves it as it is) */
+            multiplier: number;
+            points: number;
         };
     };
     responses: never;
@@ -1648,6 +1858,250 @@ export interface operations {
                 };
             };
             /** @description Already resolved (not_open) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listTournaments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tournaments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TournamentList"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getTournament: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series and period, e.g. daily-2026-11-03 or weekly-2026-W45 */
+                tournamentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tournament */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TournamentDetail"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such tournament (not_found; upcoming ones don't exist yet) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    enterTournament: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series and period, e.g. daily-2026-11-03 or weekly-2026-W45 */
+                tournamentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TournamentLineup"];
+            };
+        };
+        responses: {
+            /** @description Your entry, with the server's score for it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TournamentEntry"];
+                };
+            };
+            /** @description The format doesn't allow this lineup. Wrong number of cards or a card twice (bad_lineup), above the rarity cap (rarity_cap), two cards of one spirit (same_spirit) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such tournament (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Entries are closed (closed), a card isn't yours (not_owned), is offered in a trade (in_trade), is in another tournament (in_tournament), was in the series' previous tournament (cooldown), or was traded after the tournament opened (traded_late) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    withdrawFromTournament: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series and period, e.g. daily-2026-11-03 or weekly-2026-W45 */
+                tournamentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such tournament (not_found), or you haven't entered it (not_entered) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Entries are closed (closed) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    previewTournamentLineup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series and period, e.g. daily-2026-11-03 or weekly-2026-W45 */
+                tournamentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TournamentLineup"];
+            };
+        };
+        responses: {
+            /** @description The lineup's score */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineupScore"];
+                };
+            };
+            /** @description The format doesn't allow this lineup. Wrong number of cards or a card twice (bad_lineup), above the rarity cap (rarity_cap), two cards of one spirit (same_spirit) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description No such tournament (not_found) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Entries are closed (closed), a card isn't yours (not_owned), is offered in a trade (in_trade), is in another tournament (in_tournament), was in the series' previous tournament (cooldown), or was traded after the tournament opened (traded_late) */
             409: {
                 headers: {
                     [name: string]: unknown;

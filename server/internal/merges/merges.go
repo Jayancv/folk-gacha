@@ -30,6 +30,8 @@ var (
 	ErrSoldOut = errors.New("merges: recipe output sold out")
 	// ErrInTrade: one of the cards is offered in an open trade (cancel the offer first).
 	ErrInTrade = errors.New("merges: card is in an open trade offer")
+	// ErrInTournament: one of the cards is in a tournament lineup (locked until it ends).
+	ErrInTournament = errors.New("merges: card is in a tournament")
 )
 
 // game.ErrNoRecipe and game.ErrMaxLevel are returned as they are.
@@ -117,6 +119,9 @@ func (s *Service) mergeTx(ctx context.Context, q *store.Queries, userID, dragged
 	}
 	if dragged.InTrade || target.InTrade {
 		return Result{}, uuid.Nil, ErrInTrade
+	}
+	if dragged.InTournament || target.InTournament {
+		return Result{}, uuid.Nil, ErrInTournament
 	}
 
 	var recipe store.GetRecipeRow

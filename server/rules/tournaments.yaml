@@ -1,0 +1,67 @@
+# Tournaments: players enter a lineup of their cards; each tournament scores lineups with
+# one format. Read at startup (internal/game/tournaments.go): unknown keys and out-of-range
+# values stop the server. Edit, then restart or redeploy. All times are UTC.
+#
+# A series runs one tournament per period, back to back:
+#   daily:  00:00 UTC to the next 00:00
+#   weekly: Monday 00:00 UTC to the next Monday
+# Entries are open for `entryHours` from the start (lineups can change; entered cards are
+# locked). Then the lineups are scored and the results show; the cards stay locked until the
+# period ends. A card entered in one tournament can't enter the series' next one.
+# Formats rotate in the order listed, one per tournament. Changing the list reorders the
+# coming tournaments (a running one keeps its format).
+# prizeCards: cards each place wins, from 1st down (up to 10 places, 1-5 cards each, never
+# more than the place above). Prize cards are Common or Uncommon at their pack odds, level 1,
+# and wait on the winner's Pack tab like trade gifts. They count as normal cards (season
+# points when merged, allowed in tournaments). A running tournament keeps the prizes it opened with.
+series:
+  - id: daily
+    name: Daily Cup
+    cadence: daily
+    entryHours: 20
+    formats: [power, underdog, element-trial, rarity-cap, harmony]
+    prizeCards: [3, 2, 1]
+  - id: weekly
+    name: Weekly Grand
+    cadence: weekly
+    entryHours: 120
+    formats: [harmony, power, underdog]
+    prizeCards: [3, 2, 1]
+
+# Formats, by id. `kind` is the scoring method; `slots` is the most cards a lineup may have (3-5);
+# players enter 1 card up to that many.
+# Any format can set `onePerSpirit: true` (no two cards of the same spirit).
+#   power:         a card's score counts as it is.
+#   element-trial: cards of the tournament's element count ×elementMultiplier (the element
+#                  rotates each time this format comes round).
+#   rarity-cap:    only cards up to maxRarity, plus at most allowAbove better ones.
+#   underdog:      score ÷ rarity base score (× the Common base), so a levelled-up
+#                  Common can beat a fresh Rare. rarityBase as in the card season config.
+#   harmony:       +harmonyBonusPercent of the total for each element after the first.
+formats:
+  power:
+    kind: power
+    name: Power
+    slots: 5
+  element-trial:
+    kind: element-trial
+    name: Element Trial
+    slots: 4
+    elementMultiplier: 2
+  rarity-cap:
+    kind: rarity-cap
+    name: Humble Hands
+    slots: 3
+    maxRarity: uncommon
+    allowAbove: 0
+  underdog:
+    kind: underdog
+    name: Underdog
+    slots: 3
+    rarityBase: { common: 10, uncommon: 25, rare: 60, epic: 150, legendary: 400 }
+  harmony:
+    kind: harmony
+    name: Harmony
+    slots: 5
+    harmonyBonusPercent: 10
+    onePerSpirit: true

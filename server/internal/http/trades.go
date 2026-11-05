@@ -59,6 +59,8 @@ func (s *Server) CreateTrade(ctx context.Context, req CreateTradeRequestObject) 
 		return CreateTrade409JSONResponse{Error: "not_owned", Message: ptr("One of these cards changed hands. Pick again.")}, nil
 	case errors.Is(err, trades.ErrInTrade):
 		return CreateTrade409JSONResponse{Error: "in_trade", Message: ptr("One of these cards is already in an open offer.")}, nil
+	case errors.Is(err, trades.ErrInTournament):
+		return CreateTrade409JSONResponse{Error: "in_tournament", Message: ptr("One of these cards is in a tournament lineup until the tournament ends.")}, nil
 	case errors.Is(err, trades.ErrDailyLimit):
 		return CreateTrade429JSONResponse{Error: "daily_limit", Message: ptr("You've sent today's offers. More at 00:00 UTC.")}, nil
 	case err != nil:
@@ -160,6 +162,8 @@ func tradeActionError(err error) (code, message string, ok bool) {
 		return "unavailable", "A card in this offer is no longer available, so the offer failed.", true
 	case errors.Is(err, trades.ErrInTrade):
 		return "in_trade", "One of your cards in this offer is in another open offer of yours. Cancel that one first.", true
+	case errors.Is(err, trades.ErrInTournament):
+		return "in_tournament", "One of your cards in this offer is in a tournament lineup. Withdraw it, or wait until the tournament ends.", true
 	}
 	return "", "", false
 }

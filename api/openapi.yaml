@@ -50,6 +50,14 @@ paths:
     $ref: ./paths/trades/{tradeId}/decline.yaml
   /trades/{tradeId}/cancel:
     $ref: ./paths/trades/{tradeId}/cancel.yaml
+  /tournaments:
+    $ref: ./paths/tournaments.yaml
+  /tournaments/{tournamentId}:
+    $ref: ./paths/tournaments/{tournamentId}.yaml
+  /tournaments/{tournamentId}/entry:
+    $ref: ./paths/tournaments/{tournamentId}/entry.yaml
+  /tournaments/{tournamentId}/preview:
+    $ref: ./paths/tournaments/{tournamentId}/preview.yaml
   /live/ticket:
     $ref: ./paths/live/ticket.yaml
   /gifts/open:
@@ -130,3 +138,25 @@ components:
       $ref: ./schemas/GameRules.yaml
     AllTimeLeaderboard:
       $ref: ./schemas/AllTimeLeaderboard.yaml
+    Tournament:
+      $ref: ./schemas/Tournament.yaml
+    TournamentStatus:
+      $ref: ./schemas/TournamentStatus.yaml
+    TournamentFormat:
+      $ref: ./schemas/TournamentFormat.yaml
+    TournamentList:
+      $ref: ./schemas/TournamentList.yaml
+    TournamentDetail:
+      $ref: ./schemas/TournamentDetail.yaml
+    TournamentEntry:
+      $ref: ./schemas/TournamentEntry.yaml
+    TournamentEntryCard:
+      $ref: ./schemas/TournamentEntryCard.yaml
+    TournamentResult:
+      $ref: ./schemas/TournamentResult.yaml
+    TournamentLineup:
+      $ref: ./schemas/TournamentLineup.yaml
+    LineupScore:
+      $ref: ./schemas/LineupScore.yaml
+    LineupCardPoints:
+      $ref: ./schemas/LineupCardPoints.yaml

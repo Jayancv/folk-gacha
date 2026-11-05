@@ -4,6 +4,7 @@
 -- another player owns, or that a concurrent merge just used up, are simply missing.
 SELECT c.id, c.season_card_id, c.copy_no, c.level, c.traded,
        (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
+       (c.locked_in_tournament_id IS NOT NULL)::boolean AS in_tournament,
        sc.template_id, sc.card_season_id, sc.score
 FROM cards c
 JOIN season_cards sc ON sc.id = c.season_card_id

@@ -32,11 +32,14 @@ export async function claimDailyPack (): Promise<ClaimOutcome>
 
 export type GiftError = 'no_gifts' | 'sold_out' | 'no_season' | 'signed_out' | 'network';
 
+/** Where an opened gift came from: a trade partner, or a tournament place it was won in. */
+export type GiftFrom = { partner: string } | { tournament: string; place: number };
+
 export type GiftOutcome =
-    | { ok: true; cards: OwnedCard[]; partners: string[]; waiting: number }
+    | { ok: true; cards: OwnedCard[]; from: GiftFrom[]; waiting: number }
     | { ok: false; error: GiftError };
 
-/** POST /gifts/open: the waiting trade gifts as cards, in reveal order (with whom each trade was). */
+/** POST /gifts/open: the waiting trade gifts and tournament prizes as cards, in reveal order. */
 export async function openGifts (): Promise<GiftOutcome>
 {
     try
@@ -44,7 +47,10 @@ export async function openGifts (): Promise<GiftOutcome>
         const { data, error, response } = await api.POST('/gifts/open');
         if (data)
         {
-            return { ok: true, cards: data.gifts.map(g => toCardData(g.card)), partners: data.gifts.map(g => g.partner), waiting: data.giftsWaiting };
+            const from = data.gifts.map((g): GiftFrom => (g.tournament
+                ? { tournament: g.tournament.name, place: g.tournament.place }
+                : { partner: g.partner ?? '' }));
+            return { ok: true, cards: data.gifts.map(g => toCardData(g.card)), from, waiting: data.giftsWaiting };
         }
         if (response.status === 401)
         {
@@ -85,7 +91,12 @@ export async function loadBoard (size: number): Promise<BoardShowPayload>
         throw new Error(`GET /cards: ${response.status} ${error?.error ?? ''}`.trim());
     }
     const cards = data.cards.map(c => toCardData(c));
-    return { cards, total: data.total, locked: cards.filter(c => c.inTrade).map(c => c.id) };
+    return {
+        cards,
+        total: data.total,
+        locked: cards.filter(c => c.inTrade || c.inTournament).map(c => c.id),
+        inEvent: cards.filter(c => c.inTournament).map(c => c.id)
+    };
 }
 
 export interface MergeAnswer
@@ -124,7 +135,7 @@ export function mergeFailure (status: number, code: string | undefined): MergeFa
         case 404:
             return 'not_owned';
         case 409:
-            return code === 'max_level' || code === 'sold_out' || code === 'in_trade' ? code : 'no_recipe';
+            return code === 'max_level' || code === 'sold_out' || code === 'in_trade' || code === 'in_tournament' ? code : 'no_recipe';
         case 400:
             // same_card: dropping a card on itself; the board treats it as no merge.
             return 'no_recipe';

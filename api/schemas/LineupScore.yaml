@@ -1,0 +1,19 @@
+type: object
+description: A lineup's score with its breakdown
+required:
+  - cards
+  - bonusPercent
+  - bonus
+  - total
+properties:
+  cards:
+    type: array
+    items:
+      $ref: ./LineupCardPoints.yaml
+  bonusPercent:
+    type: integer
+    description: Lineup bonus (harmony), in percent of the cards' points
+  bonus:
+    type: integer
+  total:
+    type: integer

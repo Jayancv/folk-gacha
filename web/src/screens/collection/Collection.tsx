@@ -55,7 +55,10 @@ export function Collection ()
         return () => seen.disconnect();
     }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+    // The card sheet sits outside the section: the section is a z-0 layer, so anything
+    // inside it (even fixed z-50) would paint under the tab bar.
     return (
+        <>
         <section data-scroll-root className="absolute inset-0 z-0 overflow-y-auto overscroll-contain bg-[#170e10] text-[#f6eadc]" aria-label="Collection">
             <header className="sticky top-0 z-10 border-b border-[#3b2529] bg-[#170e10]/95 px-4 pt-12 pb-3 backdrop-blur">
                 <div className="mx-auto flex max-w-3xl items-center gap-2">
@@ -133,10 +136,11 @@ export function Collection ()
                                 <button
                                     onClick={() => setOpen(card)}
                                     className="relative block w-full rounded-[6%] transition-transform active:scale-95"
-                                    aria-label={`${card.name}, level ${card.level}${card.inTrade ? ', in an open trade' : ''}`}
+                                    aria-label={`${card.name}, level ${card.level}${card.inTrade ? ', in an open trade' : card.inTournament ? ', in a tournament' : ''}`}
                                 >
                                     <CardImage card={card} />
                                     {card.inTrade && <InTradeBadge />}
+                                    {card.inTournament && <InTradeBadge text="In event" />}
                                 </button>
                             </li>
                         ))}
@@ -145,9 +149,9 @@ export function Collection ()
                 <div ref={end} />
                 {isFetchingNextPage && <p className="py-4 text-center text-xs text-[#bba595]">Loading more…</p>}
             </div>
-
-            {open && <CardSheet card={open} onClose={() => setOpen(null)} />}
         </section>
+        {open && <CardSheet card={open} onClose={() => setOpen(null)} />}
+        </>
     );
 }
 

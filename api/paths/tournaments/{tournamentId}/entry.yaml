@@ -1,0 +1,84 @@
+# /tournaments/{tournamentId}/entry
+put:
+  operationId: enterTournament
+  summary: Enter or change your lineup
+  description: |
+    Saves your lineup while entries are open, replacing any earlier one. The cards are locked in
+    the tournament until it ends (no merging, trading or other tournaments); cards you swap out are
+    free again. Cards from the series' previous tournament sit this one out.
+  parameters:
+    - name: tournamentId
+      in: path
+      required: true
+      description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+      schema:
+        type: string
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../../../schemas/TournamentLineup.yaml
+  responses:
+    "200":
+      description: Your entry, with the server's score for it
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/TournamentEntry.yaml
+    "400":
+      description: The format doesn't allow this lineup. Wrong number of cards or a card twice (bad_lineup), above the rarity cap (rarity_cap), two cards of one spirit (same_spirit)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "404":
+      description: No such tournament (not_found)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "409":
+      description: Entries are closed (closed), a card isn't yours (not_owned), is offered in a trade (in_trade), is in another tournament (in_tournament), was in the series' previous tournament (cooldown), or was traded after the tournament opened (traded_late)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+delete:
+  operationId: withdrawFromTournament
+  summary: Withdraw your entry
+  description: Removes your lineup while entries are open and frees its cards.
+  parameters:
+    - name: tournamentId
+      in: path
+      required: true
+      description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+      schema:
+        type: string
+  responses:
+    "204":
+      description: Withdrawn
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "404":
+      description: No such tournament (not_found), or you haven't entered it (not_entered)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml
+    "409":
+      description: Entries are closed (closed)
+      content:
+        application/json:
+          schema:
+            $ref: ../../../schemas/Error.yaml

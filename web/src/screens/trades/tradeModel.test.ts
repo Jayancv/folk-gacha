@@ -37,7 +37,7 @@ const card = (id: string): ApiCard => ({
     artSeed: 1,
     acquiredVia: 'pack',
     acquiredAt: '2026-10-30T12:00:00Z',
-    inTrade: false
+    inTrade: false, inTournament: false
 });
 
 const trade = (over: Partial<ApiTrade> = {}): ApiTrade => ({

@@ -1,0 +1,16 @@
+type: object
+description: Your lineup; the score is a preview while entries are open, final once they close
+required:
+  - cards
+  - score
+properties:
+  cards:
+    type: array
+    items:
+      $ref: ./TournamentEntryCard.yaml
+  score:
+    $ref: ./LineupScore.yaml
+  rank:
+    type: integer
+    minimum: 1
+    description: Your place, once entries close

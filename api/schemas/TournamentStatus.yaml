@@ -1,0 +1,7 @@
+type: string
+description: "upcoming (not open yet), open (entries open), locked (scored; cards locked until the end), finished"
+enum:
+  - upcoming
+  - open
+  - locked
+  - finished

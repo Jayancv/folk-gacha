@@ -38,7 +38,10 @@ export function Trades ({ me, onOpenProfile }: { me: Me; onOpenProfile: (usernam
         />
     );
 
+    // The card sheet sits outside the section: the section is a z-0 layer, so anything
+    // inside it (even fixed z-50) would paint under the tab bar.
     return (
+        <>
         <section data-scroll-root className="absolute inset-0 z-0 overflow-y-auto overscroll-contain bg-[#170e10] text-[#f6eadc]" aria-label="Trades">
             <header className="sticky top-0 z-10 border-b border-[#3b2529] bg-[#170e10]/95 px-4 pt-12 pb-3 backdrop-blur">
                 <div className="mx-auto max-w-xl">
@@ -71,9 +74,9 @@ export function Trades ({ me, onOpenProfile }: { me: Me; onOpenProfile: (usernam
                     </>
                 )}
             </div>
-
-            {open && <CardSheet card={open} onClose={() => setOpen(null)} />}
         </section>
+        {open && <CardSheet card={open} onClose={() => setOpen(null)} />}
+        </>
     );
 }
 

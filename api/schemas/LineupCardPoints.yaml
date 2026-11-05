@@ -1,0 +1,15 @@
+type: object
+description: One card's line in a score breakdown
+required:
+  - cardId
+  - multiplier
+  - points
+properties:
+  cardId:
+    type: string
+    format: uuid
+  multiplier:
+    type: number
+    description: Applied to the card's score (1 when the format leaves it as it is)
+  points:
+    type: integer

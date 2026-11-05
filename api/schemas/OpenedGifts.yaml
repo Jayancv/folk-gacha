@@ -7,13 +7,29 @@ properties:
     type: array
     items:
       type: object
+      description: A partner gift (partner set) or a tournament prize card (tournament set)
       required:
-        - partner
         - card
       properties:
         partner:
           type: string
-          description: Username of the player the trade was with
+          description: Username of the player the trade was with (partner gifts)
+        tournament:
+          type: object
+          description: The tournament this prize card was won in (prize cards)
+          required:
+            - id
+            - name
+            - place
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+              description: The series' name, e.g. Daily Cup
+            place:
+              type: integer
+              description: The place that won it (1 = first)
         card:
           $ref: ./Card.yaml
   giftsWaiting:

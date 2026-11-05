@@ -22,5 +22,6 @@ describe('card details', () =>
         expect(acquiredText({ acquiredVia: 'merge', acquiredAt: '2026-10-30T23:30:00Z' }, 'en-GB')).toBe('Made by merging · 30 Oct 2026');
         expect(acquiredText({ acquiredVia: 'pack', acquiredAt: '2026-01-05T08:00:00Z' }, 'en-GB')).toBe('From a pack · 5 Jan 2026');
         expect(acquiredText({ acquiredVia: 'gift', acquiredAt: '2026-01-05T08:00:00Z' }, 'en-GB')).toBe('Trade gift · 5 Jan 2026');
+        expect(acquiredText({ acquiredVia: 'prize', acquiredAt: '2026-01-05T08:00:00Z' }, 'en-GB')).toBe('Tournament prize · 5 Jan 2026');
     });
 });

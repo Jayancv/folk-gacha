@@ -163,7 +163,7 @@ func TestTradeOverHTTP(t *testing.T) {
 		t.Fatalf("open gifts: %d %s", rec.Code, rec.Body)
 	}
 	opened := decode[OpenedGifts](t, rec)
-	if len(opened.Gifts) != 1 || opened.Gifts[0].Partner != "asha" || opened.Gifts[0].Card.AcquiredVia != "gift" || opened.GiftsWaiting != 0 {
+	if len(opened.Gifts) != 1 || opened.Gifts[0].Partner == nil || *opened.Gifts[0].Partner != "asha" || opened.Gifts[0].Tournament != nil || opened.Gifts[0].Card.AcquiredVia != "gift" || opened.GiftsWaiting != 0 {
 		t.Fatalf("opened %+v", opened)
 	}
 	if page := decode[CardPage](t, ts.do(t, "GET", "/cards", "", benCookie)); page.Total != 2 ||

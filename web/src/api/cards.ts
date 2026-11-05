@@ -18,6 +18,8 @@ export interface OwnedCard extends CardData
     acquiredAt: string;
     /** Offered in an open trade: locked (no merging, no other offers) until the offer ends. */
     inTrade: boolean;
+    /** In a tournament lineup: locked until the tournament ends. */
+    inTournament: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function toCardData (c: ApiCard, configs: Record<string, SeasonArtConfig>
         maxCopies: c.maxCopies,
         acquiredVia: c.acquiredVia,
         acquiredAt: c.acquiredAt,
-        inTrade: c.inTrade
+        inTrade: c.inTrade,
+        inTournament: c.inTournament
     };
 }

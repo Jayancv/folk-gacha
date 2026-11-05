@@ -1,0 +1,12 @@
+type: object
+required:
+  - cardIds
+properties:
+  cardIds:
+    type: array
+    description: Your cards, in slot order (1 up to the format's slots)
+    minItems: 1
+    maxItems: 5
+    items:
+      type: string
+      format: uuid

@@ -1,0 +1,31 @@
+# /tournaments/{tournamentId}
+get:
+  operationId: getTournament
+  summary: A tournament, your entry and its results
+  description: Results (top 100) appear once entries close; until then the list is empty.
+  parameters:
+    - name: tournamentId
+      in: path
+      required: true
+      description: Series and period, e.g. daily-2026-11-03 or weekly-2026-W45
+      schema:
+        type: string
+  responses:
+    "200":
+      description: The tournament
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/TournamentDetail.yaml
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
+    "404":
+      description: No such tournament (not_found; upcoming ones don't exist yet)
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml

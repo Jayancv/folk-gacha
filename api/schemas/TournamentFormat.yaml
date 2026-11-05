@@ -1,0 +1,47 @@
+type: object
+description: How a tournament scores lineups (server/rules/tournaments.yaml)
+required:
+  - id
+  - kind
+  - name
+  - slots
+  - onePerSpirit
+properties:
+  id:
+    type: string
+  kind:
+    type: string
+    description: |
+      power: card scores as they are. element-trial: cards of the tournament's element count
+      ×elementMultiplier. rarity-cap: cards up to maxRarity, plus at most allowAbove better ones.
+      underdog: score ÷ the rarity's base score (× the Common base). harmony: +harmonyBonusPercent
+      for each element after the first.
+    enum:
+      - power
+      - element-trial
+      - rarity-cap
+      - underdog
+      - harmony
+  name:
+    type: string
+  slots:
+    type: integer
+    description: The most cards a lineup may have (a lineup has 1 up to this many)
+    minimum: 3
+    maximum: 5
+  onePerSpirit:
+    type: boolean
+    description: No two cards of the same spirit
+  elementMultiplier:
+    type: number
+  maxRarity:
+    $ref: ./Rarity.yaml
+  allowAbove:
+    type: integer
+  harmonyBonusPercent:
+    type: integer
+  rarityBase:
+    type: object
+    description: Base score per rarity (underdog)
+    additionalProperties:
+      type: number

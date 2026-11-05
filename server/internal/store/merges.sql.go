@@ -105,6 +105,7 @@ func (q *Queries) ListDiscoveredRecipes(ctx context.Context, userID uuid.UUID) (
 const lockOwnedCards = `-- name: LockOwnedCards :many
 SELECT c.id, c.season_card_id, c.copy_no, c.level, c.traded,
        (c.locked_in_trade_id IS NOT NULL)::boolean AS in_trade,
+       (c.locked_in_tournament_id IS NOT NULL)::boolean AS in_tournament,
        sc.template_id, sc.card_season_id, sc.score
 FROM cards c
 JOIN season_cards sc ON sc.id = c.season_card_id
@@ -125,6 +126,7 @@ type LockOwnedCardsRow struct {
 	Level        int16
 	Traded       bool
 	InTrade      bool
+	InTournament bool
 	TemplateID   string
 	CardSeasonID string
 	Score        int32
@@ -149,6 +151,7 @@ func (q *Queries) LockOwnedCards(ctx context.Context, arg LockOwnedCardsParams) 
 			&i.Level,
 			&i.Traded,
 			&i.InTrade,
+			&i.InTournament,
 			&i.TemplateID,
 			&i.CardSeasonID,
 			&i.Score,

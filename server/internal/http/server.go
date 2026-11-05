@@ -14,6 +14,7 @@ import (
 	"cardgame/server/internal/packs"
 	"cardgame/server/internal/profile"
 	"cardgame/server/internal/push"
+	"cardgame/server/internal/tournaments"
 	"cardgame/server/internal/trades"
 	"cardgame/server/internal/ws"
 )
@@ -36,6 +37,7 @@ type Server struct {
 	pushPublicKey string
 	profiles      *profile.Service
 	trades        *trades.Service
+	tournaments   *tournaments.Service
 	live          *ws.Hub
 	now           func() time.Time
 }
@@ -55,13 +57,14 @@ type Services struct {
 	PushPublicKey string
 	Profiles      *profile.Service
 	Trades        *trades.Service
+	Tournaments   *tournaments.Service
 	// Live serves GET /ws and its tickets.
 	Live *ws.Hub
 }
 
 // NewServer wires the handlers.
 func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
-	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, trades: svc.Trades, live: svc.Live, authOpts: opts, now: time.Now}
+	return &Server{db: db, auth: svc.Auth, packs: svc.Packs, merges: svc.Merges, collection: svc.Collection, leaderboard: svc.Leaderboard, push: svc.Push, pushPublicKey: svc.PushPublicKey, profiles: svc.Profiles, trades: svc.Trades, tournaments: svc.Tournaments, live: svc.Live, authOpts: opts, now: time.Now}
 }
 
 // Handler returns the full HTTP handler with middleware applied.
