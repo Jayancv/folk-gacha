@@ -107,7 +107,7 @@ func run() error {
 	hub := ws.NewHub(ws.OriginHosts(origins))
 	tradesSvc := trades.NewService(pool)
 	tradesSvc.OnEvent = func(e trades.Event) {
-		hub.Send(e.To, ws.Event{Type: e.Type, TradeID: e.TradeID, By: e.By})
+		hub.Send(e.To, ws.Event{Type: e.Type, TradeID: e.TradeID, By: e.By, ByName: e.ByName})
 		// A player with the app open sees it live; otherwise their phone gets a push
 		// (new offers and accepted trades only, if they want them). Never blocks the trade.
 		if pushSvc != nil && hub.Connected(e.To) == 0 {

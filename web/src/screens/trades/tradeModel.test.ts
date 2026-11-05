@@ -5,6 +5,7 @@ import {
     groupTrades,
     hoursText,
     historyText,
+    partnerText,
     pickCountText,
     statusText,
     toTradeView,
@@ -124,6 +125,13 @@ describe('text', () =>
         expect(statusText({ status: 'cancelled', incoming: true, partner: 'asha' })).toBe('asha withdrew the offer');
         expect(statusText({ status: 'accepted', incoming: true, partner: 'asha' })).toBe('Traded with asha');
         expect(statusText({ status: 'open', incoming: false, partner: 'ben' })).toBe('Waiting for ben');
+    });
+
+    it('calls the other player by their chosen name', () =>
+    {
+        expect(partnerText({ partner: 'asha', partnerName: 'Asha the Brave' })).toBe('Asha the Brave');
+        expect(partnerText({ partner: 'asha' })).toBe('asha');
+        expect(statusText({ status: 'accepted', incoming: true, partner: 'asha', partnerName: 'Asha the Brave' })).toBe('Traded with Asha the Brave');
     });
 
     it('sums up past offers in one line, without their cards', () =>

@@ -53,6 +53,11 @@ describe('notices', () =>
         expect(eventNotice({ type: 'trade.cancelled', by: 'asha' })).toBeNull();
         expect(eventNotice({ type: 'trade.expired' })).toBeNull();
     });
+    it('uses the chosen name when there is one', () =>
+    {
+        expect(eventNotice({ type: 'trade.received', by: 'asha', byName: 'Asha the Brave' })).toBe('Asha the Brave sent you a trade offer');
+        expect(parseEvent(JSON.stringify({ type: 'trade.accepted', by: 'ben', byName: 'Ben' }))?.byName).toBe('Ben');
+    });
     it('knows which events touch trades', () =>
     {
         expect(isTradeEvent({ type: 'trade.expired' })).toBe(true);

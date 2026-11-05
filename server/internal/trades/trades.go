@@ -90,6 +90,8 @@ type Event struct {
 	Type    string // EventReceived, or "trade." + the new status
 	TradeID uuid.UUID
 	By      string // the other player's username; empty for expiry
+	// ByName: the name they chose to show ("" until they pick one, and for expiry).
+	ByName string
 }
 
 // EventReceived: a new offer was sent to the player.
@@ -128,6 +130,16 @@ func NewService(pool *pgxpool.Pool) *Service {
 type Player struct {
 	ID       uuid.UUID
 	Username string
+	// Name: the name they chose to show others ("" until they pick one).
+	Name string
+}
+
+// Shown is how to call the player: their chosen name, else their username.
+func (p Player) Shown() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Username
 }
 
 // Item is one card of an offer. Card is nil when the card no longer exists
@@ -180,7 +192,7 @@ func (s *Service) Create(ctx context.Context, from uuid.UUID, o NewOffer) (Trade
 	}
 	t, err := s.get(ctx, store.New(s.pool), id)
 	if err == nil {
-		s.emit(Event{To: t.To.ID, Type: EventReceived, TradeID: t.ID, By: t.From.Username})
+		s.emit(Event{To: t.To.ID, Type: EventReceived, TradeID: t.ID, By: t.From.Username, ByName: t.From.Name})
 	}
 	return t, err
 }
@@ -434,14 +446,15 @@ func (s *Service) resolve(ctx context.Context, user, id uuid.UUID, decide func(*
 		return Trade{}, err
 	}
 	// Tell the other player (the one who didn't act).
-	other, by := t.From.ID, t.To.Username
+	other, actor := t.From.ID, t.To
 	if user == t.From.ID {
-		other, by = t.To.ID, t.From.Username
+		other, actor = t.To.ID, t.From
 	}
+	by, byName := actor.Username, actor.Name
 	if status == StatusExpired {
-		by = ""
+		by, byName = "", ""
 	}
-	s.emit(Event{To: other, Type: "trade." + status, TradeID: t.ID, By: by})
+	s.emit(Event{To: other, Type: "trade." + status, TradeID: t.ID, By: by, ByName: byName})
 	return t, outcome
 }
 
@@ -517,8 +530,8 @@ func (s *Service) get(ctx context.Context, q *store.Queries, id uuid.UUID) (Trad
 func toTrade(r store.GetTradeRow) Trade {
 	t := Trade{
 		ID:        r.ID,
-		From:      Player{ID: r.FromUser, Username: r.FromUsername},
-		To:        Player{ID: r.ToUser, Username: r.ToUsername},
+		From:      Player{ID: r.FromUser, Username: r.FromUsername, Name: r.FromName},
+		To:        Player{ID: r.ToUser, Username: r.ToUsername, Name: r.ToName},
 		Status:    r.Status,
 		CreatedAt: r.CreatedAt,
 		ExpiresAt: r.ExpiresAt,

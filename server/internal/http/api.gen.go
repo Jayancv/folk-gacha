@@ -786,6 +786,9 @@ type Trade struct {
 	// From Sender's username
 	From string `json:"from"`
 
+	// FromName The name the sender chose to show (PUT /me/name); absent until they pick one
+	FromName *string `json:"fromName,omitempty"`
+
 	// Gifted This trade gave you a partner gift: the first accepted trade between two players gives each of them one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open).
 	Gifted bool               `json:"gifted"`
 	Id     openapi_types.UUID `json:"id"`
@@ -805,6 +808,9 @@ type Trade struct {
 
 	// To Recipient's username
 	To string `json:"to"`
+
+	// ToName The name the recipient chose to show; absent until they pick one
+	ToName *string `json:"toName,omitempty"`
 }
 
 // TradeDirection incoming (sent to you) or outgoing (sent by you)

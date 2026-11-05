@@ -9,6 +9,8 @@ export interface LiveEvent
     tradeId?: string;
     /** The other player's username. */
     by?: string;
+    /** The name they chose to show, when they have one. */
+    byName?: string;
 }
 
 /** A message from the socket, or null if it isn't an event. */
@@ -25,8 +27,13 @@ export function parseEvent (data: unknown): LiveEvent | null
         {
             return null;
         }
-        const { type, tradeId, by } = e as LiveEvent;
-        return { type, tradeId: typeof tradeId === 'string' ? tradeId : undefined, by: typeof by === 'string' ? by : undefined };
+        const { type, tradeId, by, byName } = e as LiveEvent;
+        return {
+            type,
+            tradeId: typeof tradeId === 'string' ? tradeId : undefined,
+            by: typeof by === 'string' ? by : undefined,
+            byName: typeof byName === 'string' && byName !== '' ? byName : undefined
+        };
     }
     catch
     {
@@ -72,7 +79,7 @@ export function isTradeEvent (e: LiveEvent): boolean
 /** A short notice for the player, or null for events not worth interrupting for. */
 export function eventNotice (e: LiveEvent): string | null
 {
-    const who = e.by ?? 'A player';
+    const who = e.byName ?? e.by ?? 'A player';
     switch (e.type)
     {
         case 'trade.received':

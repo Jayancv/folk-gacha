@@ -256,7 +256,8 @@ func (q *Queries) FailOffersRequesting(ctx context.Context, arg FailOffersReques
 }
 
 const getTrade = `-- name: GetTrade :one
-SELECT t.id, t.from_user, t.to_user, t.status, t.created_at, t.expires_at, t.resolved_at, fu.username AS from_username, tu.username AS to_username
+SELECT t.id, t.from_user, t.to_user, t.status, t.created_at, t.expires_at, t.resolved_at, fu.username AS from_username, tu.username AS to_username,
+       fu.public_name AS from_name, tu.public_name AS to_name
 FROM trades t
 JOIN users fu ON fu.id = t.from_user
 JOIN users tu ON tu.id = t.to_user
@@ -273,6 +274,8 @@ type GetTradeRow struct {
 	ResolvedAt   pgtype.Timestamptz
 	FromUsername string
 	ToUsername   string
+	FromName     string
+	ToName       string
 }
 
 func (q *Queries) GetTrade(ctx context.Context, id uuid.UUID) (GetTradeRow, error) {
@@ -288,6 +291,8 @@ func (q *Queries) GetTrade(ctx context.Context, id uuid.UUID) (GetTradeRow, erro
 		&i.ResolvedAt,
 		&i.FromUsername,
 		&i.ToUsername,
+		&i.FromName,
+		&i.ToName,
 	)
 	return i, err
 }
@@ -354,7 +359,8 @@ func (q *Queries) ListTradeItems(ctx context.Context, tradeIds []uuid.UUID) ([]L
 }
 
 const listTrades = `-- name: ListTrades :many
-SELECT t.id, t.from_user, t.to_user, t.status, t.created_at, t.expires_at, t.resolved_at, fu.username AS from_username, tu.username AS to_username
+SELECT t.id, t.from_user, t.to_user, t.status, t.created_at, t.expires_at, t.resolved_at, fu.username AS from_username, tu.username AS to_username,
+       fu.public_name AS from_name, tu.public_name AS to_name
 FROM trades t
 JOIN users fu ON fu.id = t.from_user
 JOIN users tu ON tu.id = t.to_user
@@ -379,6 +385,8 @@ type ListTradesRow struct {
 	ResolvedAt   pgtype.Timestamptz
 	FromUsername string
 	ToUsername   string
+	FromName     string
+	ToName       string
 }
 
 // A player's open offers (both directions) and those resolved since @since, newest first.
@@ -401,6 +409,8 @@ func (q *Queries) ListTrades(ctx context.Context, arg ListTradesParams) ([]ListT
 			&i.ResolvedAt,
 			&i.FromUsername,
 			&i.ToUsername,
+			&i.FromName,
+			&i.ToName,
 		); err != nil {
 			return nil, err
 		}

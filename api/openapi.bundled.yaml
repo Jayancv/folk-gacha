@@ -1687,9 +1687,15 @@ components:
         from:
           type: string
           description: Sender's username
+        fromName:
+          type: string
+          description: The name the sender chose to show (PUT /me/name); absent until they pick one
         to:
           type: string
           description: Recipient's username
+        toName:
+          type: string
+          description: The name the recipient chose to show; absent until they pick one
         status:
           $ref: '#/components/schemas/TradeStatus'
         createdAt:

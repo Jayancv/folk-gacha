@@ -23,8 +23,10 @@ export interface TradeView
 {
     id: string;
     incoming: boolean;
-    /** The other player's username. */
+    /** The other player's username (for their profile). */
     partner: string;
+    /** The name they chose to show, if any; `partnerText` picks what to call them. */
+    partnerName?: string;
     status: TradeStatus;
     createdAt: string;
     expiresAt: string;
@@ -47,6 +49,7 @@ export function toTradeView (t: ApiTrade, configs: Record<string, SeasonArtConfi
         id: t.id,
         incoming,
         partner: incoming ? t.from : t.to,
+        partnerName: incoming ? t.fromName : t.toName,
         status: t.status,
         createdAt: t.createdAt,
         expiresAt: t.expiresAt,
@@ -55,6 +58,12 @@ export function toTradeView (t: ApiTrade, configs: Record<string, SeasonArtConfi
         youGet: incoming ? offer : request,
         gifted: t.gifted
     };
+}
+
+/** What to call the other player: their chosen name, else their username. */
+export function partnerText (t: Pick<TradeView, 'partner' | 'partnerName'>): string
+{
+    return t.partnerName ?? t.partner;
 }
 
 /** The inbox: offers waiting for you, offers you sent, and resolved ones (in the server's order, newest first). */
@@ -96,18 +105,18 @@ export function expiresText (expiresAt: string, now = Date.now()): string
 }
 
 /** What happened to a resolved offer, from your side. */
-export function statusText (t: Pick<TradeView, 'status' | 'incoming' | 'partner'>): string
+export function statusText (t: Pick<TradeView, 'status' | 'incoming' | 'partner' | 'partnerName'>): string
 {
     switch (t.status)
     {
         case 'open':
-            return t.incoming ? `Offer from ${t.partner}` : `Waiting for ${t.partner}`;
+            return t.incoming ? `Offer from ${partnerText(t)}` : `Waiting for ${partnerText(t)}`;
         case 'accepted':
-            return `Traded with ${t.partner}`;
+            return `Traded with ${partnerText(t)}`;
         case 'declined':
-            return t.incoming ? `You declined ${t.partner}'s offer` : `${t.partner} declined`;
+            return t.incoming ? `You declined ${partnerText(t)}'s offer` : `${partnerText(t)} declined`;
         case 'cancelled':
-            return t.incoming ? `${t.partner} withdrew the offer` : 'You withdrew the offer';
+            return t.incoming ? `${partnerText(t)} withdrew the offer` : 'You withdrew the offer';
         case 'expired':
             return 'Expired';
         case 'failed':
@@ -127,7 +136,7 @@ export function whenText (at: string, now = Date.now()): string
  * A resolved offer as one line, without its cards (they may have been merged or
  * traded on since): "Traded with asha · 2 for 1 · gift · yesterday".
  */
-export function historyText (t: Pick<TradeView, 'status' | 'incoming' | 'partner' | 'youGive' | 'youGet' | 'gifted' | 'resolvedAt' | 'createdAt'>, now = Date.now()): string
+export function historyText (t: Pick<TradeView, 'status' | 'incoming' | 'partner' | 'partnerName' | 'youGive' | 'youGet' | 'gifted' | 'resolvedAt' | 'createdAt'>, now = Date.now()): string
 {
     const parts = [statusText(t)];
     if (t.status === 'accepted')

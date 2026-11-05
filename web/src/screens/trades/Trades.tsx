@@ -4,7 +4,7 @@ import { useRules } from '../../app/useRules';
 import type { Me } from '../../auth/useAuth';
 import { CardImage } from '../collection/CardImage';
 import { CardSheet } from '../collection/CardSheet';
-import { expiresText, groupTrades, historyText, hoursText, statusText, tradeErrorText, tradeUnlockText, type TradeCard, type TradeView } from './tradeModel';
+import { expiresText, groupTrades, historyText, hoursText, partnerText, statusText, tradeErrorText, tradeUnlockText, type TradeCard, type TradeView } from './tradeModel';
 import { errorOf, useTradeAction, useTrades, type TradeAction } from './useTrades';
 
 // Your trade offers: waiting for you, sent by you, and the last week's. Plain React
@@ -113,7 +113,8 @@ function TradeRow ({ trade: t, busy, error, onAct, onOpenCard, onOpenProfile }: 
             <div className="flex items-baseline justify-between gap-2">
                 <p className="min-w-0 truncate text-sm font-bold">
                     {t.incoming ? 'Offer from ' : 'To '}
-                    <button onClick={() => onOpenProfile(t.partner)} className="text-[#e7b54a] underline-offset-2 active:underline">{t.partner}</button>
+                    <button onClick={() => onOpenProfile(t.partner)} className="text-[#e7b54a] underline-offset-2 active:underline">{partnerText(t)}</button>
+                    {t.partnerName && <span className="ml-1.5 text-xs font-normal text-[#bba595]">@{t.partner}</span>}
                 </p>
                 <p className="shrink-0 text-xs text-[#bba595]">{expiresText(t.expiresAt)}</p>
             </div>
@@ -177,7 +178,7 @@ function ActionButton ({ onClick, busy, disabled, primary = false, children }: {
 function DoneNotice ({ trade: t, onClose }: { trade: TradeView; onClose: () => void })
 {
     const text = t.status === 'accepted'
-        ? `Trade done! Your new cards are in your collection.${t.gifted ? ` Your first trade with ${t.partner} also earned you a gift: open it on the Pack tab.` : ''}`
+        ? `Trade done! Your new cards are in your collection.${t.gifted ? ` Your first trade with ${partnerText(t)} also earned you a gift: open it on the Pack tab.` : ''}`
         : t.status === 'declined' ? 'Offer declined.' : t.status === 'cancelled' ? 'Offer withdrawn. Your cards are free again.' : statusText(t);
     return (
         <div role="status" className="flex items-start gap-2 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-sm">

@@ -898,8 +898,12 @@ export interface components {
             direction: "incoming" | "outgoing";
             /** @description Sender's username */
             from: string;
+            /** @description The name the sender chose to show (PUT /me/name); absent until they pick one */
+            fromName?: string;
             /** @description Recipient's username */
             to: string;
+            /** @description The name the recipient chose to show; absent until they pick one */
+            toName?: string;
             status: components["schemas"]["TradeStatus"];
             /** Format: date-time */
             createdAt: string;
