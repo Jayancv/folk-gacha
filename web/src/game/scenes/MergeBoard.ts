@@ -1,4 +1,4 @@
-import { GameObjects, Geom, Math as PMath, type Types } from 'phaser';
+import { GameObjects, Geom, Math as PMath, type Time, type Types } from 'phaser';
 import * as sfx from '../../audio/sfx';
 import { CardInspector } from '../cards/CardInspector';
 import { CardView } from '../cards/CardView';
@@ -11,12 +11,17 @@ import {
     boardHint,
     CELL_H,
     CELL_W,
+    edgeScrollSpeed,
     FAILURE_TEXT,
+    GRID_TOP,
     isLevelUpMatch,
+    maxScroll,
     mergeLabel,
     RESULT_TIMEOUT_MS,
-    SLOTS,
-    slotAt
+    ROW_H,
+    slotAt,
+    slotCountFor,
+    slotPosition
 } from '../merge/boardModel';
 import { prefersReducedMotion } from '../cards/revealFx';
 import { ensureFxTextures, ensureTableBackground, FX, releaseFaceTextures, textureScaleFor } from '../cards/textures';
@@ -34,23 +39,51 @@ export { BOARD_SIZE };
 import { coverVisible, ResponsiveScene } from '../ResponsiveScene';
 
 const DRAG_SLOP = 10;
+// On touch, a swipe scrolls the board; holding a card this long picks it up.
+const HOLD_MS = 180;
 const LIFT_SCALE = BOARD_SCALE * 1.12;
 const HOVER_SCALE = BOARD_SCALE * 1.06;
 // The charge-up always lasts at least this long so fast answers still feel deliberate.
 const MIN_CHARGE_MS = 650;
 const MATCH_TINT = 0xffd66e;
-const DEPTH = { slots: 5, cards: 10, dragging: 900, merge: 950, fx: 1000, inspect: 2000 };
+const DEPTH = { slots: 5, cards: 10, header: 60, hint: 70, dragging: 900, merge: 950, fx: 1000, inspect: 2000 };
+// The React tab bar covers the bottom of the canvas (CSS px).
+const TAB_BAR_CSS = 92;
+// Cards made per frame after the first screen, so a big board never freezes.
+const CARDS_PER_FRAME = 6;
+// Fling: per-frame (16.7 ms) decay of the scroll speed after a swipe.
+const FLING_DECAY = 0.94;
+// How far a picked-up card must move before the edges scroll the board (design units).
+const EDGE_ARM_DISTANCE = 60;
 
 interface Drag
 {
     card: CardView;
     fromSlot: number;
-    startX: number;
-    startY: number;
     offsetX: number;
     offsetY: number;
     lastX: number;
-    started: boolean;
+    /** Where the finger is (design space), for scrolling at the edges. */
+    pointerX: number;
+    pointerY: number;
+    /** Where it was picked up: the edges scroll only once the card has moved away from there. */
+    startX: number;
+    startY: number;
+    edgeArmed: boolean;
+}
+
+// A touch or click on the board until it becomes a tap, a scroll or a drag.
+interface Gesture
+{
+    card: CardView | null;
+    touch: boolean;
+    mode: 'pending' | 'scroll' | 'drag';
+    startX: number;
+    startY: number;
+    startScroll: number;
+    lastY: number;
+    lastTime: number;
+    hold: Time.TimerEvent | null;
 }
 
 interface Charging
@@ -70,15 +103,28 @@ interface Charging
 // until React answers with the server's result (MergeResult). It never decides
 // whether a merge works or what it makes. Only the public level-up rule (same card,
 // same level) is highlighted; recipes stay hidden until discovered.
+// The board scrolls: a swipe moves it, holding a card picks it up (a mouse drags at once
+// and scrolls with the wheel), and a card dragged near the top or bottom scrolls it.
 export class MergeBoard extends ResponsiveScene
 {
     private background: GameObjects.Image;
+    // The table's top strip, drawn over cards scrolled up under the hint.
+    private header: GameObjects.Image;
     private hint: GameObjects.Text;
     private slotGraphics: GameObjects.Graphics;
     private inspector: CardInspector;
     private bursts: Bursts;
 
     private slots: (CardView | null)[] = new Array(BOARD_SIZE).fill(null);
+    // Cards still to be made (a few per frame), and the slots they will take.
+    private queue: { card: CardData; slot: number }[] = [];
+    private reserved = new Set<number>();
+    // Cards tweening to their slot: scrolling leaves them alone and they snap when done.
+    private settling = new Set<CardView>();
+    private scroll = 0;
+    private scrollMax = 0;
+    private velocity = 0;
+    private gesture: Gesture | null = null;
     private drag: Drag | null = null;
     private hover: CardView | null = null;
     private merging = false;
@@ -89,6 +135,8 @@ export class MergeBoard extends ResponsiveScene
     // Cards offered in an open trade (lock badge).
     private locked = new Set<string>();
     private inEvent = new Set<string>();
+    // Opened with "Merge" on this card: its matches glow, also those made later.
+    private focusCard: CardData | null = null;
 
     constructor ()
     {
@@ -99,18 +147,16 @@ export class MergeBoard extends ResponsiveScene
     {
         ensureFxTextures(this);
         this.cameras.main.setBackgroundColor(PALETTE.bg);
-        this.background = this.add.image(0, 0, ensureTableBackground(this));
+        const table = ensureTableBackground(this);
+        this.background = this.add.image(0, 0, table);
+        this.header = this.add.image(0, 0, table).setDepth(DEPTH.header);
 
-        this.add.text(DESIGN_WIDTH / 2, 104, 'Merge Board', {
-            fontFamily: 'Georgia, serif', fontStyle: 'bold', fontSize: 52, color: PALETTE.gold
-        }).setOrigin(0.5);
-
+        // No title: the React Board / List switch sits at the top (screens/collection/CardsViewSwitch).
         this.hint = this.add.text(DESIGN_WIDTH / 2, 162, '', {
             fontFamily: 'system-ui, sans-serif', fontSize: 24, color: PALETTE.muted, align: 'center'
-        }).setOrigin(0.5);
+        }).setOrigin(0.5).setDepth(DEPTH.hint);
 
         this.slotGraphics = this.add.graphics().setDepth(DEPTH.slots);
-        this.drawSlots();
 
         this.inspector = new CardInspector(this, DEPTH.inspect);
         this.bursts = createBursts(this, DEPTH.fx);
@@ -119,6 +165,7 @@ export class MergeBoard extends ResponsiveScene
         this.input.on('pointermove', this.onPointerMove, this);
         this.input.on('pointerup', this.onPointerUp, this);
         this.input.on('pointerupoutside', this.onPointerUp, this);
+        this.input.on('wheel', this.onWheel, this);
 
         this.onBridge(MergeBoardEvents.Show, this.onShow);
         this.onBridge(MergeBoardEvents.MergeResult, this.onMergeResult);
@@ -130,6 +177,11 @@ export class MergeBoard extends ResponsiveScene
     protected layout (vp: Viewport)
     {
         coverVisible(this.background, vp);
+        // The header strip is the same picture, cut off just above the first row.
+        coverVisible(this.header, vp);
+        const imageTop = this.header.y - this.header.displayHeight / 2;
+        this.header.setCrop(0, 0, this.header.width, Math.max(0, (GRID_TOP - 8 - imageTop) / this.header.scaleY));
+
         this.inspector.layout(vp);
         for (const card of this.slots)
         {
@@ -138,37 +190,111 @@ export class MergeBoard extends ResponsiveScene
                 card.setTextureScale(this.boardTextureScale());
             }
         }
+        this.updateScrollRange();
     }
 
-    update (time: number)
+    update (time: number, delta: number)
     {
         if (this.charging)
         {
             this.animateCharge(time);
         }
+        const frames = delta / 16.7;
+
+        // A dragged card near the top or bottom edge scrolls the board under it.
+        if (this.drag?.edgeArmed && !this.merging)
+        {
+            const speed = edgeScrollSpeed(this.drag.pointerY, GRID_TOP, this.viewBottom());
+            if (speed !== 0 && this.setScroll(this.scroll + speed * frames))
+            {
+                this.setHover(this.cardAt(this.drag.pointerX, this.drag.pointerY, this.drag.card));
+            }
+        }
+        // Fling after a swipe.
+        else if (!this.gesture && this.velocity !== 0)
+        {
+            const moved = this.setScroll(this.scroll + this.velocity * delta);
+            this.velocity *= Math.pow(FLING_DECAY, frames);
+            if (!moved || Math.abs(this.velocity) < 0.02)
+            {
+                this.velocity = 0;
+            }
+        }
+
+        // The rest of a big board, a few cards per frame.
+        for (let i = 0; i < CARDS_PER_FRAME && this.queue.length > 0; i++)
+        {
+            const { card, slot } = this.queue.shift()!;
+            this.reserved.delete(slot);
+            this.createCard(card, slot);
+        }
     }
 
     // ---------- Board ----------
 
-    private onShow ({ cards, total, locked = [], inEvent = [] }: BoardShowPayload)
+    private onShow ({ cards, total, locked = [], inEvent = [], focusId }: BoardShowPayload)
     {
+        // A reload keeps the scroll; opening on a card starts at the top, where it is.
+        const keepScroll = focusId ? 0 : this.scroll;
         this.clearBoard();
         this.total = total;
         this.locked = new Set(locked);
         this.inEvent = new Set(inEvent);
+        this.slots = new Array(slotCountFor(cards.length)).fill(null);
+        this.updateScrollRange();
+        this.scroll = PMath.Clamp(keepScroll, 0, this.scrollMax);
+        this.focusCard = cards.find(c => c.id === focusId) ?? null;
 
-        cards.slice(0, BOARD_SIZE).forEach((card, i) =>
+        // What's on screen pops in now; the rest is made over the next frames.
+        const firstOffscreen = (Math.floor(this.scroll / ROW_H) + Math.ceil(this.viewHeight() / ROW_H) + 1) * 4;
+        cards.forEach((card, i) =>
         {
-            const view = this.placeCard(card, i);
+            if (i >= firstOffscreen)
+            {
+                this.queue.push({ card, slot: i });
+                this.reserved.add(i);
+                return;
+            }
+            const view = this.createCard(card, i);
             view.setScale(BOARD_SCALE * 0.6).setAlpha(0);
-            this.tweens.add({ targets: view, scale: BOARD_SCALE, alpha: 1, delay: i * 35, duration: 260, ease: 'Back.easeOut' });
+            this.tweens.add({ targets: view, scale: BOARD_SCALE, alpha: 1, delay: (i % 16) * 35, duration: 260, ease: 'Back.easeOut' });
         });
-        this.updateHint();
+        this.drawSlots();
+        this.updateHint(this.showFocus());
+    }
+
+    // Opened with "Merge" on a card: it glows white and its level-up matches pulse gold,
+    // until the first drag clears the highlights. Returns what the hint should say about it.
+    private showFocus (): { name: string; matches: number } | undefined
+    {
+        const focus = this.focusCard;
+        const view = this.slots.find(v => v?.card.id === focus?.id);
+        if (!focus || !view)
+        {
+            return undefined;
+        }
+        view.setGlow(1, 0xffffff);
+        const cards = [...this.slots.filter((v): v is CardView => !!v).map(v => v.card), ...this.queue.map(q => q.card)];
+        const matches = cards.filter(c => isLevelUpMatch(focus, c)).length;
+        return { name: focus.season?.title ?? focus.name, matches };
+    }
+
+    // Makes a card's view in its slot, with the highlights it should have right now.
+    private createCard (card: CardData, slot: number): CardView
+    {
+        const view = this.placeCard(card, slot);
+        const against = this.drag?.card.card ?? this.focusCard;
+        if (against && isLevelUpMatch(against, card))
+        {
+            view.setGlow(0.9, MATCH_TINT, true);
+        }
+        this.cull(view, slot);
+        return view;
     }
 
     private placeCard (card: CardData, slot: number): CardView
     {
-        const { x, y } = SLOTS[slot];
+        const { x, y } = this.pos(slot);
         const view = new CardView(this, card, x, y, this.boardTextureScale(), true)
             .setScale(BOARD_SCALE)
             .setDepth(DEPTH.cards);
@@ -199,10 +325,17 @@ export class MergeBoard extends ResponsiveScene
             }
         }
         this.slots.fill(null);
+        this.queue = [];
+        this.reserved.clear();
+        this.settling.clear();
         this.stopCharging();
+        this.gesture?.hold?.remove();
+        this.gesture = null;
         this.drag = null;
         this.hover = null;
         this.merging = false;
+        this.velocity = 0;
+        this.focusCard = null;
         // Anything still waiting resolves as a network failure.
         for (const [requestId, resolve] of this.pending)
         {
@@ -214,6 +347,7 @@ export class MergeBoard extends ResponsiveScene
 
     private destroyCard (view: CardView)
     {
+        this.settling.delete(view);
         view.destroy();
         releaseFaceTextures(this, view.card);
     }
@@ -222,8 +356,14 @@ export class MergeBoard extends ResponsiveScene
     {
         const g = this.slotGraphics;
         g.clear();
-        for (const { x, y } of SLOTS)
+        const { y: top, height } = this.viewport.visible;
+        for (let i = 0; i < this.slots.length; i++)
         {
+            const { x, y } = this.pos(i);
+            if (y + CELL_H / 2 < top || y - CELL_H / 2 > top + height)
+            {
+                continue;
+            }
             g.fillStyle(0x000000, 0.22);
             g.fillRoundedRect(x - CELL_W / 2, y - CELL_H / 2, CELL_W, CELL_H, 12);
             g.lineStyle(2, 0xe7b54a, 0.14);
@@ -231,9 +371,10 @@ export class MergeBoard extends ResponsiveScene
         }
     }
 
-    private updateHint ()
+    private updateHint (focus?: { name: string; matches: number })
     {
-        this.hint.setText(boardHint(this.slots.filter(Boolean).length, this.total));
+        const shown = this.slots.filter(Boolean).length + this.queue.length;
+        this.hint.setText(boardHint(shown, this.total, focus));
     }
 
     private boardTextureScale (): number
@@ -248,8 +389,85 @@ export class MergeBoard extends ResponsiveScene
 
     private cardAt (x: number, y: number, exclude?: CardView): CardView | null
     {
-        const hits = this.slots.filter((c): c is CardView => !!c && c !== exclude && c.containsWorldPoint(x, y));
+        // Nothing under the header strip can be picked.
+        if (y < GRID_TOP - 8)
+        {
+            return null;
+        }
+        const hits = this.slots.filter((c): c is CardView => !!c && c !== exclude && c.visible && c.containsWorldPoint(x, y));
         return hits.sort((a, b) => b.depth - a.depth)[0] ?? null;
+    }
+
+    // ---------- Scrolling ----------
+
+    /** A slot's centre on screen right now (design space). */
+    private pos (slot: number): { x: number; y: number }
+    {
+        const p = slotPosition(slot);
+        return { x: p.x, y: p.y - this.scroll };
+    }
+
+    /** The bottom of the board's view: above the React tab bar. */
+    private viewBottom (): number
+    {
+        const vp = this.viewport;
+        return vp.visible.y + vp.visible.height - (TAB_BAR_CSS * vp.pixelRatio) / vp.zoom;
+    }
+
+    private viewHeight (): number
+    {
+        return this.viewBottom() - GRID_TOP;
+    }
+
+    private updateScrollRange ()
+    {
+        if (!this.slotGraphics)
+        {
+            return;
+        }
+        this.scrollMax = maxScroll(this.slots.length, this.viewBottom());
+        this.setScroll(this.scroll, true);
+    }
+
+    /** Scrolls the board (clamped). True if it moved. */
+    private setScroll (next: number, force = false): boolean
+    {
+        const clamped = PMath.Clamp(next, 0, this.scrollMax);
+        if (clamped === this.scroll && !force)
+        {
+            return false;
+        }
+        this.scroll = clamped;
+        this.slots.forEach((view, i) =>
+        {
+            if (!view || view === this.drag?.card || view === this.inspector.active || this.settling.has(view))
+            {
+                return;
+            }
+            const { x, y } = this.pos(i);
+            view.setPosition(x, y);
+            this.cull(view, i);
+        });
+        this.drawSlots();
+        return true;
+    }
+
+    // Cards far off screen aren't drawn.
+    private cull (view: CardView, slot: number)
+    {
+        const { y: top, height } = this.viewport.visible;
+        const { y } = this.pos(slot);
+        view.setVisible(y + CELL_H / 2 > top && y - CELL_H / 2 < top + height);
+    }
+
+    private onWheel (_p: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number)
+    {
+        if (this.drag || this.merging || this.inspector.active)
+        {
+            return;
+        }
+        this.velocity = 0;
+        this.setScroll(this.scroll + (dy * this.viewport.pixelRatio) / this.viewport.zoom);
     }
 
     // ---------- Input ----------
@@ -260,45 +478,85 @@ export class MergeBoard extends ResponsiveScene
         {
             return;
         }
+        this.velocity = 0; // a touch stops a fling
         const card = this.cardAt(p.worldX, p.worldY);
-        if (!card)
-        {
-            return;
-        }
-        this.drag = {
+        const gesture: Gesture = {
             card,
-            fromSlot: this.slotOf(card),
+            touch: p.wasTouch,
+            mode: 'pending',
             startX: p.worldX,
             startY: p.worldY,
-            offsetX: card.x - p.worldX,
-            offsetY: card.y - p.worldY,
-            lastX: p.worldX,
-            started: false
+            startScroll: this.scroll,
+            lastY: p.worldY,
+            lastTime: p.downTime,
+            hold: null
         };
+        // Touch: holding still on a card picks it up; moving first scrolls instead.
+        if (card && gesture.touch)
+        {
+            gesture.hold = this.time.delayedCall(HOLD_MS, () =>
+            {
+                if (this.gesture === gesture && gesture.mode === 'pending')
+                {
+                    this.beginDrag(gesture, p.worldX, p.worldY);
+                }
+            });
+        }
+        this.gesture = gesture;
     }
 
     private onPointerMove (p: Phaser.Input.Pointer)
     {
-        const drag = this.drag;
-        if (!drag || !p.isDown)
+        const g = this.gesture;
+        if (!g || !p.isDown)
         {
             return;
         }
-        if (!drag.started)
+        if (g.mode === 'pending')
         {
-            if (Math.hypot(p.worldX - drag.startX, p.worldY - drag.startY) < DRAG_SLOP)
+            if (Math.hypot(p.worldX - g.startX, p.worldY - g.startY) < DRAG_SLOP)
             {
                 return;
             }
-            this.startDrag(drag);
+            g.hold?.remove();
+            if (g.card && !g.touch)
+            {
+                this.beginDrag(g, g.startX, g.startY); // a mouse drags at once
+            }
+            else
+            {
+                g.mode = 'scroll';
+            }
         }
 
+        if (g.mode === 'scroll')
+        {
+            if (!this.merging)
+            {
+                this.setScroll(g.startScroll - (p.worldY - g.startY));
+            }
+            const dt = Math.max(1, p.moveTime - g.lastTime);
+            this.velocity = (g.lastY - p.worldY) / dt;
+            g.lastY = p.worldY;
+            g.lastTime = p.moveTime;
+            return;
+        }
+
+        const drag = this.drag;
+        if (!drag)
+        {
+            return;
+        }
         // Lift the card slightly above the finger so it isn't hidden under it.
         const card = drag.card;
         card.setPosition(p.worldX + drag.offsetX, p.worldY + drag.offsetY - 16);
         const tilt = PMath.Clamp((p.worldX - drag.lastX) * 0.8, -14, 14);
         card.setAngle(card.angle + (tilt - card.angle) * 0.35);
         drag.lastX = p.worldX;
+        drag.pointerX = p.worldX;
+        drag.pointerY = p.worldY;
+        // Picking up a card in the top or bottom row must not scroll by itself.
+        drag.edgeArmed ||= Math.hypot(p.worldX - drag.startX, p.worldY - drag.startY) > EDGE_ARM_DISTANCE;
 
         this.setHover(this.cardAt(p.worldX, p.worldY, card));
     }
@@ -310,32 +568,71 @@ export class MergeBoard extends ResponsiveScene
             this.inspector.close(this.viewport.zoom);
             return;
         }
+        const g = this.gesture;
+        this.gesture = null;
+        if (!g)
+        {
+            return;
+        }
+        g.hold?.remove();
+        if (g.mode === 'pending')
+        {
+            this.velocity = 0;
+            if (g.card)
+            {
+                this.inspector.open(g.card, this.viewport.zoom);
+            }
+            return;
+        }
+        if (g.mode === 'scroll')
+        {
+            // A finger that stopped before lifting doesn't fling.
+            if (p.upTime - g.lastTime > 80)
+            {
+                this.velocity = 0;
+            }
+            return;
+        }
         const drag = this.drag;
         this.drag = null;
-        if (!drag)
+        if (drag)
         {
-            return;
+            this.drop(drag, p);
         }
-        if (!drag.started)
-        {
-            this.inspector.open(drag.card, this.viewport.zoom);
-            return;
-        }
-        this.drop(drag, p);
     }
 
-    private startDrag (drag: Drag)
+    private beginDrag (g: Gesture, x: number, y: number)
     {
-        drag.started = true;
-        drag.card.setDepth(DEPTH.dragging);
-        this.tweens.add({ targets: drag.card, scale: LIFT_SCALE, duration: 110, ease: 'Quad.easeOut' });
+        if (!g.card || this.merging)
+        {
+            return;
+        }
+        g.mode = 'drag';
+        this.velocity = 0;
+        const card = g.card;
+        this.focusCard = null;
+        this.clearHighlights();
+        this.drag = {
+            card,
+            fromSlot: this.slotOf(card),
+            offsetX: card.x - x,
+            offsetY: card.y - y,
+            lastX: x,
+            pointerX: x,
+            pointerY: y,
+            startX: x,
+            startY: y,
+            edgeArmed: false
+        };
+        card.setDepth(DEPTH.dragging);
+        this.tweens.add({ targets: card, scale: LIFT_SCALE, duration: 110, ease: 'Quad.easeOut' });
         vibrate(6);
         sfx.play('pickup');
 
         // Show which cards would level up. Recipe partners stay hidden.
         for (const other of this.slots)
         {
-            if (other && isLevelUpMatch(drag.card.card, other.card))
+            if (other && isLevelUpMatch(card.card, other.card))
             {
                 other.setGlow(0.9, MATCH_TINT, true);
             }
@@ -385,8 +682,8 @@ export class MergeBoard extends ResponsiveScene
             return;
         }
 
-        const slot = slotAt(p.worldX, p.worldY);
-        if (slot >= 0 && !this.slots[slot])
+        const slot = slotAt(p.worldX, p.worldY, this.scroll, this.slots.length);
+        if (slot >= 0 && !this.slots[slot] && !this.reserved.has(slot))
         {
             // Rearranging is purely visual, so it stays on the client.
             this.slots[drag.fromSlot] = null;
@@ -399,10 +696,23 @@ export class MergeBoard extends ResponsiveScene
 
     private settle (card: CardView, slot: number, duration = 260): Promise<void>
     {
+        this.settling.add(card);
+        const { x, y } = this.pos(slot);
         return this.tweenAsync({
-            targets: card, x: SLOTS[slot].x, y: SLOTS[slot].y, scale: BOARD_SCALE, angle: 0,
+            targets: card, x, y, scale: BOARD_SCALE, angle: 0,
             duration, ease: 'Back.easeOut'
-        }).then(() => { card.setDepth(DEPTH.cards); });
+        }).then(() =>
+        {
+            this.settling.delete(card);
+            const at = this.slotOf(card);
+            if (card.active && at >= 0)
+            {
+                // The board may have scrolled meanwhile.
+                const now = this.pos(at);
+                card.setPosition(now.x, now.y).setDepth(DEPTH.cards);
+                this.cull(card, at);
+            }
+        });
     }
 
     // ---------- Merge ----------
@@ -410,6 +720,7 @@ export class MergeBoard extends ResponsiveScene
     private async merge (a: CardView, b: CardView)
     {
         this.merging = true;
+        this.velocity = 0;
         const aSlot = this.slotOf(a);
         const bSlot = this.slotOf(b);
         const requestId = `merge-${Date.now()}-${++this.requestSeq}`;
@@ -424,9 +735,10 @@ export class MergeBoard extends ResponsiveScene
         const answer = this.waitForResult(requestId);
         EventBus.emit(MergeBoardEvents.MergeRequested, payload);
 
-        this.startCharging(a, b, SLOTS[bSlot].x, SLOTS[bSlot].y);
+        const target = this.pos(bSlot);
+        this.startCharging(a, b, target.x, target.y);
         const [result] = await Promise.all([answer, this.delay(MIN_CHARGE_MS)]);
-        const center = this.charging ? { x: this.charging.cx, y: this.charging.cy } : SLOTS[bSlot];
+        const center = this.charging ? { x: this.charging.cx, y: this.charging.cy } : this.pos(bSlot);
         this.stopCharging();
 
         // The board may have been cleared (scene switch) while waiting.
@@ -573,14 +885,15 @@ export class MergeBoard extends ResponsiveScene
         b.setGlow(0);
         vibrate(30);
         sfx.play('mergeFail');
-        floatText(this, SLOTS[bSlot].x, SLOTS[bSlot].y - CELL_H * 0.6, FAILURE_TEXT[error], PALETTE.muted, 32);
+        const home = this.pos(bSlot);
+        floatText(this, home.x, home.y - CELL_H * 0.6, FAILURE_TEXT[error], PALETTE.muted, 32);
 
         // Push apart: the dragged card springs home, the target shakes its head.
-        const home = this.settle(a, aSlot, 420);
-        b.setY(SLOTS[bSlot].y);
+        const back = this.settle(a, aSlot, 420);
+        b.setY(home.y);
         const shake = new Promise<void>(resolve =>
         {
-            const x0 = SLOTS[bSlot].x;
+            const x0 = home.x;
             this.tweens.addCounter({
                 from: 0, to: 1, duration: 360,
                 onUpdate: (tw) =>
@@ -590,12 +903,12 @@ export class MergeBoard extends ResponsiveScene
                 },
                 onComplete: () =>
                 {
-                    b.setPosition(x0, SLOTS[bSlot].y).setDepth(DEPTH.cards);
+                    b.setPosition(x0, home.y).setDepth(DEPTH.cards);
                     resolve();
                 }
             });
         });
-        await Promise.all([home, shake]);
+        await Promise.all([back, shake]);
     }
 
     // ---------- Helpers ----------

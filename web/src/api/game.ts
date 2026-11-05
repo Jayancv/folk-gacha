@@ -5,6 +5,7 @@
 import { api } from './client';
 import { toCardData, type OwnedCard } from './cards';
 import type { BoardShowPayload, MergeFailure, MergeResultPayload } from '../bridge/events';
+import { boardOrder, focusLayout, type BoardFocus } from '../game/merge/boardModel';
 
 export type ClaimError = 'already_claimed' | 'no_season' | 'signed_out' | 'network';
 
@@ -83,19 +84,34 @@ export function claimError (status: number, code: string | undefined): ClaimErro
 }
 
 /** GET /cards: the newest `size` cards for the merge board, plus how many the player owns. */
-export async function loadBoard (size: number): Promise<BoardShowPayload>
+async function boardCards (query: { limit: number; spirit?: string; level?: number })
 {
-    const { data, error, response } = await api.GET('/cards', { params: { query: { limit: size } } });
+    const { data, error, response } = await api.GET('/cards', { params: { query } });
     if (!data)
     {
         throw new Error(`GET /cards: ${response.status} ${error?.error ?? ''}`.trim());
     }
-    const cards = data.cards.map(c => toCardData(c));
+    return { total: data.total, cards: data.cards.map(c => toCardData(c)) };
+}
+
+/**
+ * The cards for the merge board, pairs that can level up first (`boardOrder`), or, with a focus
+ * ("Merge" on a card), that card and its level-up matches first (`focusLayout`), then the rest.
+ */
+export async function loadBoard (size: number, focus: BoardFocus | null = null): Promise<BoardShowPayload>
+{
+    const [newest, matches] = await Promise.all([
+        boardCards({ limit: size }),
+        focus ? boardCards({ limit: size, spirit: focus.templateId, level: focus.level }) : null
+    ]);
+    const rest = boardOrder(newest.cards);
+    const cards = focus && matches ? focusLayout(focus.id, matches.cards, rest, size) : rest;
     return {
         cards,
-        total: data.total,
+        total: newest.total,
         locked: cards.filter(c => c.inTrade || c.inTournament).map(c => c.id),
-        inEvent: cards.filter(c => c.inTournament).map(c => c.id)
+        inEvent: cards.filter(c => c.inTournament).map(c => c.id),
+        focusId: focus && cards.some(c => c.id === focus.id) ? focus.id : undefined
     };
 }
 

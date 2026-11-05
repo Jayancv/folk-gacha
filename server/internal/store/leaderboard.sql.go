@@ -111,7 +111,7 @@ WITH totals AS (
            count(*) OVER () AS players
     FROM totals
 )
-SELECT ranked.rank, ranked.points, ranked.user_id, u.username, ranked.players
+SELECT ranked.rank, ranked.points, ranked.user_id, u.username, u.public_name, ranked.players
 FROM ranked
 JOIN users u ON u.id = ranked.user_id
 WHERE ranked.rank <= $1::bigint
@@ -119,11 +119,12 @@ ORDER BY ranked.rank
 `
 
 type ListAllTimeTopRow struct {
-	Rank     int64
-	Points   int64
-	UserID   uuid.UUID
-	Username string
-	Players  int64
+	Rank       int64
+	Points     int64
+	UserID     uuid.UUID
+	Username   string
+	PublicName string
+	Players    int64
 }
 
 // All-time ranks: every week's season points added up (traded and gift cards earn none,
@@ -142,6 +143,7 @@ func (q *Queries) ListAllTimeTop(ctx context.Context, topN int64) ([]ListAllTime
 			&i.Points,
 			&i.UserID,
 			&i.Username,
+			&i.PublicName,
 			&i.Players,
 		); err != nil {
 			return nil, err
@@ -155,7 +157,7 @@ func (q *Queries) ListAllTimeTop(ctx context.Context, topN int64) ([]ListAllTime
 }
 
 const listFinalTop = `-- name: ListFinalTop :many
-SELECT r.rank, r.points, r.user_id, u.username,
+SELECT r.rank, r.points, r.user_id, u.username, u.public_name,
        (SELECT count(*) FROM season_results c WHERE c.season_id = r.season_id) AS players
 FROM season_results r
 JOIN users u ON u.id = r.user_id
@@ -169,11 +171,12 @@ type ListFinalTopParams struct {
 }
 
 type ListFinalTopRow struct {
-	Rank     int32
-	Points   int32
-	UserID   uuid.UUID
-	Username string
-	Players  int64
+	Rank       int32
+	Points     int32
+	UserID     uuid.UUID
+	Username   string
+	PublicName string
+	Players    int64
 }
 
 // The top @top_n of a frozen season, plus how many were ranked.
@@ -191,6 +194,7 @@ func (q *Queries) ListFinalTop(ctx context.Context, arg ListFinalTopParams) ([]L
 			&i.Points,
 			&i.UserID,
 			&i.Username,
+			&i.PublicName,
 			&i.Players,
 		); err != nil {
 			return nil, err
@@ -212,7 +216,7 @@ WITH ranked AS (
     FROM season_points
     WHERE season_id = $2 AND points > 0
 )
-SELECT ranked.rank, ranked.points, ranked.user_id, u.username, ranked.players
+SELECT ranked.rank, ranked.points, ranked.user_id, u.username, u.public_name, ranked.players
 FROM ranked
 JOIN users u ON u.id = ranked.user_id
 WHERE ranked.rank <= $1::bigint
@@ -225,11 +229,12 @@ type ListLiveTopParams struct {
 }
 
 type ListLiveTopRow struct {
-	Rank     int64
-	Points   int32
-	UserID   uuid.UUID
-	Username string
-	Players  int64
+	Rank       int64
+	Points     int32
+	UserID     uuid.UUID
+	Username   string
+	PublicName string
+	Players    int64
 }
 
 // Live ranks use the same order as FreezeSeasonResults (points, then who got there
@@ -249,6 +254,7 @@ func (q *Queries) ListLiveTop(ctx context.Context, arg ListLiveTopParams) ([]Lis
 			&i.Points,
 			&i.UserID,
 			&i.Username,
+			&i.PublicName,
 			&i.Players,
 		); err != nil {
 			return nil, err

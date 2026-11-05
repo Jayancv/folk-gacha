@@ -220,4 +220,5 @@ type User struct {
 	TradeUnlockedAt time.Time
 	DisplayName     string
 	TutorialDoneAt  pgtype.Timestamptz
+	PublicName      string
 }

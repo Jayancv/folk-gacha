@@ -106,6 +106,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Choose the name other players see
+         * @description The name shown on leaderboards, tournament results and your profile, next to your @username.
+         *     2–20 letters (any language), digits, spaces and . - _ ' with at least one letter; spaces are
+         *     tidied. An empty name goes back to showing your username. Your Google name is never shown
+         *     to other players unless you type it here.
+         */
+        put: operations["setPublicName"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/showcase": {
         parameters: {
             query?: never;
@@ -642,6 +665,8 @@ export interface components {
              */
             tradeUnlockedAt: string;
             dailyPack?: components["schemas"]["DailyPackStatus"];
+            /** @description The name you chose to show other players (PUT /me/name); absent until you pick one */
+            publicName?: string;
             /** @description Your full name from Google (only ever shown to you); absent for dev logins */
             displayName?: string;
             /** @description Partner gifts from trades and tournament prize cards waiting to be opened on the Pack tab (POST /gifts/open) */
@@ -800,10 +825,14 @@ export interface components {
         LeaderboardEntry: {
             rank: number;
             username: string;
+            /** @description The name the player chose to show (PUT /me/name); absent until they pick one, so show the username */
+            name?: string;
             points: number;
         };
         Profile: {
             username: string;
+            /** @description The name the player chose to show (PUT /me/name); absent until they pick one, so show the username */
+            name?: string;
             /** Format: date-time */
             joinedAt: string;
             /** @description Sum of the player's best 10 card scores (shown, never ranked) */
@@ -912,6 +941,16 @@ export interface components {
             newAccountWaitDays: number;
             /** @description Partner gifts a player can get per leaderboard week (0 = gifts off) */
             partnerGiftsPerWeek: number;
+            /** @description Chance of each rarity per pack card, in percent (sums to 100) */
+            dropChancePercent: {
+                common: number;
+                uncommon: number;
+                rare: number;
+                epic: number;
+                legendary: number;
+            };
+            /** @description At least one Rare or better every this many daily packs */
+            pityPacks: number;
         };
         /** @description All-time standings (every week's season points added up) */
         AllTimeLeaderboard: {
@@ -1011,6 +1050,8 @@ export interface components {
         TournamentResult: {
             rank: number;
             username: string;
+            /** @description The name the player chose to show (PUT /me/name); absent until they pick one, so show the username */
+            name?: string;
             score: number;
         };
         TournamentLineup: {
@@ -1217,6 +1258,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Me"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    setPublicName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Your updated profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description The name is too short or long, or uses characters names can't have (bad_name) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             /** @description Not signed in */

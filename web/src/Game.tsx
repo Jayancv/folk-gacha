@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { OwnedCard } from './api/cards';
 import type { Me } from './auth/useAuth';
+import type { CardsView } from './app/cardsView';
 import { ApiStatus } from './app/ApiStatus';
 import { InstallBanner } from './app/install/InstallBanner';
 import { LiveNotice } from './app/live/LiveNotice';
@@ -15,10 +17,13 @@ import { ShowcaseAgainButton, ShowcasePanel } from './dev/ShowcasePanel';
 import { PhaserGame } from './PhaserGame';
 import { BoardLoadError } from './screens/board/BoardLoadError';
 import { useBoardTable } from './screens/board/useBoardTable';
+import { CardsViewSwitch } from './screens/collection/CardsViewSwitch';
 import { Collection } from './screens/collection/Collection';
+import { BoardFocusChip } from './screens/board/BoardFocusChip';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { GiftButton } from './screens/pack/GiftButton';
+import { Help } from './screens/help/Help';
 import { Profile } from './screens/profile/Profile';
 import { waitingCount } from './screens/trades/tradeModel';
 import { openToEnterCount } from './screens/tournaments/tournamentModel';
@@ -36,9 +41,24 @@ import { UserChip } from './screens/UserChip';
 // decides every outcome (see usePackTable and useBoardTable).
 export default function Game ({ me }: { me: Me })
 {
-    const { tab, collectionOpened, switchTo } = useTabs();
+    const { tab, collectionOpened, switchTo, openNav, showCardsView } = useTabs();
     const pack = usePackTable(tab === 'PackOpen');
     const board = useBoardTable(tab === 'MergeBoard');
+    // The Cards tab: Board / List switch. Tapping Board shows the newest cards again;
+    // Merge on a card's sheet opens the Board on that card and its matches.
+    const showView = (view: CardsView) =>
+    {
+        if (view === 'MergeBoard')
+        {
+            board.focusOn(null);
+        }
+        showCardsView(view);
+    };
+    const mergeFrom = (card: OwnedCard) =>
+    {
+        board.focusOn(card);
+        showCardsView('MergeBoard');
+    };
     const install = useInstallPrompt();
     const notifications = usePushNotifications();
     // The tab badge; live events refresh it (it polls only while the socket is down).
@@ -48,11 +68,13 @@ export default function Game ({ me }: { me: Me })
     useLive(setNotice);
     // A profile opens over any screen (from the player chip or a leaderboard row).
     const [profileOf, setProfileOf] = useState<string | null>(null);
+    // How to play, from the "?" next to your name.
+    const [helpOpen, setHelpOpen] = useState(false);
     const tutorial = useTutorial(me, {
         tab, packOpened: pack.opened, packRevealed: pack.revealed, boardCards: board.cards, showcase: pack.showcase !== null
     });
-    // Over a table scene, the game loop sleeps while the profile covers it.
-    const coversTable = profileOf !== null && !isReactScreen(tab);
+    // Over a table scene, the game loop sleeps while the profile or help covers it.
+    const coversTable = (profileOf !== null || helpOpen) && !isReactScreen(tab);
     useEffect(() =>
     {
         if (!coversTable)
@@ -87,11 +109,19 @@ export default function Game ({ me }: { me: Me })
                 />
             ))}
 
+            {tab === 'MergeBoard' && (
+                <div className="pointer-events-none fixed inset-x-0 top-12 px-4">
+                    <div className="mx-auto flex max-w-3xl items-center gap-2">
+                        <CardsViewSwitch view="MergeBoard" onChange={showView} />
+                        {board.focusCard && <BoardFocusChip card={board.focusCard} onClear={() => board.focusOn(null)} />}
+                    </div>
+                </div>
+            )}
             {tab === 'MergeBoard' && board.loadError && <BoardLoadError onRetry={board.retry} />}
 
             {collectionOpened && (
                 <div hidden={tab !== 'Collection'}>
-                    <Collection />
+                    <Collection viewSwitch={<CardsViewSwitch view="Collection" onChange={showView} />} onMerge={mergeFrom} />
                 </div>
             )}
             {tab === 'Trades' && <Trades me={me} onOpenProfile={setProfileOf} />}
@@ -109,10 +139,11 @@ export default function Game ({ me }: { me: Me })
                 />
             )}
             <ApiStatus />
-            <UserChip me={me} onOpenProfile={() => setProfileOf(me.username)} />
-            {tutorial.active && !profileOf && (
+            <UserChip me={me} onOpenProfile={() => setProfileOf(me.username)} onOpenHelp={() => setHelpOpen(true)} />
+            {tutorial.active && !profileOf && !helpOpen && (
                 <TutorialOverlay content={tutorial.content} number={tutorial.number} onNext={tutorial.next} onSkip={tutorial.skip} />
             )}
+            {helpOpen && <Help onClose={() => setHelpOpen(false)} />}
             {profileOf && (
                 <Profile
                     username={profileOf}
@@ -130,7 +161,7 @@ export default function Game ({ me }: { me: Me })
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
                 {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && me.giftsWaiting > 0 && <GiftButton gifts={gifts} />}
                 {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
-                <TabBar tab={tab} onSwitch={switchTo} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />
+                <TabBar tab={tab} onSwitch={openNav} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />
             </div>
         </div>
     );

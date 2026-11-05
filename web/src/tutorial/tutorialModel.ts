@@ -58,7 +58,7 @@ export function spiritName (card: CardData): string
 }
 
 /** What a highlighted control is called in the UI (data-tutorial="..."). */
-export type TutorialTarget = 'claim' | 'tab-MergeBoard';
+export type TutorialTarget = 'claim' | 'tab-Cards' | 'view-MergeBoard';
 
 export interface StepContent
 {
@@ -70,7 +70,8 @@ export interface StepContent
     button?: string;
 }
 
-export function stepContent (step: TutorialStep, pair: CardData | null): StepContent
+/** `onList`: the Cards tab is open on its List view (the merge step needs the Board). */
+export function stepContent (step: TutorialStep, pair: CardData | null, onList = false): StepContent
 {
     switch (step)
     {
@@ -79,7 +80,9 @@ export function stepContent (step: TutorialStep, pair: CardData | null): StepCon
         case 'flip':
             return { title: 'Reveal your cards', body: 'Tap a card, or swipe across them, to flip. Rarer cards put on a bigger show!' };
         case 'go-board':
-            return { title: 'Time to merge', body: 'Merging makes your cards stronger. Open the Board.', target: 'tab-MergeBoard' };
+            return onList
+                ? { title: 'Time to merge', body: 'Merging makes your cards stronger. Switch to the Board.', target: 'view-MergeBoard' }
+                : { title: 'Time to merge', body: 'Merging makes your cards stronger. Open Cards.', target: 'tab-Cards' };
         case 'merge':
             return {
                 title: 'Merge a pair',
@@ -96,7 +99,7 @@ export function stepContent (step: TutorialStep, pair: CardData | null): StepCon
         case 'done':
             return {
                 title: "You're all set!",
-                body: 'Check Cards for your collection and Ranks for this week\'s leaderboard. A new pack arrives every day at 00:00 UTC.',
+                body: 'Switch Cards to List for your whole collection (tap a card, then Merge), and see Ranks for this week\'s leaderboard. A new pack arrives every day at 00:00 UTC.',
                 button: 'Start playing'
             };
     }

@@ -31,7 +31,9 @@ type Entry struct {
 	Rank     int
 	UserID   uuid.UUID
 	Username string
-	Points   int
+	// Name: the name the player chose to show ("" until they pick one).
+	Name   string
+	Points int
 }
 
 // Board is a season's standings.
@@ -98,7 +100,7 @@ func (s *Service) live(ctx context.Context, q *store.Queries, b *Board, viewer *
 		return err
 	}
 	for _, r := range rows {
-		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Points: int(r.Points)})
+		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Name: r.PublicName, Points: int(r.Points)})
 		b.Players = int(r.Players)
 	}
 	if viewer == nil {
@@ -122,7 +124,7 @@ func (s *Service) final(ctx context.Context, q *store.Queries, b *Board, viewer 
 		return err
 	}
 	for _, r := range rows {
-		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Points: int(r.Points)})
+		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Name: r.PublicName, Points: int(r.Points)})
 		b.Players = int(r.Players)
 	}
 	if viewer == nil {
@@ -159,7 +161,7 @@ func (s *Service) AllTime(ctx context.Context, viewer *uuid.UUID) (AllTimeBoard,
 		return AllTimeBoard{}, err
 	}
 	for _, r := range rows {
-		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Points: int(r.Points)})
+		b.Top = append(b.Top, Entry{Rank: int(r.Rank), UserID: r.UserID, Username: r.Username, Name: r.PublicName, Points: int(r.Points)})
 		b.Players = int(r.Players)
 	}
 	if viewer == nil {

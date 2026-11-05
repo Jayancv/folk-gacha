@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { OwnedCard } from '../../api/cards';
 import { ELEMENT_STYLE, RARITIES, RARITY_STYLE } from '../../game/cards/model';
 import { InTradeBadge } from '../trades/InTradeBadge';
+import { pairGroups } from './mergeModel';
 import { CardImage } from './CardImage';
 import { CardSheet } from './CardSheet';
 import {
@@ -21,9 +22,10 @@ import {
 } from './filters';
 import { useCollection } from './useCollection';
 
-// The player's cards from GET /cards, with filters. Plain React (no Phaser); the
-// table stays mounted underneath, asleep, while this covers it.
-export function Collection ()
+// The player's cards from GET /cards, with filters: the List view of the Cards tab. Plain React
+// (no Phaser); the table stays mounted underneath, asleep, while this covers it. `viewSwitch` is
+// the Board / List switch; `onMerge` opens the Board on a card (the sheet's Merge button).
+export function Collection ({ viewSwitch, onMerge }: { viewSwitch: React.ReactNode; onMerge: (card: OwnedCard) => void })
 {
     const [filters, setFilters] = useState<CollectionFilters>(NO_FILTERS);
     const [showFilters, setShowFilters] = useState(false);
@@ -33,6 +35,8 @@ export function Collection ()
     const list = cards.data?.pages.flatMap(p => p.cards) ?? [];
     const total = cards.data?.pages[0]?.total ?? 0;
     const filterCount = activeFilterCount(filters);
+    // Cards that can level up with another loaded card get a "×n" mark.
+    const pairs = pairGroups(list);
 
     // Load the next page when the end of the grid scrolls into view.
     const end = useRef<HTMLDivElement>(null);
@@ -61,13 +65,9 @@ export function Collection ()
         <>
         <section data-scroll-root className="absolute inset-0 z-0 overflow-y-auto overscroll-contain bg-[#170e10] text-[#f6eadc]" aria-label="Collection">
             <header className="sticky top-0 z-10 border-b border-[#3b2529] bg-[#170e10]/95 px-4 pt-12 pb-3 backdrop-blur">
+                <h1 className="sr-only">Collection</h1>
                 <div className="mx-auto flex max-w-3xl items-center gap-2">
-                    <div className="mr-auto">
-                        <h1 className="font-serif text-xl font-bold">Collection</h1>
-                        <p className="text-xs text-[#bba595]" aria-live="polite">
-                            {cards.isPending ? 'Loading…' : countText(total, filters)}
-                        </p>
-                    </div>
+                    <div className="mr-auto">{viewSwitch}</div>
                     <label className="sr-only" htmlFor="collection-sort">Sort</label>
                     <select
                         id="collection-sort"
@@ -88,6 +88,10 @@ export function Collection ()
                         Filters{filterCount > 0 ? ` · ${filterCount}` : ''}
                     </button>
                 </div>
+
+                <p className="mx-auto mt-2 max-w-3xl text-xs text-[#bba595]" aria-live="polite">
+                    {cards.isPending ? 'Loading…' : countText(total, filters)}
+                </p>
 
                 {showFilters && (
                     <div id="collection-filters" className="mx-auto mt-3 flex max-w-3xl flex-col gap-2">
@@ -136,9 +140,14 @@ export function Collection ()
                                 <button
                                     onClick={() => setOpen(card)}
                                     className="relative block w-full rounded-[6%] transition-transform active:scale-95"
-                                    aria-label={`${card.name}, level ${card.level}${card.inTrade ? ', in an open trade' : card.inTournament ? ', in a tournament' : ''}`}
+                                    aria-label={`${card.name}, level ${card.level}${card.inTrade ? ', in an open trade' : card.inTournament ? ', in a tournament' : pairs.has(card.id) ? ', can merge' : ''}`}
                                 >
                                     <CardImage card={card} />
+                                    {pairs.has(card.id) && (
+                                        <span className="absolute -top-1.5 -left-1.5 rounded-full border border-[#170e10] bg-[#e7b54a] px-1.5 py-0.5 text-[10px] leading-none font-bold text-[#170e10] shadow" aria-hidden="true">
+                                            ✦ ×{pairs.get(card.id)}
+                                        </span>
+                                    )}
                                     {card.inTrade && <InTradeBadge />}
                                     {card.inTournament && <InTradeBadge text="In event" />}
                                 </button>
@@ -150,7 +159,17 @@ export function Collection ()
                 {isFetchingNextPage && <p className="py-4 text-center text-xs text-[#bba595]">Loading more…</p>}
             </div>
         </section>
-        {open && <CardSheet card={open} onClose={() => setOpen(null)} />}
+        {open && (
+            <CardSheet
+                card={open}
+                onClose={() => setOpen(null)}
+                onMerge={card =>
+                {
+                    setOpen(null);
+                    onMerge(card);
+                }}
+            />
+        )}
         </>
     );
 }

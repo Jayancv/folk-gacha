@@ -61,7 +61,7 @@ underdog scoring, head-to-head brackets), so it's not always the biggest collect
   with an offline shell and "your pack is ready" notifications.
 - **Server** (`server/`): Go, PostgreSQL (pgx + sqlc, goose migrations), WebSockets for live trade events.
 - **API contract** (`api/`): OpenAPI, generating both the Go handlers and the TypeScript types.
-- Hosting: Netlify (web) and Render (server + Postgres).
+- Hosting: Render (static site for the web app, Docker service for the server, Postgres).
 
 ## Running locally
 

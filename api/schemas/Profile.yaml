@@ -11,6 +11,9 @@ required:
 properties:
   username:
     type: string
+  name:
+    type: string
+    description: The name the player chose to show (PUT /me/name); absent until they pick one, so show the username
   joinedAt:
     type: string
     format: date-time

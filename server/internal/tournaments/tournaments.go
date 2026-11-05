@@ -106,7 +106,9 @@ type Result struct {
 	Rank     int
 	UserID   uuid.UUID
 	Username string
-	Score    int
+	// Name: the name the player chose to show ("" until they pick one).
+	Name  string
+	Score int
 }
 
 // Detail is a tournament with the viewer's entry and, once closed, the results.
@@ -206,7 +208,7 @@ func (s *Service) Get(ctx context.Context, viewer uuid.UUID, id string) (Detail,
 	}
 	d.Results = make([]Result, len(results))
 	for i, r := range results {
-		d.Results[i] = Result{Rank: int(r.Rank.Int32), UserID: r.UserID, Username: r.Username, Score: int(r.Score.Int32)}
+		d.Results[i] = Result{Rank: int(r.Rank.Int32), UserID: r.UserID, Username: r.Username, Name: r.PublicName, Score: int(r.Score.Int32)}
 	}
 	return d, nil
 }

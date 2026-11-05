@@ -56,11 +56,48 @@ func (s *Server) SetShowcase(ctx context.Context, req SetShowcaseRequestObject) 
 	return SetShowcase200JSONResponse(out), nil
 }
 
+func (s *Server) SetPublicName(ctx context.Context, req SetPublicNameRequestObject) (SetPublicNameResponseObject, error) {
+	user, ok := userFrom(ctx)
+	if !ok {
+		return SetPublicName401JSONResponse{Error: "not_signed_in"}, nil
+	}
+	if s.profiles == nil {
+		return nil, errors.New("profiles are not configured")
+	}
+	if req.Body == nil {
+		return SetPublicName400JSONResponse{Error: "bad_name"}, nil
+	}
+	p, err := s.profiles.SetName(ctx, user, req.Body.Name)
+	switch {
+	case errors.Is(err, profile.ErrBadName):
+		return SetPublicName400JSONResponse{
+			Error:   "bad_name",
+			Message: ptr("Use 2–20 letters (any language), digits, spaces and . - _ ' with at least one letter."),
+		}, nil
+	case err != nil:
+		return nil, err
+	}
+	out, err := toProfile(p, true)
+	if err != nil {
+		return nil, err
+	}
+	return SetPublicName200JSONResponse(out), nil
+}
+
+// optName is a chosen name for the API: absent when the player hasn't picked one.
+func optName(name string) *string {
+	if name == "" {
+		return nil
+	}
+	return &name
+}
+
 // toProfile shapes a profile for the API. The full name is personal: only the
 // player themself gets it (own is true); everyone else sees the username.
 func toProfile(p profile.Profile, own bool) (Profile, error) {
 	out := Profile{
 		Username:          p.User.Username,
+		Name:              optName(p.User.PublicName),
 		JoinedAt:          p.User.CreatedAt.UTC(),
 		CollectionPower:   p.CollectionPower,
 		CardCount:         p.CardCount,

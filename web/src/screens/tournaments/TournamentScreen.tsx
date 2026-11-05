@@ -4,6 +4,7 @@ import type { Me } from '../../auth/useAuth';
 import { CardImage } from '../collection/CardImage';
 import { CardSheet } from '../collection/CardSheet';
 import { errorOf } from '../trades/useTrades';
+import { handleText, shownName } from '../profile/playerName';
 import { LineupPicker } from './LineupPicker';
 import {
     entriesText, formatRule, multiplierText, placeText, pointsByCard, prizeFor, prizesText, statusLine, tournamentErrorText, utcTimeText,
@@ -201,7 +202,10 @@ function Results ({ detail: d, me, onOpenProfile }: { detail: TournamentDetail; 
                                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm ${mine ? 'border border-[#e7b54a]/50 bg-[#e7b54a]/10' : 'bg-[#22151a]'}`}
                             >
                                 <span className={`w-10 font-serif font-bold ${r.rank <= 3 ? 'text-[#e7b54a]' : 'text-[#bba595]'}`}>{placeText(r.rank)}</span>
-                                <span className="mr-auto truncate">{r.username}{mine && ' (you)'}</span>
+                                <span className="mr-auto min-w-0">
+                                    <span className="block truncate">{shownName(r)}{mine && ' (you)'}</span>
+                                    {handleText(r) && <span className="block truncate text-[11px] text-[#bba595]">{handleText(r)}</span>}
+                                </span>
                                 {prizeFor(d.tournament.prizes, r.rank) > 0 && (
                                     <span className="text-xs text-[#e7b54a]" aria-label={`Won ${prizeFor(d.tournament.prizes, r.rank)} cards`}>🎁 {prizeFor(d.tournament.prizes, r.rank)}</span>
                                 )}

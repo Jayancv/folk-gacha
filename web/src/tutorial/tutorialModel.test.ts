@@ -69,7 +69,8 @@ describe('merge hint', () =>
     it('spotlights the claim button and the Board tab, and gives buttons only where needed', () =>
     {
         expect(stepContent('open-pack', null).target).toBe('claim');
-        expect(stepContent('go-board', null).target).toBe('tab-MergeBoard');
+        expect(stepContent('go-board', null).target).toBe('tab-Cards');
+        expect(stepContent('go-board', null, true).target).toBe('view-MergeBoard');
         expect(stepContent('flip', null).button).toBeUndefined();
         expect(stepContent('no-pair', null).button).toBeDefined();
         expect(stepContent('done', null).button).toBeDefined();

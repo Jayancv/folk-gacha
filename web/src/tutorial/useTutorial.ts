@@ -94,7 +94,7 @@ export function useTutorial (me: Me, table: TableState)
         active,
         step,
         number: stepNumber(step),
-        content: stepContent(step, pair),
+        content: stepContent(step, pair, table.tab === 'Collection'),
         next,
         skip: finish
     };

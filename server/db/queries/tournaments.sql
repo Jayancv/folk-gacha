@@ -130,7 +130,7 @@ UPDATE tournament_prizes SET card_id = @card_id::uuid, opened_at = @opened_at::t
 WHERE tournament_id = @tournament_id AND user_id = @user_id AND n = @n;
 
 -- name: ListTournamentResults :many
-SELECT e.rank, e.score, e.user_id, u.username
+SELECT e.rank, e.score, e.user_id, u.username, u.public_name
 FROM tournament_entries e
 JOIN users u ON u.id = e.user_id
 WHERE e.tournament_id = @tournament_id AND e.rank IS NOT NULL
