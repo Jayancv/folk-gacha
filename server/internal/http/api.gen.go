@@ -389,11 +389,14 @@ type CardTraits struct {
 type DailyPack struct {
 	Cards []Card `json:"cards"`
 
-	// Day The UTC day this pack was claimed for
+	// Day The UTC day whose pack this was (an earlier day for a saved-up pack; the oldest opens first)
 	Day openapi_types.Date `json:"day"`
 
 	// NextResetAt When the next pack can be claimed (00:00 UTC)
 	NextResetAt time.Time `json:"nextResetAt"`
+
+	// Waiting Daily packs still unopened after this one
+	Waiting int `json:"waiting"`
 }
 
 // DailyPackStatus defines model for DailyPackStatus.
@@ -401,8 +404,11 @@ type DailyPackStatus struct {
 	// NextResetAt Next daily reset (00:00 UTC)
 	NextResetAt time.Time `json:"nextResetAt"`
 
-	// Ready Whether today's pack can be claimed
+	// Ready Whether a daily pack can be opened now (waiting > 0)
 	Ready bool `json:"ready"`
+
+	// Waiting Unopened daily packs (today's and saved-up ones, up to packs.maxUnopenedCards / 5)
+	Waiting int `json:"waiting"`
 }
 
 // DiscoveredRecipe defines model for DiscoveredRecipe.
@@ -442,6 +448,9 @@ type GameRules struct {
 
 	// MaxTradeCards Most cards on each side of a trade offer
 	MaxTradeCards int `json:"maxTradeCards"`
+
+	// MaxUnopenedCards Unopened daily packs are kept up to this many cards (a multiple of 5); older ones are lost
+	MaxUnopenedCards int `json:"maxUnopenedCards"`
 
 	// NewAccountWaitDays Days after sign-up before an account can trade (0 = none)
 	NewAccountWaitDays int `json:"newAccountWaitDays"`
@@ -777,6 +786,9 @@ type Trade struct {
 	// From Sender's username
 	From string `json:"from"`
 
+	// FromName The name the sender chose to show (PUT /me/name); absent until they pick one
+	FromName *string `json:"fromName,omitempty"`
+
 	// Gifted This trade gave you a partner gift: the first accepted trade between two players gives each of them one (at most 2 per player per week). It waits on the Pack tab until opened (POST /gifts/open).
 	Gifted bool               `json:"gifted"`
 	Id     openapi_types.UUID `json:"id"`
@@ -796,6 +808,9 @@ type Trade struct {
 
 	// To Recipient's username
 	To string `json:"to"`
+
+	// ToName The name the recipient chose to show; absent until they pick one
+	ToName *string `json:"toName,omitempty"`
 }
 
 // TradeDirection incoming (sent to you) or outgoing (sent by you)

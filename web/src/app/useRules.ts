@@ -12,7 +12,8 @@ export const DEFAULT_RULES: GameRules = {
     newAccountWaitDays: 0,
     partnerGiftsPerWeek: 2,
     dropChancePercent: { common: 70, uncommon: 20, rare: 8, epic: 1.8, legendary: 0.2 },
-    pityPacks: 7
+    pityPacks: 7,
+    maxUnopenedCards: 15
 };
 
 /** The game's tunable limits (GET /rules), loaded once per session. */

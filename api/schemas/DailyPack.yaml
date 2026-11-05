@@ -2,16 +2,20 @@ type: object
 required:
   - day
   - cards
+  - waiting
   - nextResetAt
 properties:
   day:
     type: string
     format: date
-    description: The UTC day this pack was claimed for
+    description: The UTC day whose pack this was (an earlier day for a saved-up pack; the oldest opens first)
   cards:
     type: array
     items:
       $ref: ./Card.yaml
+  waiting:
+    type: integer
+    description: Daily packs still unopened after this one
   nextResetAt:
     type: string
     format: date-time

@@ -67,7 +67,8 @@ SELECT id, from_user, to_user FROM due;
 
 -- name: ListTrades :many
 -- A player's open offers (both directions) and those resolved since @since, newest first.
-SELECT t.*, fu.username AS from_username, tu.username AS to_username
+SELECT t.*, fu.username AS from_username, tu.username AS to_username,
+       fu.public_name AS from_name, tu.public_name AS to_name
 FROM trades t
 JOIN users fu ON fu.id = t.from_user
 JOIN users tu ON tu.id = t.to_user
@@ -77,7 +78,8 @@ ORDER BY t.created_at DESC, t.id
 LIMIT 100;
 
 -- name: GetTrade :one
-SELECT t.*, fu.username AS from_username, tu.username AS to_username
+SELECT t.*, fu.username AS from_username, tu.username AS to_username,
+       fu.public_name AS from_name, tu.public_name AS to_name
 FROM trades t
 JOIN users fu ON fu.id = t.from_user
 JOIN users tu ON tu.id = t.to_user

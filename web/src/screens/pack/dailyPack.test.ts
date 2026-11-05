@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimErrorText, giftButtonText, giftTitle, nextPackText } from './dailyPack';
+import { claimErrorText, giftButtonText, giftTitle, nextPackButtonText, nextPackText, openPackText, packLimitText, packPanelTitle } from './dailyPack';
 
 const reset = '2026-10-31T00:00:00Z';
 const before = (ms: number) => Date.parse(reset) - ms;
@@ -24,6 +24,25 @@ describe('nextPackText', () =>
         expect(nextPackText(reset, before(0))).toBe('Your next pack is ready');
         expect(nextPackText(reset, before(-5_000))).toBe('Your next pack is ready');
         expect(nextPackText('not a date', 0)).toBe('Your next pack is ready');
+    });
+});
+
+describe('saved-up packs', () =>
+{
+    it('talks about one pack or several', () =>
+    {
+        expect(packPanelTitle(1)).toBe('Your daily pack is here');
+        expect(openPackText(1)).toBe("Open today's pack");
+        expect(packPanelTitle(3)).toBe('3 packs are waiting');
+        expect(openPackText(3)).toBe('Open a pack');
+        expect(nextPackButtonText(2)).toBe('Open next pack · 2 left');
+    });
+
+    it('warns only when the next pack would be lost', () =>
+    {
+        expect(packLimitText(2, 3)).toBeNull();
+        expect(packLimitText(3, 3)).toBe("You're keeping 3 packs, the most you can: open one before 00:00 UTC or the next one is lost.");
+        expect(packLimitText(1, 1)).toBeNull(); // no saving up: nothing to warn about
     });
 });
 

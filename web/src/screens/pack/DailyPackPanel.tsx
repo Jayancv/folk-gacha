@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { ClaimError } from '../../api/game';
 import type { Me } from '../../auth/useAuth';
-import { claimErrorText, nextPackText } from './dailyPack';
+import { useRules } from '../../app/useRules';
+import { claimErrorText, nextPackText, openPackText, packLimitText, packPanelTitle } from './dailyPack';
 import { GiftButton, type GiftsWaiting } from './GiftButton';
 
 interface Props
@@ -24,6 +25,9 @@ export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, wai
 {
     const [now, setNow] = useState(() => Date.now());
     const waiting = status !== undefined && !status.ready;
+    const rules = useRules();
+    const packs = status?.waiting ?? 0;
+    const limit = packLimitText(packs, Math.floor(rules.maxUnopenedCards / 5));
 
     useEffect(() =>
     {
@@ -58,15 +62,16 @@ export function DailyPackPanel ({ status, claiming, error, onClaim, onReset, wai
                     </>
                 ) : (
                     <>
-                        <p className="font-serif text-lg font-bold text-[#f6eadc]">Your daily pack is here</p>
+                        <p className="font-serif text-lg font-bold text-[#f6eadc]">{packPanelTitle(packs)}</p>
                         <button
                             data-tutorial="claim"
                             onClick={onClaim}
                             disabled={claiming}
                             className="rounded-full bg-[#e7b54a] px-7 py-3 text-base font-bold text-[#170e10] shadow-lg active:scale-95 disabled:opacity-60"
                         >
-                            {claiming ? 'Opening…' : "Open today's pack"}
+                            {claiming ? 'Opening…' : openPackText(packs)}
                         </button>
+                        {limit && <p className="text-xs text-[#e7b54a]">{limit}</p>}
                     </>
                 )}
                 {error && error !== 'already_claimed' && (

@@ -15,6 +15,7 @@ func (s *Server) GetRules(context.Context, GetRulesRequestObject) (GetRulesRespo
 		NewAccountWaitDays:  r.Trading.NewAccountWaitDays,
 		PartnerGiftsPerWeek: r.PartnerGifts.PerWeek,
 		PityPacks:           r.Packs.PityPacks,
+		MaxUnopenedCards:    r.Packs.MaxUnopenedCards,
 		DropChancePercent: struct {
 			Common    float32 `json:"common"`
 			Epic      float32 `json:"epic"`

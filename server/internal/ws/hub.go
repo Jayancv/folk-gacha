@@ -44,6 +44,8 @@ type Event struct {
 	TradeID uuid.UUID `json:"tradeId,omitzero"`
 	// By is the other player's username (who sent, accepted, … the offer).
 	By string `json:"by,omitempty"`
+	// ByName is the name they chose to show, when they have one.
+	ByName string `json:"byName,omitempty"`
 }
 
 type ticket struct {

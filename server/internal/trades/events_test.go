@@ -91,3 +91,33 @@ func TestEveryChangeTellsTheOtherPlayer(t *testing.T) {
 	ev := func(u uuid.UUID) trades.Event { return trades.Event{To: u, Type: "trade.expired", TradeID: tr.ID} }
 	expect("expire", ev(asha), ev(ben))
 }
+
+// A player's chosen name travels with the trade and its live events; the username stays for links.
+func TestTradesCarryChosenNames(t *testing.T) {
+	pool, svc, _ := setup(t)
+	ctx := context.Background()
+	got := &events{}
+	svc.OnEvent = got.add
+	asha, ben := newUser(t, pool, "asha"), newUser(t, pool, "ben")
+	if _, err := pool.Exec(ctx, "UPDATE users SET public_name = 'Asha the Brave' WHERE id = $1", asha); err != nil {
+		t.Fatal(err)
+	}
+	tr, err := svc.Create(ctx, asha, offer("ben", ids(give(t, pool, asha, "gaja-calf", 0, 1)), ids(give(t, pool, ben, "malu", 0, 1))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tr.From.Name != "Asha the Brave" || tr.From.Shown() != "Asha the Brave" || tr.To.Name != "" || tr.To.Shown() != "ben" {
+		t.Errorf("players %+v / %+v", tr.From, tr.To)
+	}
+	want := trades.Event{To: ben, Type: trades.EventReceived, TradeID: tr.ID, By: "asha", ByName: "Asha the Brave"}
+	if list := got.take(); len(list) != 1 || list[0] != want {
+		t.Fatalf("events %+v, want %+v", list, want)
+	}
+	// Ben has no chosen name: the event says only his username.
+	if _, err := svc.Decline(ctx, ben, tr.ID); err != nil {
+		t.Fatal(err)
+	}
+	if list := got.take(); len(list) != 1 || list[0].By != "ben" || list[0].ByName != "" {
+		t.Fatalf("decline events %+v", list)
+	}
+}

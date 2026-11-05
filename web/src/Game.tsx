@@ -24,6 +24,7 @@ import { BoardFocusChip } from './screens/board/BoardFocusChip';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { GiftButton } from './screens/pack/GiftButton';
+import { nextPackButtonText } from './screens/pack/dailyPack';
 import { Help } from './screens/help/Help';
 import { Profile } from './screens/profile/Profile';
 import { waitingCount } from './screens/trades/tradeModel';
@@ -183,6 +184,16 @@ export default function Game ({ me }: { me: Me })
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
+                {/* Saved-up packs: open the next one once this one is flipped. */}
+                {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && (me.dailyPack?.waiting ?? 0) > 0 && (
+                    <button
+                        onClick={pack.claim}
+                        disabled={pack.claiming}
+                        className="pointer-events-auto rounded-full bg-[#e7b54a] px-6 py-2.5 text-sm font-bold text-[#170e10] shadow-lg active:scale-95 disabled:opacity-60"
+                    >
+                        {pack.claiming ? 'Opening…' : nextPackButtonText(me.dailyPack?.waiting ?? 0)}
+                    </button>
+                )}
                 {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && me.giftsWaiting > 0 && <GiftButton gifts={gifts} />}
                 {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
                 <TabBar tab={tab} onSwitch={openNav} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />

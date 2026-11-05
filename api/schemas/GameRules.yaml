@@ -8,6 +8,7 @@ required:
   - partnerGiftsPerWeek
   - dropChancePercent
   - pityPacks
+  - maxUnopenedCards
 properties:
   maxTradeCards:
     type: integer
@@ -47,3 +48,6 @@ properties:
   pityPacks:
     type: integer
     description: At least one Rare or better every this many daily packs
+  maxUnopenedCards:
+    type: integer
+    description: Unopened daily packs are kept up to this many cards (a multiple of 5); older ones are lost

@@ -190,15 +190,46 @@ func (q *Queries) InsertDailyClaim(ctx context.Context, arg InsertDailyClaimPara
 }
 
 const lastPityCounter = `-- name: LastPityCounter :one
-SELECT pity_counter FROM daily_claims WHERE user_id = $1 ORDER BY day DESC LIMIT 1
+SELECT pity_counter FROM daily_claims WHERE user_id = $1 ORDER BY claimed_at DESC, day DESC LIMIT 1
 `
 
-// Pity counter of the player's latest pack (no rows = never claimed).
+// Pity counter of the pack the player opened last (no rows = never claimed). Saved-up packs
+// open later than their day, so the latest opening counts, not the latest day.
 func (q *Queries) LastPityCounter(ctx context.Context, userID uuid.UUID) (int32, error) {
 	row := q.db.QueryRow(ctx, lastPityCounter, userID)
 	var pity_counter int32
 	err := row.Scan(&pity_counter)
 	return pity_counter, err
+}
+
+const listClaimedDaysSince = `-- name: ListClaimedDaysSince :many
+SELECT day FROM daily_claims WHERE user_id = $1 AND day >= $2 ORDER BY day
+`
+
+type ListClaimedDaysSinceParams struct {
+	UserID uuid.UUID
+	Since  time.Time
+}
+
+// The days whose pack the player opened, from @since on (for the packs still waiting).
+func (q *Queries) ListClaimedDaysSince(ctx context.Context, arg ListClaimedDaysSinceParams) ([]time.Time, error) {
+	rows, err := q.db.Query(ctx, listClaimedDaysSince, arg.UserID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []time.Time
+	for rows.Next() {
+		var day time.Time
+		if err := rows.Scan(&day); err != nil {
+			return nil, err
+		}
+		items = append(items, day)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPullableCards = `-- name: ListPullableCards :many
@@ -280,4 +311,15 @@ func (q *Queries) MintSeasonCard(ctx context.Context, arg MintSeasonCardParams) 
 	var minted int32
 	err := row.Scan(&minted)
 	return minted, err
+}
+
+const userJoinedAt = `-- name: UserJoinedAt :one
+SELECT created_at FROM users WHERE id = $1
+`
+
+func (q *Queries) UserJoinedAt(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	row := q.db.QueryRow(ctx, userJoinedAt, id)
+	var created_at time.Time
+	err := row.Scan(&created_at)
+	return created_at, err
 }

@@ -1264,11 +1264,15 @@ components:
       type: object
       required:
         - ready
+        - waiting
         - nextResetAt
       properties:
         ready:
           type: boolean
-          description: Whether today's pack can be claimed
+          description: Whether a daily pack can be opened now (waiting > 0)
+        waiting:
+          type: integer
+          description: Unopened daily packs (today's and saved-up ones, up to packs.maxUnopenedCards / 5)
         nextResetAt:
           type: string
           format: date-time
@@ -1278,16 +1282,20 @@ components:
       required:
         - day
         - cards
+        - waiting
         - nextResetAt
       properties:
         day:
           type: string
           format: date
-          description: The UTC day this pack was claimed for
+          description: The UTC day whose pack this was (an earlier day for a saved-up pack; the oldest opens first)
         cards:
           type: array
           items:
             $ref: '#/components/schemas/Card'
+        waiting:
+          type: integer
+          description: Daily packs still unopened after this one
         nextResetAt:
           type: string
           format: date-time
@@ -1679,9 +1687,15 @@ components:
         from:
           type: string
           description: Sender's username
+        fromName:
+          type: string
+          description: The name the sender chose to show (PUT /me/name); absent until they pick one
         to:
           type: string
           description: Recipient's username
+        toName:
+          type: string
+          description: The name the recipient chose to show; absent until they pick one
         status:
           $ref: '#/components/schemas/TradeStatus'
         createdAt:
@@ -1801,6 +1815,7 @@ components:
         - partnerGiftsPerWeek
         - dropChancePercent
         - pityPacks
+        - maxUnopenedCards
       properties:
         maxTradeCards:
           type: integer
@@ -1840,6 +1855,9 @@ components:
         pityPacks:
           type: integer
           description: At least one Rare or better every this many daily packs
+        maxUnopenedCards:
+          type: integer
+          description: Unopened daily packs are kept up to this many cards (a multiple of 5); older ones are lost
     AllTimeLeaderboard:
       type: object
       description: All-time standings (every week's season points added up)
