@@ -28,6 +28,8 @@ paths:
     $ref: ./paths/me.yaml
   /me/name:
     $ref: ./paths/me/name.yaml
+  /me/notifications:
+    $ref: ./paths/me/notifications.yaml
   /me/showcase:
     $ref: ./paths/me/showcase.yaml
   /me/tutorial:

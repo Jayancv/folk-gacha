@@ -193,6 +193,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /me/notifications:
+    put:
+      operationId: setNotifications
+      summary: Choose which push notifications you get
+      description: |
+        Applies to every device where notifications are turned on ("Notify me"). `trades`: a push
+        when someone sends you a trade offer or accepts yours, sent only while the app isn't open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - trades
+              properties:
+                trades:
+                  type: boolean
+      responses:
+        '204':
+          description: Saved
+        '401':
+          description: Not signed in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /me/showcase:
     put:
       operationId: setShowcase
@@ -1202,6 +1229,7 @@ components:
         - tradeUnlockedAt
         - tutorialDone
         - giftsWaiting
+        - notifyTrades
       properties:
         id:
           type: string
@@ -1217,6 +1245,9 @@ components:
           description: When this account may start trading (UTC; at sign-up, no wait)
         dailyPack:
           $ref: '#/components/schemas/DailyPackStatus'
+        notifyTrades:
+          type: boolean
+          description: Push notifications for new trade offers and accepted trades (on devices with notifications on)
         publicName:
           type: string
           description: The name you chose to show other players (PUT /me/name); absent until you pick one

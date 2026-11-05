@@ -221,4 +221,5 @@ type User struct {
 	DisplayName     string
 	TutorialDoneAt  pgtype.Timestamptz
 	PublicName      string
+	NotifyTrades    bool
 }

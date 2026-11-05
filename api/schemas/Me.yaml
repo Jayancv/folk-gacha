@@ -6,6 +6,7 @@ required:
   - tradeUnlockedAt
   - tutorialDone
   - giftsWaiting
+  - notifyTrades
 properties:
   id:
     type: string
@@ -21,6 +22,9 @@ properties:
     description: When this account may start trading (UTC; at sign-up, no wait)
   dailyPack:
     $ref: ./DailyPackStatus.yaml
+  notifyTrades:
+    type: boolean
+    description: Push notifications for new trade offers and accepted trades (on devices with notifications on)
   publicName:
     type: string
     description: The name you chose to show other players (PUT /me/name); absent until you pick one

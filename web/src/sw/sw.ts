@@ -3,7 +3,8 @@
 // - Every page navigation gets the cached index.html, so the installed app opens offline.
 // - /api/* is never cached: the server decides every outcome, so game data is always live.
 // - A new version waits until the page says so (the "New version available" banner).
-// - Push: shows "your pack is ready" (sent by the server's daily job) and opens the app on tap.
+// - Push: shows "your pack is ready" (the server's daily job) and trade notices, and opens the app on
+//   tap at the notification's URL ("/?tab=trades"); an open app is told to switch tabs instead.
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 
@@ -63,6 +64,7 @@ self.addEventListener('notificationclick', event =>
         const open = windows.find(w => new URL(w.url).origin === self.location.origin);
         if (open)
         {
+            open.postMessage({ type: 'open-url', url });
             await open.focus();
             return;
         }

@@ -108,6 +108,17 @@ func run() error {
 	tradesSvc := trades.NewService(pool)
 	tradesSvc.OnEvent = func(e trades.Event) {
 		hub.Send(e.To, ws.Event{Type: e.Type, TradeID: e.TradeID, By: e.By})
+		// A player with the app open sees it live; otherwise their phone gets a push
+		// (new offers and accepted trades only, if they want them). Never blocks the trade.
+		if pushSvc != nil && hub.Connected(e.To) == 0 {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				if _, err := pushSvc.SendTrade(ctx, push.TradeEvent{To: e.To, Type: e.Type, TradeID: e.TradeID, By: e.By}); err != nil {
+					slog.Warn("trade push", "err", err)
+				}
+			}()
+		}
 	}
 	mergesSvc := merges.NewService(pool)
 	mergesSvc.OnTradeEvent = tradesSvc.OnEvent // a merge can fail offers asking for its cards

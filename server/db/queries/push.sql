@@ -36,3 +36,19 @@ UPDATE push_subscriptions SET failures = failures + 1 WHERE endpoint = $1 RETURN
 
 -- name: RecordPushSuccess :exec
 UPDATE push_subscriptions SET failures = 0 WHERE endpoint = $1 AND failures > 0;
+
+-- name: ListTradePushSubscriptions :many
+-- A player's subscriptions, if they want trade notifications.
+SELECT s.endpoint, s.p256dh, s.auth
+FROM push_subscriptions s
+JOIN users u ON u.id = s.user_id
+WHERE s.user_id = $1 AND u.notify_trades
+ORDER BY s.endpoint;
+
+-- name: GetPushName :one
+-- How a trade notification names the other player: their chosen name, else their username.
+SELECT CASE WHEN public_name <> '' THEN public_name ELSE username END::text AS name
+FROM users WHERE lower(username) = lower($1);
+
+-- name: SetNotifyTrades :exec
+UPDATE users SET notify_trades = $2 WHERE id = $1;

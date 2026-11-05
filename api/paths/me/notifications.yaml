@@ -1,0 +1,27 @@
+# /me/notifications
+put:
+  operationId: setNotifications
+  summary: Choose which push notifications you get
+  description: |
+    Applies to every device where notifications are turned on ("Notify me"). `trades`: a push
+    when someone sends you a trade offer or accepts yours, sent only while the app isn't open.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - trades
+          properties:
+            trades:
+              type: boolean
+  responses:
+    "204":
+      description: Saved
+    "401":
+      description: Not signed in
+      content:
+        application/json:
+          schema:
+            $ref: ../../schemas/Error.yaml
