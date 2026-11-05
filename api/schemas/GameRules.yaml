@@ -6,6 +6,8 @@ required:
   - offerExpiryHours
   - newAccountWaitDays
   - partnerGiftsPerWeek
+  - dropChancePercent
+  - pityPacks
 properties:
   maxTradeCards:
     type: integer
@@ -22,3 +24,26 @@ properties:
   partnerGiftsPerWeek:
     type: integer
     description: Partner gifts a player can get per leaderboard week (0 = gifts off)
+  dropChancePercent:
+    type: object
+    description: Chance of each rarity per pack card, in percent (sums to 100)
+    required:
+      - common
+      - uncommon
+      - rare
+      - epic
+      - legendary
+    properties:
+      common:
+        type: number
+      uncommon:
+        type: number
+      rare:
+        type: number
+      epic:
+        type: number
+      legendary:
+        type: number
+  pityPacks:
+    type: integer
+    description: At least one Rare or better every this many daily packs

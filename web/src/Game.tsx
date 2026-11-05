@@ -19,6 +19,7 @@ import { Collection } from './screens/collection/Collection';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { GiftButton } from './screens/pack/GiftButton';
+import { Help } from './screens/help/Help';
 import { Profile } from './screens/profile/Profile';
 import { waitingCount } from './screens/trades/tradeModel';
 import { openToEnterCount } from './screens/tournaments/tournamentModel';
@@ -48,11 +49,13 @@ export default function Game ({ me }: { me: Me })
     useLive(setNotice);
     // A profile opens over any screen (from the player chip or a leaderboard row).
     const [profileOf, setProfileOf] = useState<string | null>(null);
+    // How to play, from the "?" next to your name.
+    const [helpOpen, setHelpOpen] = useState(false);
     const tutorial = useTutorial(me, {
         tab, packOpened: pack.opened, packRevealed: pack.revealed, boardCards: board.cards, showcase: pack.showcase !== null
     });
-    // Over a table scene, the game loop sleeps while the profile covers it.
-    const coversTable = profileOf !== null && !isReactScreen(tab);
+    // Over a table scene, the game loop sleeps while the profile or help covers it.
+    const coversTable = (profileOf !== null || helpOpen) && !isReactScreen(tab);
     useEffect(() =>
     {
         if (!coversTable)
@@ -109,10 +112,11 @@ export default function Game ({ me }: { me: Me })
                 />
             )}
             <ApiStatus />
-            <UserChip me={me} onOpenProfile={() => setProfileOf(me.username)} />
-            {tutorial.active && !profileOf && (
+            <UserChip me={me} onOpenProfile={() => setProfileOf(me.username)} onOpenHelp={() => setHelpOpen(true)} />
+            {tutorial.active && !profileOf && !helpOpen && (
                 <TutorialOverlay content={tutorial.content} number={tutorial.number} onNext={tutorial.next} onSkip={tutorial.skip} />
             )}
+            {helpOpen && <Help onClose={() => setHelpOpen(false)} />}
             {profileOf && (
                 <Profile
                     username={profileOf}

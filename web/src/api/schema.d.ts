@@ -912,6 +912,16 @@ export interface components {
             newAccountWaitDays: number;
             /** @description Partner gifts a player can get per leaderboard week (0 = gifts off) */
             partnerGiftsPerWeek: number;
+            /** @description Chance of each rarity per pack card, in percent (sums to 100) */
+            dropChancePercent: {
+                common: number;
+                uncommon: number;
+                rare: number;
+                epic: number;
+                legendary: number;
+            };
+            /** @description At least one Rare or better every this many daily packs */
+            pityPacks: number;
         };
         /** @description All-time standings (every week's season points added up) */
         AllTimeLeaderboard: {

@@ -1,8 +1,8 @@
 import { SoundToggle } from '../audio/SoundToggle';
 import { useSignOut, type Me } from '../auth/useAuth';
 
-// Signed-in player badge with the sound toggle and sign-out, shown over the game table.
-export function UserChip ({ me, onOpenProfile }: { me: Me; onOpenProfile: () => void })
+// Signed-in player badge with the sound toggle, help and sign-out, shown over the game table.
+export function UserChip ({ me, onOpenProfile, onOpenHelp }: { me: Me; onOpenProfile: () => void; onOpenHelp: () => void })
 {
     const signOut = useSignOut();
     return (
@@ -12,6 +12,14 @@ export function UserChip ({ me, onOpenProfile }: { me: Me; onOpenProfile: () => 
                 {me.displayName ?? me.username}
             </button>
             <SoundToggle />
+            <button
+                onClick={onOpenHelp}
+                aria-label="How to play"
+                title="How to play"
+                className="grid h-6 w-6 place-items-center rounded-full bg-white/10 font-bold text-[#e7b54a] active:bg-white/20"
+            >
+                ?
+            </button>
             <button
                 onClick={() => signOut.mutate()}
                 disabled={signOut.isPending}

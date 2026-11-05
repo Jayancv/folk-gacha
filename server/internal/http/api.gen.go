@@ -431,6 +431,15 @@ type GameRules struct {
 	// DailyOfferLimit Offers a player can send per UTC day
 	DailyOfferLimit int `json:"dailyOfferLimit"`
 
+	// DropChancePercent Chance of each rarity per pack card, in percent (sums to 100)
+	DropChancePercent struct {
+		Common    float32 `json:"common"`
+		Epic      float32 `json:"epic"`
+		Legendary float32 `json:"legendary"`
+		Rare      float32 `json:"rare"`
+		Uncommon  float32 `json:"uncommon"`
+	} `json:"dropChancePercent"`
+
 	// MaxTradeCards Most cards on each side of a trade offer
 	MaxTradeCards int `json:"maxTradeCards"`
 
@@ -442,6 +451,9 @@ type GameRules struct {
 
 	// PartnerGiftsPerWeek Partner gifts a player can get per leaderboard week (0 = gifts off)
 	PartnerGiftsPerWeek int `json:"partnerGiftsPerWeek"`
+
+	// PityPacks At least one Rare or better every this many daily packs
+	PityPacks int `json:"pityPacks"`
 }
 
 // Health defines model for Health.
