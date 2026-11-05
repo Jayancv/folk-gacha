@@ -15,8 +15,9 @@ export function SignIn ()
     return (
         <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-[#170e10] px-6 py-10 text-[#f6eadc]">
             <header className="flex flex-col items-center gap-3 text-center">
-                <img src="/apple-touch-icon.png" alt="" width={96} height={96} className="rounded-3xl shadow-lg shadow-black/40" />
-                <h1 className="font-serif text-4xl font-bold text-[#e7b54a]">Folk Gacha</h1>
+                <h1>
+                    <img src="/logo.svg" alt="Folk Gacha" width={1000} height={880} className="h-auto w-72 max-w-full" />
+                </h1>
                 <p className="text-sm text-[#bba595]">Lanka Mythics · a free pack every day</p>
             </header>
 
