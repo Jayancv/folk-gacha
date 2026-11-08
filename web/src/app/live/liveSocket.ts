@@ -12,14 +12,22 @@ export interface LiveOptions
 }
 
 /**
- * Keeps one live socket open while started: reconnects with backoff when it drops,
- * and right away when the page comes back to the foreground or the network returns
- * (phones close the sockets of apps in the background).
+ * How long the app may stay in the background before its socket is closed. The server
+ * pushes trade notifications only to players with no socket open, so a hidden tab (or a
+ * phone in a pocket) must not keep one open; the grace keeps quick app switches cheap.
+ */
+export const HIDDEN_CLOSE_MS = 15_000;
+
+/**
+ * Keeps one live socket open while started and the page is visible: reconnects with
+ * backoff when it drops, and right away when the page comes back to the foreground or
+ * the network returns. A page hidden for HIDDEN_CLOSE_MS closes its socket.
  */
 export class LiveConnection
 {
     private socket: WebSocket | null = null;
     private timer: ReturnType<typeof setTimeout> | null = null;
+    private hiddenTimer: ReturnType<typeof setTimeout> | null = null;
     private attempt = 0;
     private running = false;
     private connecting = false;
@@ -44,6 +52,13 @@ export class LiveConnection
         document.removeEventListener('visibilitychange', this.wake);
         window.removeEventListener('online', this.wake);
         this.clearTimer();
+        this.close();
+    }
+
+    /** Closes the socket without reconnecting (stopped, or the page went to the background). */
+    private close (): void
+    {
+        this.clearHiddenTimer();
         const s = this.socket;
         this.socket = null;
         s?.close(1000);
@@ -52,7 +67,29 @@ export class LiveConnection
 
     private readonly wake = () =>
     {
-        if (this.running && !this.socket && !this.connecting && document.visibilityState === 'visible')
+        if (!this.running)
+        {
+            return;
+        }
+        if (document.visibilityState !== 'visible')
+        {
+            // In the background: close after a grace, so trade pushes reach the phone.
+            if (!this.hiddenTimer)
+            {
+                this.hiddenTimer = setTimeout(() =>
+                {
+                    this.hiddenTimer = null;
+                    if (document.visibilityState !== 'visible')
+                    {
+                        this.clearTimer();
+                        this.close();
+                    }
+                }, HIDDEN_CLOSE_MS);
+            }
+            return;
+        }
+        this.clearHiddenTimer();
+        if (!this.socket && !this.connecting)
         {
             this.clearTimer();
             this.attempt = 0;
@@ -62,6 +99,10 @@ export class LiveConnection
 
     private async connect (): Promise<void>
     {
+        if (document.visibilityState !== 'visible')
+        {
+            return; // reconnects when the page is visible again (wake)
+        }
         this.connecting = true;
         let ticket: string | null;
         try
@@ -75,7 +116,7 @@ export class LiveConnection
             return;
         }
         this.connecting = false;
-        if (!this.running)
+        if (!this.running || document.visibilityState !== 'visible')
         {
             return;
         }
@@ -125,6 +166,15 @@ export class LiveConnection
             this.timer = null;
             void this.connect();
         }, retryDelay(this.attempt++));
+    }
+
+    private clearHiddenTimer (): void
+    {
+        if (this.hiddenTimer)
+        {
+            clearTimeout(this.hiddenTimer);
+            this.hiddenTimer = null;
+        }
     }
 
     private clearTimer (): void

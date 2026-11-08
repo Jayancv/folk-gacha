@@ -31,5 +31,7 @@ describe('player names', () =>
         expect(nameProblem('@asha')).toContain('no emoji or symbols');
         expect(nameProblem('asha 🐉')).toContain('no emoji or symbols');
         expect(nameProblem('12345')).toBe('Use at least one letter.');
+        expect(nameProblem('\u3164\u3164')).toContain('no emoji or symbols');
+        expect(nameProblem('as\u1160ha')).toContain('no emoji or symbols');
     });
 });

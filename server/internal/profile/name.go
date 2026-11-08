@@ -34,6 +34,8 @@ func CleanPublicName(name string) (string, error) {
 	letters := 0
 	for i, r := range runes {
 		switch {
+		case blankLetter(r):
+			return "", ErrBadName
 		case unicode.IsLetter(r):
 			letters++
 		case unicode.IsMark(r), unicode.IsDigit(r), r == ' ', r == '.', r == '-', r == '_', r == '\'':
@@ -50,6 +52,16 @@ func CleanPublicName(name string) (string, error) {
 		return "", ErrBadName
 	}
 	return name, nil
+}
+
+// blankLetter: Hangul fillers count as letters but draw nothing, so a name of them looks
+// empty (or hides a space inside another player's name).
+func blankLetter(r rune) bool {
+	switch r {
+	case '\u115F', '\u1160', '\u3164', '\uFFA0':
+		return true
+	}
+	return false
 }
 
 func inWord(r rune) bool {

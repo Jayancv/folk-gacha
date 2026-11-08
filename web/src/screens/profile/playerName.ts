@@ -45,7 +45,8 @@ export function nameProblem (name: string): string | null
     {
         return `At most ${MAX_PUBLIC_NAME} characters.`;
     }
-    if (!/^[\p{L}\p{M}\p{N} .\-_'‌‍]+$/u.test(tidy))
+    // Hangul fillers are letters that draw nothing (the server refuses them too).
+    if (/[\u115F\u1160\u3164\uFFA0]/u.test(tidy) || !/^[\p{L}\p{M}\p{N} .\-_'‌‍]+$/u.test(tidy))
     {
         return 'Letters, digits, spaces and . - _ \' only (no emoji or symbols).';
     }

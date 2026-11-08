@@ -35,6 +35,8 @@ func TestCleanPublicName(t *testing.T) {
 		"asha ‍",                // joiner after a space
 		"<b>asha</b>",           // markup
 		"asha\x00",              // control character
+		"\u3164\u3164",          // Hangul fillers: letters that draw nothing
+		"as\u1160ha",            // a filler hidden inside a name
 	}
 	for _, in := range bad {
 		if got, err := CleanPublicName(in); !errors.Is(err, ErrBadName) {
