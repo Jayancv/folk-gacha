@@ -2,7 +2,7 @@ import { GameObjects, Geom, Math as PMath, type Time, type Types } from 'phaser'
 import * as sfx from '../../audio/sfx';
 import { CardInspector } from '../cards/CardInspector';
 import { CardView } from '../cards/CardView';
-import { CARD_H } from '../cards/drawCard';
+import { CARD_H, CARD_W } from '../cards/drawCard';
 import { cameraFx, createBursts, floatText, shockwave, vibrate, type Bursts } from '../cards/effects';
 import { PALETTE, RARITY_STYLE, type CardData } from '../cards/model';
 import {
@@ -15,7 +15,10 @@ import {
     FAILURE_TEXT,
     GRID_TOP,
     isLevelUpMatch,
+    LOCK_BADGE,
+    LOCK_FAILURE,
     maxScroll,
+    type BoardLock,
     mergeLabel,
     RESULT_TIMEOUT_MS,
     ROW_H,
@@ -46,6 +49,8 @@ const HOVER_SCALE = BOARD_SCALE * 1.06;
 // The charge-up always lasts at least this long so fast answers still feel deliberate.
 const MIN_CHARGE_MS = 650;
 const MATCH_TINT = 0xffd66e;
+// A locked card under a dragged one: a dull glow, it won't take it.
+const LOCKED_TINT = 0x8a7f78;
 const DEPTH = { slots: 5, cards: 10, header: 60, hint: 70, dragging: 900, merge: 950, fx: 1000, inspect: 2000 };
 // The React tab bar covers the bottom of the canvas (CSS px).
 const TAB_BAR_CSS = 92;
@@ -132,9 +137,8 @@ export class MergeBoard extends ResponsiveScene
     private pending = new Map<string, (r: MergeResultPayload) => void>();
     private requestSeq = 0;
     private total = 0;
-    // Cards offered in an open trade (lock badge).
-    private locked = new Set<string>();
-    private inEvent = new Set<string>();
+    // Cards offered in an open trade or entered in a tournament: dimmed, labelled, can't merge.
+    private locks = new Map<string, BoardLock>();
     // Opened with "Merge" on this card: its matches glow, also those made later.
     private focusCard: CardData | null = null;
 
@@ -238,8 +242,8 @@ export class MergeBoard extends ResponsiveScene
         const keepScroll = focusId ? 0 : this.scroll;
         this.clearBoard();
         this.total = total;
-        this.locked = new Set(locked);
-        this.inEvent = new Set(inEvent);
+        const inEvents = new Set(inEvent);
+        this.locks = new Map(locked.map(id => [id, inEvents.has(id) ? 'tournament' : 'trade']));
         this.slots = new Array(slotCountFor(cards.length)).fill(null);
         this.updateScrollRange();
         this.scroll = PMath.Clamp(keepScroll, 0, this.scrollMax);
@@ -275,7 +279,7 @@ export class MergeBoard extends ResponsiveScene
         }
         view.setGlow(1, 0xffffff);
         const cards = [...this.slots.filter((v): v is CardView => !!v).map(v => v.card), ...this.queue.map(q => q.card)];
-        const matches = cards.filter(c => isLevelUpMatch(focus, c)).length;
+        const matches = cards.filter(c => this.canMatch(focus, c)).length;
         return { name: focus.season?.title ?? focus.name, matches };
     }
 
@@ -284,7 +288,7 @@ export class MergeBoard extends ResponsiveScene
     {
         const view = this.placeCard(card, slot);
         const against = this.drag?.card.card ?? this.focusCard;
-        if (against && isLevelUpMatch(against, card))
+        if (against && this.canMatch(against, card))
         {
             view.setGlow(0.9, MATCH_TINT, true);
         }
@@ -298,21 +302,49 @@ export class MergeBoard extends ResponsiveScene
         const view = new CardView(this, card, x, y, this.boardTextureScale(), true)
             .setScale(BOARD_SCALE)
             .setDepth(DEPTH.cards);
-        if (this.locked.has(card.id))
+        const lock = this.locks.get(card.id);
+        if (lock)
         {
-            view.add(this.lockBadge(this.inEvent.has(card.id) ? '🏆 In event' : '🔒 In trade'));
+            view.add(this.lockLayer(lock));
         }
         this.slots[slot] = view;
         return view;
     }
 
-    // "In trade" / "In event" across the bottom of a locked card (it moves with the card).
-    private lockBadge (text: string): GameObjects.Text
+    // A locked card is dimmed with a banner across it ("🔒 In trade" / "🏆 In tournament"),
+    // so players can see at a glance which cards to leave alone. It moves with the card.
+    private lockLayer (lock: BoardLock): GameObjects.GameObject[]
     {
-        return this.add.text(0, CARD_H / 2 - 34, text, {
-            fontFamily: 'system-ui, sans-serif', fontStyle: 'bold', fontSize: 26, color: PALETTE.gold,
-            backgroundColor: '#000000bb', padding: { x: 14, y: 6 }
+        const dim = this.add.graphics();
+        dim.fillStyle(0x0b0608, 0.5);
+        dim.fillRoundedRect(-CARD_W / 2, -CARD_H / 2, CARD_W, CARD_H, (6 * CARD_W) / 100);
+        const band = this.add.graphics();
+        band.fillStyle(0x000000, 0.82);
+        band.fillRect(-CARD_W / 2, -26, CARD_W, 52);
+        band.lineStyle(2, lock === 'trade' ? 0xe7b54a : 0x8fc7ff, 0.9);
+        band.lineBetween(-CARD_W / 2, -26, CARD_W / 2, -26);
+        band.lineBetween(-CARD_W / 2, 26, CARD_W / 2, 26);
+        const text = this.add.text(0, 0, LOCK_BADGE[lock], {
+            fontFamily: 'system-ui, sans-serif', fontStyle: 'bold', fontSize: 22,
+            color: lock === 'trade' ? PALETTE.gold : '#bfe0ff'
         }).setOrigin(0.5);
+        return [dim, band, text];
+    }
+
+    /** The level-up rule, leaving out cards locked in a trade or tournament. */
+    private canMatch (a: CardData, b: CardData): boolean
+    {
+        return isLevelUpMatch(a, b) && !this.locks.has(a.id) && !this.locks.has(b.id);
+    }
+
+    // A locked card was picked up or dropped on: say why, without asking the server.
+    private refuseLocked (view: CardView)
+    {
+        const lock = this.locks.get(view.card.id) ?? 'trade';
+        vibrate(30);
+        sfx.play('mergeFail');
+        floatText(this, view.x, view.y - CELL_H * 0.6, FAILURE_TEXT[LOCK_FAILURE[lock]], PALETTE.muted, 32);
+        this.tweens.add({ targets: view, x: { from: view.x - 8, to: view.x }, duration: 260, ease: 'Elastic.easeOut' });
     }
 
     private clearBoard ()
@@ -607,6 +639,12 @@ export class MergeBoard extends ResponsiveScene
         {
             return;
         }
+        if (this.locks.has(g.card.card.id))
+        {
+            g.mode = 'scroll';
+            this.refuseLocked(g.card);
+            return;
+        }
         g.mode = 'drag';
         this.velocity = 0;
         const card = g.card;
@@ -632,7 +670,7 @@ export class MergeBoard extends ResponsiveScene
         // Show which cards would level up. Recipe partners stay hidden.
         for (const other of this.slots)
         {
-            if (other && isLevelUpMatch(card.card, other.card))
+            if (other && this.canMatch(card.card, other.card))
             {
                 other.setGlow(0.9, MATCH_TINT, true);
             }
@@ -649,14 +687,18 @@ export class MergeBoard extends ResponsiveScene
         if (this.hover)
         {
             const prev = this.hover;
-            const isMatch = !!drag && isLevelUpMatch(drag.card.card, prev.card);
+            const isMatch = !!drag && this.canMatch(drag.card.card, prev.card);
             prev.setGlow(isMatch ? 0.9 : 0, MATCH_TINT, isMatch);
             this.tweens.add({ targets: prev, scale: BOARD_SCALE, duration: 120 });
         }
         this.hover = target;
-        if (target)
+        if (target && this.locks.has(target.card.id))
         {
-            const isMatch = !!drag && isLevelUpMatch(drag.card.card, target.card);
+            target.setGlow(0.7, LOCKED_TINT); // can't take it: no lift
+        }
+        else if (target)
+        {
+            const isMatch = !!drag && this.canMatch(drag.card.card, target.card);
             target.setGlow(1, isMatch ? MATCH_TINT : 0xffffff);
             this.tweens.add({ targets: target, scale: HOVER_SCALE, duration: 120 });
         }
@@ -676,6 +718,12 @@ export class MergeBoard extends ResponsiveScene
         this.setHover(null);
         this.clearHighlights();
 
+        if (target && this.locks.has(target.card.id))
+        {
+            this.refuseLocked(target);
+            this.settle(drag.card, drag.fromSlot);
+            return;
+        }
         if (target)
         {
             this.merge(drag.card, target);

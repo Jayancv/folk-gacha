@@ -17,6 +17,9 @@ import {
     focusLayout,
     GAP,
     isLevelUpMatch,
+    LOCK_BADGE,
+    LOCK_FAILURE,
+    lockOf,
     mergeLabel,
     SLOTS,
     slotAt
@@ -129,10 +132,25 @@ describe('boardOrder', () =>
         expect(boardOrder(cards).map(c => c.id)).toEqual(['a', 'e', 'b', 'd', 'c', 'f']);
     });
 
-    it('never pairs locked or max-level cards', () =>
+    it('never pairs locked or max-level cards, and puts locked cards last', () =>
     {
         const cards = [card('a', 'malu'), card('b', 'monara'), card('c', 'malu', 1, { inTrade: true }), card('d', 'gaja-calf', 5), card('e', 'gaja-calf', 5)];
-        expect(boardOrder(cards).map(c => c.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
+        expect(boardOrder(cards).map(c => c.id)).toEqual(['a', 'b', 'd', 'e', 'c']);
+    });
+
+    it('keeps locked cards newest first at the end', () =>
+    {
+        const cards = [card('a', 'malu', 1, { inTournament: true }), card('b', 'monara'), card('c', 'gaja-calf', 1, { inTrade: true }), card('d', 'malu', 2)];
+        expect(boardOrder(cards).map(c => c.id)).toEqual(['b', 'd', 'a', 'c']);
+    });
+
+    it('names the lock', () =>
+    {
+        expect(lockOf(card('a', 'malu'))).toBeNull();
+        expect(lockOf(card('a', 'malu', 1, { inTrade: true }))).toBe('trade');
+        expect(lockOf(card('a', 'malu', 1, { inTrade: true, inTournament: true }))).toBe('tournament');
+        expect(FAILURE_TEXT[LOCK_FAILURE.trade]).toBe('Offered in a trade');
+        expect(LOCK_BADGE.tournament).toContain('In tournament');
     });
 });
 
