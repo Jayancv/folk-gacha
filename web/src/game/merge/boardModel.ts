@@ -82,15 +82,31 @@ export function edgeScrollSpeed (y: number, top: number, bottom: number, zone = 
 
 type BoardCard = CardData & { inTrade?: boolean; inTournament?: boolean };
 
+/** Why a card on the board can't be merged right now. */
+export type BoardLock = 'trade' | 'tournament';
+
+/** The banner across a locked card. */
+export const LOCK_BADGE: Record<BoardLock, string> = { trade: '🔒 In trade', tournament: '🏆 In tournament' };
+
+/** The failure a locked card shows when picked up or dropped on (the server would answer the same). */
+export const LOCK_FAILURE: Record<BoardLock, MergeFailure> = { trade: 'in_trade', tournament: 'in_tournament' };
+
+/** A card's lock, if it has one (a tournament lock wins: it lasts longer). */
+export function lockOf (c: BoardCard): BoardLock | null
+{
+    return c.inTournament ? 'tournament' : c.inTrade ? 'trade' : null;
+}
+
 /**
  * The board's order: cards that can level up together first, each group side by side
- * (groups in the order their newest card came), then everything else in the given
- * (newest first) order. Locked and max-level cards never count as a pair.
+ * (groups in the order their newest card came), then the other free cards in the given
+ * (newest first) order, then cards locked in a trade or tournament, so they are out of
+ * the way. Locked and max-level cards never count as a pair.
  */
 export function boardOrder<C extends BoardCard> (cards: readonly C[]): C[]
 {
     const key = (c: C) => `${c.templateId}:${c.level}`;
-    const free = (c: C) => c.level < MAX_LEVEL && !c.inTrade && !c.inTournament;
+    const free = (c: C) => c.level < MAX_LEVEL && !lockOf(c);
     const groups = new Map<string, C[]>();
     for (const c of cards)
     {
@@ -101,7 +117,8 @@ export function boardOrder<C extends BoardCard> (cards: readonly C[]): C[]
     }
     const pairs = [...groups.values()].filter(g => g.length >= 2).flat();
     const paired = new Set(pairs.map(c => c.id));
-    return [...pairs, ...cards.filter(c => !paired.has(c.id))];
+    const rest = cards.filter(c => !paired.has(c.id));
+    return [...pairs, ...rest.filter(c => !lockOf(c)), ...rest.filter(c => lockOf(c))];
 }
 
 /**

@@ -111,6 +111,7 @@ export function helpSections (rules: GameRules, resetTime: string): HelpSection[
                 'Some different spirits combine into a brand new one. These recipes are secret until you find them!',
                 '• Board: swipe to scroll. Hold a card for a moment to pick it up, then drop it on another. Cards that can level up glow and are shown first.',
                 '• List: cards with a ✦ mark have a partner. Tap a card, then Merge to jump to it on the Board.',
+                '• Cards in a trade offer or a tournament are dimmed, labelled and kept at the end of the Board. They can\'t merge until the trade or tournament ends.',
                 '• Tap a card on the Board to see it up close.'
             ]
         },
