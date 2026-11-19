@@ -58,12 +58,12 @@ export function NotificationSettings ({ me }: { me: Me })
                     {device.state === 'install-first' && 'Add Folk Gacha to your Home Screen to get notifications on iPhone.'}
                 </p>
                 {device.state === 'off' && (
-                    <button onClick={device.turnOn} disabled={device.busy} className="shrink-0 rounded-full bg-[#e7b54a] px-3 py-1 text-xs font-bold text-[#170e10] active:scale-95 disabled:opacity-60">
+                    <button onClick={device.turnOn} disabled={device.busy} className="shrink-0 whitespace-nowrap rounded-full bg-[#e7b54a] px-3 py-1 text-xs font-bold text-[#170e10] active:scale-95 disabled:opacity-60">
                         {device.busy ? '…' : 'Turn on'}
                     </button>
                 )}
                 {device.state === 'on' && (
-                    <button onClick={device.turnOff} disabled={device.busy} className="shrink-0 text-xs text-[#bba595] underline disabled:opacity-60">Turn off</button>
+                    <button onClick={device.turnOff} disabled={device.busy} className="shrink-0 whitespace-nowrap text-xs text-[#bba595] underline disabled:opacity-60">Turn off</button>
                 )}
             </div>
 
