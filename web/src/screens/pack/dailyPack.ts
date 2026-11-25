@@ -120,3 +120,34 @@ export function claimErrorText (error: ClaimError): string
             return "Couldn't reach the server. Try again.";
     }
 }
+
+/** What is dealt on the Pack table: today's pack, opened gifts, or nothing (the claim panel shows). */
+export type OnTable = 'pack' | 'gift' | null;
+
+/** The buttons under the table once its cards are all flipped. */
+export interface TableActions
+{
+    /** Text of the button that opens a waiting daily pack, or null when none is waiting. */
+    pack: string | null;
+    /** Whether to offer the waiting gifts. */
+    gift: boolean;
+}
+
+/**
+ * Under a flipped pack or gift, offer whatever else is still waiting, so opening one never
+ * hides the other: more packs ("Open next pack · 2 left", or "Open today's pack" under a
+ * gift) and more gifts (also under a gift, when more than 5 were waiting).
+ */
+export function tableActions (onTable: OnTable, revealed: boolean, packsWaiting: number, giftsWaiting: number): TableActions
+{
+    if (onTable === null || !revealed)
+    {
+        return { pack: null, gift: false };
+    }
+    let pack: string | null = null;
+    if (packsWaiting > 0)
+    {
+        pack = onTable === 'pack' ? nextPackButtonText(packsWaiting) : openPackText(packsWaiting);
+    }
+    return { pack, gift: giftsWaiting > 0 };
+}

@@ -24,7 +24,7 @@ import { BoardFocusChip } from './screens/board/BoardFocusChip';
 import { Leaderboard } from './screens/leaderboard/Leaderboard';
 import { DailyPackPanel } from './screens/pack/DailyPackPanel';
 import { GiftButton } from './screens/pack/GiftButton';
-import { nextPackButtonText } from './screens/pack/dailyPack';
+import { tableActions } from './screens/pack/dailyPack';
 import { Help } from './screens/help/Help';
 import { Profile } from './screens/profile/Profile';
 import { waitingCount } from './screens/trades/tradeModel';
@@ -113,6 +113,8 @@ export default function Game ({ me }: { me: Me })
         };
     }, [coversTable]);
     const gifts = { waiting: me.giftsWaiting, opening: pack.openingGift, error: pack.giftError, onOpen: pack.openGift };
+    const onTable = tab !== 'PackOpen' || pack.showcase ? null : pack.giftOnTable ? 'gift' : pack.packOnTable ? 'pack' : null;
+    const tableButtons = tableActions(onTable, pack.revealed, me.dailyPack?.waiting ?? 0, me.giftsWaiting);
     // Offer installing while the player waits for tomorrow's pack: a natural moment, and no cards on the table to cover.
     const waitingForPack = tab === 'PackOpen' && !pack.opened && !pack.showcase && me.dailyPack?.ready === false;
 
@@ -184,17 +186,17 @@ export default function Game ({ me }: { me: Me })
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
                 {tab === 'PackOpen' && pack.showcase && pack.revealed && <ShowcaseAgainButton onDeal={pack.showcase.deal} />}
-                {/* Saved-up packs: open the next one once this one is flipped. */}
-                {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && (me.dailyPack?.waiting ?? 0) > 0 && (
+                {/* Once the table is flipped: whatever else waits (more packs, gifts), so opening one never hides the other. */}
+                {tableButtons.pack && (
                     <button
                         onClick={pack.claim}
                         disabled={pack.claiming}
                         className="pointer-events-auto rounded-full bg-[#e7b54a] px-6 py-2.5 text-sm font-bold text-[#170e10] shadow-lg active:scale-95 disabled:opacity-60"
                     >
-                        {pack.claiming ? 'Opening…' : nextPackButtonText(me.dailyPack?.waiting ?? 0)}
+                        {pack.claiming ? 'Opening…' : tableButtons.pack}
                     </button>
                 )}
-                {tab === 'PackOpen' && pack.packOnTable && pack.revealed && !pack.showcase && me.giftsWaiting > 0 && <GiftButton gifts={gifts} />}
+                {tableButtons.gift && <GiftButton gifts={gifts} />}
                 {waitingForPack && install.offer && <InstallBanner offer={install.offer} onInstall={install.install} onDismiss={install.dismiss} />}
                 <TabBar tab={tab} onSwitch={openNav} badges={{ Trades: waitingCount(trades.data ?? []), Tournaments: openToEnterCount(tournaments.data?.tournaments ?? []) }} />
             </div>
