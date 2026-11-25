@@ -16,8 +16,8 @@ export function PackReadyToggle ({ state, busy, onTurnOn, onTurnOff }: { state: 
             </svg>
             {state === 'off' && (
                 <>
-                    <span>Get a notification when it's ready</span>
-                    <button onClick={onTurnOn} disabled={busy} className="rounded-full bg-[#e7b54a] px-3 py-1 font-bold text-[#170e10] active:scale-95 disabled:opacity-60">
+                    <span className="min-w-0">Get a notification when it's ready</span>
+                    <button onClick={onTurnOn} disabled={busy} className="shrink-0 whitespace-nowrap rounded-full bg-[#e7b54a] px-3 py-1 font-bold text-[#170e10] active:scale-95 disabled:opacity-60">
                         {busy ? '…' : 'Notify me'}
                     </button>
                 </>
@@ -25,7 +25,7 @@ export function PackReadyToggle ({ state, busy, onTurnOn, onTurnOff }: { state: 
             {state === 'on' && (
                 <>
                     <span>Notifications on</span>
-                    <button onClick={onTurnOff} disabled={busy} className="underline disabled:opacity-60">Turn off</button>
+                    <button onClick={onTurnOff} disabled={busy} className="shrink-0 whitespace-nowrap underline disabled:opacity-60">Turn off</button>
                 </>
             )}
             {state === 'blocked' && <span>Notifications are blocked for this site in your browser settings.</span>}
