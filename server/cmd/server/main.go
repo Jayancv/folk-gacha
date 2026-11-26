@@ -53,7 +53,7 @@ func run() error {
 
 	port := env("PORT", "8081")
 	dbURL := env("DATABASE_URL", defaultDatabaseURL)
-	origins := strings.Split(env("ALLOWED_ORIGINS", "http://localhost:8080"), ",")
+	origins := splitList(env("ALLOWED_ORIGINS", "http://localhost:8080"))
 
 	// APP_ENV=prod in the Docker image; local `go run` defaults to dev.
 	appEnv := env("APP_ENV", "dev")
@@ -140,6 +140,13 @@ func run() error {
 		Addr:              ":" + port,
 		Handler:           api.Handler(origins),
 		ReadHeaderTimeout: 5 * time.Second,
+		// A whole request must arrive within ReadTimeout and its answer go out within
+		// WriteTimeout, so slow clients can't hold connections (and goroutines) open.
+		// They don't cut GET /ws: net/http clears the deadlines when the socket hijacks
+		// the connection (ws.TestSocketOutlivesServerTimeouts).
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  2 * time.Minute,
 	}
 
 	// Weekly leaderboard seasons: create the current week, freeze ended weeks.
@@ -213,6 +220,17 @@ func run() error {
 		return srv.Shutdown(shutdownCtx)
 	}
 	return nil
+}
+
+// splitList splits a comma-separated setting, ignoring spaces around items and empty ones.
+func splitList(s string) []string {
+	var out []string
+	for _, item := range strings.Split(s, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func env(key, fallback string) string {

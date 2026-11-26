@@ -271,6 +271,9 @@ func (s *Service) Enter(ctx context.Context, user uuid.UUID, id string, cardIDs 
 		if t, err = s.openForEntry(ctx, q, user, id, now); err != nil {
 			return err
 		}
+		if err := checkLineupSize(t, cardIDs); err != nil {
+			return err
+		}
 		// Lock the new lineup and the old one together, in id order.
 		old, err := q.ListEntryCards(ctx, store.ListEntryCardsParams{TournamentID: id, UserID: user})
 		if err != nil {
@@ -398,13 +401,23 @@ func (s *Service) openForEntry(ctx context.Context, q *store.Queries, user uuid.
 	return toTournament(row)
 }
 
+// checkLineupSize is the format's size rule. Enter checks it before locking any card:
+// the ids come from the client and may be anyone's, so an over-long list must be
+// refused before it can row-lock cards that other players are merging or trading.
+func checkLineupSize(t Tournament, cardIDs []uuid.UUID) error {
+	if len(cardIDs) < game.MinLineupCards || len(cardIDs) > t.Format.Slots {
+		return fmt.Errorf("%w: %d, want %d-%d", game.ErrLineupSize, len(cardIDs), game.MinLineupCards, t.Format.Slots)
+	}
+	return nil
+}
+
 // checkLineup checks the cards for the player's lineup in t: theirs, not in a trade
 // offer or another tournament, not in the series' previous tournament, and allowed by
 // the format. It returns the cards in the lineup's order.
 func (s *Service) checkLineup(ctx context.Context, q *store.Queries, t Tournament, user uuid.UUID, cardIDs []uuid.UUID) ([]game.LineupCard, error) {
 	// The format's own rules first (size, duplicates), so a bad list gets the clearer error.
-	if len(cardIDs) < game.MinLineupCards || len(cardIDs) > t.Format.Slots {
-		return nil, fmt.Errorf("%w: %d, want %d-%d", game.ErrLineupSize, len(cardIDs), game.MinLineupCards, t.Format.Slots)
+	if err := checkLineupSize(t, cardIDs); err != nil {
+		return nil, err
 	}
 	rows, err := q.ListLineupCards(ctx, cardIDs)
 	if err != nil {
