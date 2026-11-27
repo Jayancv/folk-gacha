@@ -88,6 +88,36 @@ func TestEventsReachEverySocketOfThePlayer(t *testing.T) {
 	waitConnected(t, h, asha, 1)
 }
 
+// cmd/server sets ReadTimeout and WriteTimeout on the http.Server. They must not cut
+// sockets: net/http clears a connection's deadlines when the socket hijacks it.
+func TestSocketOutlivesServerTimeouts(t *testing.T) {
+	h := NewHub(nil)
+	srv := httptest.NewUnstartedServer(h)
+	srv.Config.ReadTimeout = 50 * time.Millisecond
+	srv.Config.WriteTimeout = 50 * time.Millisecond
+	srv.Start()
+	t.Cleanup(srv.Close)
+	base := "ws" + strings.TrimPrefix(srv.URL, "http")
+	user := uuid.New()
+
+	tk, _ := h.Ticket(user)
+	c, _, err := dial(t, base, tk, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+	waitConnected(t, h, user, 1)
+
+	time.Sleep(300 * time.Millisecond) // well past both timeouts
+	if h.Connected(user) != 1 {
+		t.Fatal("the socket closed when the server's timeouts passed")
+	}
+	h.Send(user, Event{Type: "trade.received"})
+	if e := read(t, c); e.Type != "trade.received" {
+		t.Errorf("event %+v", e)
+	}
+}
+
 func TestTicketsAreSingleUseAndShortLived(t *testing.T) {
 	h := NewHub(nil)
 	now := time.Date(2026, 11, 4, 10, 0, 0, 0, time.UTC)

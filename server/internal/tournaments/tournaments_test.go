@@ -266,6 +266,33 @@ func TestEnterRefusesCardsItCantUse(t *testing.T) {
 	}
 }
 
+// The lineup's size is checked before any card is locked: a long list of another
+// player's cards (their ids are public on their profile) must be refused at once, not
+// row-lock those cards and hold up the merges and trades their owner is making.
+func TestEnterChecksTheSizeBeforeLockingCards(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	asha, ben := newUser(t, e.pool, "asha"), newUser(t, e.pool, "ben")
+	bens := append(three(t, e.pool, ben, 0), give(t, e.pool, ben, "hansa", 0, 1)) // 4 cards, 3 slots
+
+	// Ben's cards are locked right now, as by a merge of his that is running.
+	tx, err := e.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, "SELECT id FROM cards WHERE id = ANY($1) FOR UPDATE", bens); err != nil {
+		t.Fatal(err)
+	}
+
+	// Locking first would wait for Ben's transaction until this deadline.
+	wait, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if _, err := e.svc.Enter(wait, asha, today, bens); !errors.Is(err, game.ErrLineupSize) {
+		t.Fatalf("entering 4 of ben's cards: %v, want %v", err, game.ErrLineupSize)
+	}
+}
+
 func TestEnteredCardsCantBeMergedOrTraded(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()

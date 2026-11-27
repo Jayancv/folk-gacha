@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -71,6 +72,10 @@ func NewServer(db Pinger, svc Services, opts AuthOptions) *Server {
 func (s *Server) Handler(allowedOrigins []string) http.Handler {
 	h := Handler(NewStrictHandlerWithOptions(s, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			if tooLarge := (*http.MaxBytesError)(nil); errors.As(err, &tooLarge) {
+				writeError(w, http.StatusRequestEntityTooLarge, "too_large", "The request is too large.")
+				return
+			}
 			writeError(w, http.StatusBadRequest, "bad_request", err.Error())
 		},
 		// Log the detail, but never send internal errors to the client.
@@ -79,7 +84,9 @@ func (s *Server) Handler(allowedOrigins []string) http.Handler {
 			writeError(w, http.StatusInternalServerError, "internal", "Something went wrong.")
 		},
 	}))
-	api := withCORS(allowedOrigins, s.withSession(h))
+	// CORS outermost, so allowed origins can read refusals too; cross-site writes are
+	// refused before their body is read or their cookie looked up.
+	api := withCORS(allowedOrigins, withCrossOriginProtection(allowedOrigins, withBodyLimit(s.withSession(h))))
 	if s.live == nil {
 		return api
 	}

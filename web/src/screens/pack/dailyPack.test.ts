@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimErrorText, giftButtonText, giftTitle, nextPackButtonText, nextPackText, openPackText, packLimitText, packPanelTitle } from './dailyPack';
+import { claimErrorText, giftButtonText, giftTitle, nextPackButtonText, nextPackText, openPackText, packLimitText, packPanelTitle, tableActions } from './dailyPack';
 
 const reset = '2026-10-31T00:00:00Z';
 const before = (ms: number) => Date.parse(reset) - ms;
@@ -81,5 +81,33 @@ describe('trade gifts', () =>
         expect(giftButtonText(1)).toBe('Open your gift');
         expect(giftButtonText(3)).toBe('Open 3 gifts');
         expect(giftButtonText(8)).toBe('Open 5 gifts');
+    });
+});
+
+describe('tableActions', () =>
+{
+    it('offers nothing until the cards on the table are flipped', () =>
+    {
+        expect(tableActions(null, false, 1, 1)).toEqual({ pack: null, gift: false });
+        expect(tableActions('pack', false, 1, 1)).toEqual({ pack: null, gift: false });
+        expect(tableActions('gift', false, 1, 1)).toEqual({ pack: null, gift: false });
+    });
+
+    it('offers the gifts under a flipped pack, and more packs', () =>
+    {
+        expect(tableActions('pack', true, 0, 2)).toEqual({ pack: null, gift: true });
+        expect(tableActions('pack', true, 2, 1)).toEqual({ pack: 'Open next pack · 2 left', gift: true });
+        expect(tableActions('pack', true, 0, 0)).toEqual({ pack: null, gift: false });
+    });
+
+    it('still offers the daily pack under flipped gifts', () =>
+    {
+        expect(tableActions('gift', true, 1, 0)).toEqual({ pack: "Open today's pack", gift: false });
+        expect(tableActions('gift', true, 3, 0)).toEqual({ pack: 'Open a pack', gift: false });
+    });
+
+    it('offers the rest of the gifts when more than 5 were waiting', () =>
+    {
+        expect(tableActions('gift', true, 0, 3)).toEqual({ pack: null, gift: true });
     });
 });

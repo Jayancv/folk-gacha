@@ -108,6 +108,7 @@ export function usePackTable (active: boolean)
         setClaiming(false);
         if (outcome.ok)
         {
+            setGift(null); // opened from under flipped gifts: the pack takes the table
             setPack({ cards: outcome.cards, expiresAt: Date.parse(outcome.nextResetAt), revealed: [] });
             deal(outcome.cards);
             void qc.invalidateQueries({ queryKey: CARDS_KEY });
